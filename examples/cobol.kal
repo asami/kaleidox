@@ -1,0 +1,36 @@
+* IDENTIFICATION
+
+見出し部(IDENTIFICATION DIVISION)にはSmartDox形式で文書を記述します。
+
+* ENVIRONMENT
+
+環境部(ENVIRONMENT DIVISION)にはHOCCON形式で設定を記述します。
+
+abc.xyz=5
+db=mysql
+
+* DATA
+
+データ部(DATA DIVISION)にはSimpleModeler形式でモデルを記述します。
+
+** User
+
+#+caption: 性質一覧
+| 項目     | 値     |
+|----------+--------|
+| 基底     | Common |
+| テーブル | user   |
+
+#+caption: 特性一覧
+| 特性 | 名前 | 型     | 多重度 | ラベル  |
+|------+------+--------+--------+---------|
+| 属性 | id   | int    |      1 | User ID |
+| 属性 | name | string |      1 | 名前    |
+| 属性 | age  | int    |      ? | 年齢    |
+
+* PROCEDURE
+
+; 手続き部(PROCEDURE DIVISION)にはKaleidoxスクリプトを記述します。
+
+http://www.yahoo.co.jp
+length
