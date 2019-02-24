@@ -1,0 +1,11 @@
+* env
+
+http.base-url="http://localhost:9000/2.1/MyColorWeb"
+http.header="Authorization: Bearer snkvnVcBKNCPVzVovwaTtwzQRgjdqvGS"
+
+* main
+
+http-post "commerce_user_cart?with=id" :form '(
+  "product_id=system-system-1513216956590-apparelcloud.product-26a6fa29-2ee5-481d-b5eb-28a30960ed81"
+  ("unitCount" . 1)
+  "unitPrice=100")

@@ -4,22 +4,25 @@ import scala.language.higherKinds
 import scalaz.{Store => _, _}, Scalaz._
 import scalaz.concurrent.Task
 import org.goldenport.exception.RAISE
+import org.goldenport.log._
 import org.goldenport.record.unitofwork._, UnitOfWork._
 import org.goldenport.record.unitofwork.interpreter.UnitOfWorkInterpreter
 import org.goldenport.record.v2.unitofwork.UnitOfWorkHelper
-import org.goldenport.sexpr.SExpr
-import org.goldenport.sexpr.eval.EvalContext
+import org.goldenport.sexpr.{SExpr, SMetaCommand}
+import org.goldenport.sexpr.eval.{EvalContext, LispBinding}
 
 /*
  * @since   Aug. 11, 2018
- * @version Sep. 30, 2018
+ *  version Sep. 30, 2018
+ *  version Oct. 21, 2018
+ * @version Feb. 24, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Engine(
   context: ExecutionContext,
   universe: Universe,
   interpreter: UnitOfWorkInterpreter[Task]
-) extends UnitOfWorkHelper {
+) extends UnitOfWorkHelper with CommandPart {
   import UnitOfWorkReaderWriterState._
 
   // Reader : ExecutionContext
@@ -38,19 +41,38 @@ case class Engine(
     def bind[A, B](fa: UnitOfWorkFM[A])(f: A => UnitOfWorkFM[B]): UnitOfWorkFM[B] = fa.flatMap(f)
   }
 
+  def initialize(): Engine = {
+    LispBinding.initialize()
+    LogContext.setRootLevel(LogLevel.Info)
+    this
+  }
+
+  def setup(p: Model): Engine = {
+    val (written, result, state) = run(universe, p)
+    copy(universe = state)
+  }
+
   def apply(p: Model): RWSB = {
     // TODO environment and model.
-    p.getScript.map(apply).getOrElse(???)
+    p.getScript.map(apply).getOrElse(RAISE.noReachDefect)
   }
 
   def apply(p: Script): RWSB = {
+    val (written, result, state) = run(universe, p)
+    result.map(_.resolve)
+  }
+
+  def run(state: Universe, p: Model): RWSOutput = {
+    p.getScript.map(run(state, _)).getOrElse(RAISE.noReachDefect)
+  }
+
+  def run(state: Universe, p: Script): RWSOutput = {
     val r = for {
       _ <- urws[ExecutionContext, RWSWriter, Universe]
       r <- execute(p)
     } yield r
-    val rr: UnitOfWorkFM[RWSOutput] = r.run(context, universe)
-    val (written, result, state) = runTask(rr)(interpreter).run
-    result.map(_.resolve)
+    val rr: UnitOfWorkFM[RWSOutput] = r.run(context, state)
+    runTask(rr)(interpreter).run
   }
 
   private def execute(p: Script): ReaderWriterStateT[UnitOfWorkFM, ExecutionContext, RWSWriter, Universe, RWSB] = {
@@ -72,7 +94,10 @@ case class Engine(
 
   private def _eval(r: ExecutionContext, s: Universe, p: Expression): UnitOfWorkFM[RWSOutput] = {
     p match {
-      case LispExpression(sexpr) => _eval_lisp(r, s, sexpr)
+      case LispExpression(sexpr) => sexpr match {
+        case m: SMetaCommand => _execute_command(r, s, m)
+        case _ => _eval_lisp(r, s, sexpr)
+      }
       case _ => RAISE.noReachDefect
     }
   }
@@ -80,9 +105,18 @@ case class Engine(
   private def _eval_lisp(reader: ExecutionContext, state: Universe, a: SExpr): UnitOfWorkFM[RWSOutput] = {
     val evaluator = lisp.Evaluator(reader, state)
     val newstate = evaluator.eval(a) // TODO UnitOfWorkFM
-    println(s"Engine#_eval_lisp: $a => $newstate")
+    // println(s"Engine#_eval_lisp: $a => $newstate")
     val b = newstate.current.getValue.toVector
     uow_lift((Vector.empty, b, newstate))
+  }
+
+  private def _execute_command(ctx: ExecutionContext, u: Universe, p: SMetaCommand): UnitOfWorkFM[RWSOutput] =
+    execute_command(ctx, u, p)
+
+  private def _execute_command0(r: ExecutionContext, u: Universe, p: SMetaCommand): UnitOfWorkFM[RWSOutput] = {
+    // println(s"_execute_command: $p")
+    System.exit(0) // TODO
+    ???
   }
 }
 

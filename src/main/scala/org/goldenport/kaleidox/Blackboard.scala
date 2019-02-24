@@ -1,12 +1,13 @@
 package org.goldenport.kaleidox
 
 import scala.collection.immutable.Stack
-import org.goldenport.record.v3.Record
+import org.goldenport.record.v3.IRecord
 import org.goldenport.sexpr._
 
 /*
  * @since   Aug. 20, 2018
- * @version Sep. 30, 2018
+ *  version Sep. 30, 2018
+ * @version Oct. 21, 2018
  * @author  ASAMI, Tomoharu
  */
 case class Blackboard(
@@ -15,11 +16,11 @@ case class Blackboard(
 ) {
   def getValue: Option[Expression] = sink.getValue
   def getValueSExpr: Option[SExpr] = getValue.map(_.asSExpr)
-  def bindings: Record = sink.bindings
+  def bindings: IRecord = sink.bindings
 
   def show = s"Bloackboard(${getValue})"
 
-  def apply(p: SExpr, bindings: Record) = copy(
+  def apply(p: SExpr, bindings: IRecord) = copy(
     sink = sink(p, bindings)
   )
 
@@ -27,13 +28,15 @@ case class Blackboard(
     sink = sink(p)
   )
 
-  def apply(bindings: Record) = copy(
+  def apply(bindings: IRecord) = copy(
     sink = sink(bindings)
   )
 
   def apply() = copy(
     sink = sink()
   )
+
+  def getBinding(p: String): Option[SExpr] = source.getBinding(p)
 }
 
 object Blackboard {

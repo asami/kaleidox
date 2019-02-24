@@ -1,0 +1,5 @@
+<user>
+  <name>taro</name>
+  <city>yokohama</city>
+</user>
+path-get /user/city

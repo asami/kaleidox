@@ -1,11 +1,14 @@
 package org.goldenport.kaleidox
 
+import scalaz._, Scalaz._
 import org.goldenport.i18n.I18NElement
-import org.goldenport.parser.{LogicalBlocks, LogicalSection}
+import org.goldenport.parser._
+import org.goldenport.util.HoconUtils, HoconUtils.RichConfig
 
 /*
  * @since   Sep. 24, 2018
- * @version Sep. 29, 2018
+ *  version Oct. 27, 2018
+ * @version Feb. 16, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -13,7 +16,14 @@ case class Model(
 ) {
   def getScript: Option[Script] = divisions.collect {
     case m: Script => m
-  }.headOption
+  }.headOption // TODO
+
+  def getEnvironmentProperties: Option[RichConfig] = {
+    val a = divisions.collect {
+      case m: Model.EnvironmentDivision => m
+    }
+    a.headOption.map(x => a.tail./:(x.properties)((z, x) => z.withFallback(x.properties)))
+  }
 }
 
 object Model {
@@ -53,11 +63,26 @@ object Model {
     protected def to_Division(p: LogicalSection): Division = IdentificationDivision(p)
   }
 
-  case class EnvironmentDivision(section: LogicalSection) extends Division {
+  case class EnvironmentDivision(
+    text: LogicalSection,
+    properties: RichConfig
+  ) extends Division {
   }
   object EnvironmentDivision extends DivisionFactory {
     override val name_Candidates = Vector("env", "environment")
-    protected def to_Division(p: LogicalSection): Division = EnvironmentDivision(p)
+    protected def to_Division(p: LogicalSection): Division =
+      EnvironmentDivision.create(p)
+
+    def create(p: LogicalSection): EnvironmentDivision = {
+      val hocon = p.blocks.blocks.map(_to_hocon).concatenate
+      EnvironmentDivision(p, hocon)
+    }
+
+    private def _to_hocon(p: LogicalBlock): RichConfig = p match {
+      case m: LogicalSection => ???
+      case m: LogicalParagraph => m.lines.lines.map(x => HoconUtils.parse(x.text)).concatenate
+      case _ => ???
+    }
   }
 
   case class DataDivision(section: LogicalSection) extends Division {
@@ -79,9 +104,13 @@ object Model {
   def parse(p: String): Model = parse(Config.default, p)
 
   def parse(config: Config, p: String): Model = {
-    // println(s"parse: $p")
-    val blocks = LogicalBlocks.parse(p)
-    // println(s"blocks: $blocks")
+    // println(s"Model#parse: $p")
+    val bconfig = if (config.isLocation)
+      LogicalBlocks.Config.default.forLisp
+    else
+      LogicalBlocks.Config.noLocation.forLisp
+    val blocks = LogicalBlocks.parse(bconfig, p)
+    // println(s"Model#parse $p => $blocks")
     val divs = blocks.blocks collect {
       case m: LogicalSection => Model.Division.take(m)
     }
@@ -90,4 +119,6 @@ object Model {
     else
       Model(divs)
   }
+
+  def parseWitoutLocation(p: String): Model = parse(Config.noLocation, p)
 }

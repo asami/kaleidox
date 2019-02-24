@@ -1,18 +1,21 @@
 package org.goldenport.kaleidox.lisp
 
+import org.goldenport.log.Loggable
 import org.goldenport.sexpr._
 import org.goldenport.sexpr.eval.LispBinding
 import org.goldenport.kaleidox._
 
 /*
  * @since   Aug. 19, 2018
- * @version Sep. 30, 2018
+ *  version Sep. 30, 2018
+ *  version Oct. 21, 2018
+ * @version Feb. 24, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
   context: ExecutionContext,
   universe: Universe
-) {
+) extends Loggable {
   import Evaluator._
   private val _binding = Evaluator.Binding()
   private val _evaluator = new org.goldenport.sexpr.eval.LispEvaluator[Context] {
@@ -25,13 +28,15 @@ case class Evaluator(
       Some(x),
       None
     )
+
+    override protected def eval_Atom(p: SAtom): Option[SExpr] = universe.getBinding(p.name)
   }
 
   def eval(p: SExpr): Universe = {
     val s = _normalize(p)
     val c = _evaluator.applyLazy(s)
     val r = c.push.universe
-    println(s"eval: ${p.show} => ${c.universe.show} => ${r.show}")
+    log_trace(s"EVAL: ${p.show} => ${c.universe.show} => ${r.show}")
     r
   }
 
