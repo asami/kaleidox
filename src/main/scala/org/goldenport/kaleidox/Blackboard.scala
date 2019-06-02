@@ -7,7 +7,8 @@ import org.goldenport.sexpr._
 /*
  * @since   Aug. 20, 2018
  *  version Sep. 30, 2018
- * @version Oct. 21, 2018
+ *  version Oct. 21, 2018
+ * @version Mar.  2, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Blackboard(
@@ -20,16 +21,16 @@ case class Blackboard(
 
   def show = s"Bloackboard(${getValue})"
 
-  def apply(p: SExpr, bindings: IRecord) = copy(
-    sink = sink(p, bindings)
+  def apply(p: SExpr, updates: IRecord) = copy(
+    sink = sink(p, bindings.update(updates))
   )
 
   def apply(p: SExpr) = copy(
     sink = sink(p)
   )
 
-  def apply(bindings: IRecord) = copy(
-    sink = sink(bindings)
+  def apply(updates: IRecord) = copy(
+    sink = sink(bindings.update(updates))
   )
 
   def apply() = copy(

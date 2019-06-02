@@ -8,7 +8,10 @@ import org.goldenport.sexpr._
 /*
  * @since   Sep.  9, 2018
  *  version Sep. 30, 2018
- * @version Oct. 21, 2018
+ *  version Oct. 21, 2018
+ *  version Mar.  9, 2019
+ *  version Apr. 13, 2019
+ * @version May. 22, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Universe(
@@ -16,13 +19,14 @@ case class Universe(
   setup: Space,
   parameters: Space,
   history: Vector[Blackboard],
-  stack: Stack[Blackboard]
+  stack: Stack[Blackboard],
+  muteValue: Option[SExpr] // for mute
 ) {
-  def init = history.head
-  def current = stack.head
-  def getValue = current.getValue
-  def getValueSExpr = current.getValueSExpr
-  def bindings = current.bindings
+  def init = history.headOption getOrElse Blackboard.empty
+  def current = stack.headOption getOrElse Blackboard.empty
+  def getValue: Option[Expression] = muteValue.map(LispExpression) orElse current.getValue
+  def getValueSExpr: Option[SExpr] = muteValue orElse current.getValueSExpr
+  lazy val bindings: IRecord = current.bindings update parameters.bindings update setup.bindings update config.bindings
   def getPipelineIn: Option[SExpr] = {
     // println(s"Universe: $stack")
     // println(s"Universe: ${stack.headOption}")
@@ -33,28 +37,67 @@ case class Universe(
 
   def show = s"Universe(${stack.map(_.show)})"
 
-  def pop = copy(stack = stack.pop)
+  def pop: Universe = pop(1) // this // pop(1) & push(1)
+  def pop(n: Int): Universe = {
+    @annotation.tailrec
+    def go(s: Stack[Blackboard], n: Int): (Blackboard, Stack[Blackboard]) = {
+      if (n <= 1)
+        stack.pop2
+      else
+        go(s.pop, n - 1)
+    }
+    val (x, s) = go(stack, n)
+    // val r = s.push(x)
+    copy(stack = s)
+  }
+  def peek: SExpr = stack.apply(0).getValueSExpr.getOrElse(SNil)
+  def peek(n: Int): SExpr = stack.apply(n - 1).getValueSExpr.getOrElse(SNil)
+  def takeHistory(n: Int): SExpr = history.apply(n - 1).getValueSExpr.getOrElse(SNil)
 
   // push and append
-  def apply(p: SExpr, bindings: IRecord) = {
+  def apply(p: SExpr, bindings: IRecord): Universe = {
     val newbb = current(p, bindings)
-    copy(history = history :+ newbb, stack = stack.push(newbb))
+    copy(history = history :+ newbb, stack = stack.push(newbb), muteValue = None)
   }
 
-  def apply(p: SExpr) = {
+  def apply(p: SExpr): Universe = {
     val newbb = current(p)
-    copy(history = history :+ newbb, stack = stack.push(newbb))
+    copy(history = history :+ newbb, stack = stack.push(newbb), muteValue = None)
   }
 
-  def apply(bindings: IRecord) = {
+  def apply(bindings: IRecord): Universe = {
     val newbb = current(bindings)
-    copy(history = history :+ newbb, stack = stack.push(newbb))
+    copy(history = history :+ newbb, stack = stack.push(newbb), muteValue = None)
   }
 
-  def apply() = {
+  def apply(params: List[String], args: List[SExpr]): Universe = {
+    val z: List[(String, SExpr)] = params.zip(args)
+    val a = Record.create(z)
+    apply(a)
+  }
+
+  def apply(): Universe = {
     val newbb = current()
     copy(history = history :+ newbb, stack = stack.push(newbb))
   }
+
+  def withMuteValue(p: SExpr): Universe = copy(muteValue = Some(p))
+
+  def makeStackParameters(n: Int): \/[SError, (Universe, List[SExpr])] =
+    if (n <= 0) {
+      \/-(this, Nil)
+    } else if (stack.length < n) {
+      -\/(SError.stackUnderflow)
+    } else {
+      def go(i: Int, s: Stack[Blackboard], r: Vector[SExpr]): (Universe, List[SExpr]) =
+        if (i <= 0) {
+          (copy(stack = s), r.toList)
+        } else {
+          val (x, s1) = s.pop2
+          go(i - 1, s1, r :+ x.getValueSExpr.getOrElse(SNil))
+        }
+      \/-(go(n, stack, Vector.empty))
+    }
 
   def getBinding(p: String): Option[SExpr] = {
     current.getBinding(p) orElse
@@ -70,9 +113,10 @@ object Universe {
     Space.empty,
     Space.empty,
     Vector(Blackboard.empty),
-    Stack(Blackboard.empty)
+    Stack(Blackboard.empty),
+    None
   )
 
   def apply(config: Space, setup: Space, parameters: Space, init: Blackboard): Universe =
-    Universe(config, setup, parameters, Vector(init), Stack(init))
+    Universe(config, setup, parameters, Vector(init), Stack(init), None)
 }

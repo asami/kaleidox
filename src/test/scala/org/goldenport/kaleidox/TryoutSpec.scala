@@ -11,7 +11,7 @@ import org.goldenport.kaleidox.interpreter.Interpreter
 
 /*
  * @since   Jan.  2, 2019
- * @version Feb.  8, 2019
+ * @version Feb. 25, 2019
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -20,7 +20,7 @@ class TryoutSpec extends WordSpec with Matchers with GivenWhenThen {
     "http://www.yahoo.com" -> "OK"
   )
   val config = {
-    val a = Config.log.debug // trace // warn // debug
+    val a = Config.log.trace // trace // warn // debug
     a.withServiceLogic(mocklogic)
   }
   val context = ExecutionContext(config)
@@ -33,6 +33,14 @@ class TryoutSpec extends WordSpec with Matchers with GivenWhenThen {
       case LispExpression(sexpr) => sexpr
       case m => RAISE.noReachDefect
     }
+  "token" should {
+    "url" in {
+      val s = "http://www.yahoo.com"
+      val script = Script.parse(s)
+      val r = engine.apply(script)
+      result(r) should be(SHtml("OK"))
+    }
+  }
 //   "forth" should {
 //     "fetch and go" in {
 //       val s = """http://www.yahoo.com

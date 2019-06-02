@@ -8,12 +8,18 @@ import org.goldenport.sexpr.SExpr
  *  version Sep. 29, 2018
  *  version Oct. 27, 2018
  *  version Jan.  1, 2019
- * @version Feb. 16, 2019
+ *  version Feb. 16, 2019
+ * @version May. 17, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Script(
   expressions: Vector[Expression]
 ) extends Model.Division {
+  import Model._
+
+  def mergeOption(p: Division): Option[Division] = Option(p) collect {
+    case m: Script => Script(expressions ++ m.expressions)
+  }
 }
 
 object Script extends Model.DivisionFactory {
@@ -45,10 +51,9 @@ object Script extends Model.DivisionFactory {
     p.blocks.blocks./:(Z())(_+_).r
   }
 
-  def apply(p: SExpr, ps: SExpr*): Script = {
-    val a = p +: ps.toVector
-    Script(a.map(LispExpression))
-  }
+  def apply(p: SExpr, ps: SExpr*): Script = apply(p +: ps.toVector)
+
+  def apply(ps: Seq[SExpr]): Script = Script(ps.map(LispExpression).toVector)
 
   def parse(p: String): Script = {
     // println(s"kaleidox.Script#parse: $p")

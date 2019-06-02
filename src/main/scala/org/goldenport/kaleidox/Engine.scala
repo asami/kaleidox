@@ -8,18 +8,20 @@ import org.goldenport.log._
 import org.goldenport.record.unitofwork._, UnitOfWork._
 import org.goldenport.record.unitofwork.interpreter.UnitOfWorkInterpreter
 import org.goldenport.record.v2.unitofwork.UnitOfWorkHelper
-import org.goldenport.sexpr.{SExpr, SMetaCommand}
+import org.goldenport.sexpr._
 import org.goldenport.sexpr.eval.{EvalContext, LispBinding}
 
 /*
  * @since   Aug. 11, 2018
  *  version Sep. 30, 2018
  *  version Oct. 21, 2018
- * @version Feb. 24, 2019
+ *  version Feb. 25, 2019
+ *  version Mar.  8, 2019
+ * @version May. 21, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Engine(
-  context: ExecutionContext,
+  private val _context: ExecutionContext,
   universe: Universe,
   interpreter: UnitOfWorkInterpreter[Task]
 ) extends UnitOfWorkHelper with CommandPart {
@@ -34,6 +36,8 @@ case class Engine(
   type RWSA = Expression
   type RWSB = Vector[Expression]
   type RWSOutput = (RWSWriter, RWSB, Universe)
+
+  lazy val context = _context.withEngine(this)
 
   implicit val uowMonad = new Monad[UnitOfWorkFM] {
     def point[A](a: => A): UnitOfWorkFM[A] = UnitOfWork.lift(a)
@@ -63,7 +67,7 @@ case class Engine(
   }
 
   def run(state: Universe, p: Model): RWSOutput = {
-    p.getScript.map(run(state, _)).getOrElse(RAISE.noReachDefect)
+    p.getScript.map(run(state, _)).getOrElse((Vector.empty, Vector.empty, state))
   }
 
   def run(state: Universe, p: Script): RWSOutput = {
@@ -102,22 +106,26 @@ case class Engine(
     }
   }
 
-  private def _eval_lisp(reader: ExecutionContext, state: Universe, a: SExpr): UnitOfWorkFM[RWSOutput] = {
+  private def _eval_lisp(reader: ExecutionContext, state: Universe, p: SExpr): UnitOfWorkFM[RWSOutput] = {
     val evaluator = lisp.Evaluator(reader, state)
-    val newstate = evaluator.eval(a) // TODO UnitOfWorkFM
-    // println(s"Engine#_eval_lisp: $a => $newstate")
-    val b = newstate.current.getValue.toVector
+    // val sexpr = evaluator.normalize(_normalize(p))
+    val sexpr = _normalize(p)
+    // println(s"Engine#_eval_lisp: $p => $sexpr")
+    val newstate = if (true)
+      evaluator.eval(sexpr) // TODO UnitOfWorkFM
+    else
+      evaluator.evalLazy(sexpr) // TODO UnitOfWorkFM
+    // println(s"Engine#_eval_lisp: $p => $newstate")
+    val b = newstate.getValue.toVector
     uow_lift((Vector.empty, b, newstate))
   }
 
+  private def _normalize(p: SExpr): SExpr = context.promotion(p).
+    map(x => SList(SAtom(x), p)).
+    getOrElse(p)
+
   private def _execute_command(ctx: ExecutionContext, u: Universe, p: SMetaCommand): UnitOfWorkFM[RWSOutput] =
     execute_command(ctx, u, p)
-
-  private def _execute_command0(r: ExecutionContext, u: Universe, p: SMetaCommand): UnitOfWorkFM[RWSOutput] = {
-    // println(s"_execute_command: $p")
-    System.exit(0) // TODO
-    ???
-  }
 }
 
 object Engine {

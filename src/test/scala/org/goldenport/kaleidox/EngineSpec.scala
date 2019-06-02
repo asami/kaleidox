@@ -16,7 +16,7 @@ import org.goldenport.kaleidox.interpreter.Interpreter
  *  version Oct. 25, 2018
  *  version Dec. 31, 2018
  *  version Jan.  1, 2019
- * @version Feb.  9, 2019
+ * @version Feb. 25, 2019
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -50,7 +50,7 @@ class EngineSpec extends WordSpec with Matchers with GivenWhenThen {
       val s = "'(+ 1 2 3)"
       val script = Script.parse(s)
       val r = engine.apply(script)
-      result(r) should be(SList(SAtom.quote, SList(SAtom("+"), SNumber(1), SNumber(2), SNumber(3))))
+      result(r) should be(SList(SAtom("+"), SNumber(1), SNumber(2), SNumber(3)))
     }
   }
   "token" should {
@@ -111,37 +111,37 @@ length
   }
   "xpath" should {
     "not found" in {
-      val s = """pathget /html/div[id='city'] <html><div id="user">taro</div><div id="city">yokohama</div></html>"""
+      val s = """path-get /html/div[id='city'] <html><div id="user">taro</div><div id="city">yokohama</div></html>"""
       val script = Script.parse(s)
       val r = engine.apply(script)
       result(r) shouldBe a [SError]
     }
     "xml" in {
-      val s = "pathget /user/city <user><name>taro</name><city>yokohama</city></user>"
+      val s = "path-get /user/city <user><name>taro</name><city>yokohama</city></user>"
       val script = Script.parse(s)
       val r = engine.apply(script)
       result(r) should be(SString("yokohama"))
     }
     "html" in {
-      val s = """pathget /html/div[@id='city'] <html><div id="user">taro</div><div id="city">yokohama</div></html>"""
+      val s = """path-get /html/div[@id='city'] <html><div id="user">taro</div><div id="city">yokohama</div></html>"""
       val script = Script.parse(s)
       val r = engine.apply(script)
       result(r) should be(SString("yokohama"))
     }
     "json" in {
-      val s = """pathget /user/city {"user": {"name":"taro", "city":"yokohama"}}"""
+      val s = """path-get /user/city {"user": {"name":"taro", "city":"yokohama"}}"""
       val script = Script.parse(s)
       val r = engine.apply(script)
       result(r) should be(SString("yokohama"))
     }
     "record" in {
-      val s = """pathget xpath"@city" record"name:taro\tcity:yokohama""""
+      val s = """path-get xpath"@city" record"name:taro\tcity:yokohama""""
       val script = Script.parse(s)
       val r = engine.apply(script)
       result(r) should be(SString("yokohama"))
     }
     "record with raw xpath" in {
-      val s = """pathget @city record"name:taro\tcity:yokohama""""
+      val s = """path-get @city record"name:taro\tcity:yokohama""""
       val script = Script.parse(s)
       val r = engine.apply(script)
       result(r) should be(SString("yokohama"))

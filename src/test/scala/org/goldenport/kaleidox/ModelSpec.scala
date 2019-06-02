@@ -10,11 +10,16 @@ import org.goldenport.kaleidox.Model._
 /*
  * @since   Sep. 24, 2018
  *  version Oct. 25, 2018
- * @version Feb.  6, 2019
+ *  version Feb.  6, 2019
+ * @version Apr.  6, 2019
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
 class ModelSpec extends WordSpec with Matchers with GivenWhenThen {
+  val config = {
+    Config.log.debug // trace // warn // debug
+  }
+
   def section(title: String, content: String): LogicalSection = 
     LogicalSection.create(title, content)
 
@@ -45,7 +50,7 @@ data division
 
 [1 + 2 + 3]
 """
-      val model = Model.parseWitoutLocation(s)
+      val model = Model.parseWitoutLocation(config, s)
       model should be(Model(
         IdentificationDivision(section("Identification", "id division")),
         EnvironmentDivision.create(section("Environment", """a.b.c="abc"""")),

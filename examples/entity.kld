@@ -1,0 +1,33 @@
+* memo
+
+$ kaleidox -i entity.kld
+
+* env
+
+db.default.driver="org.h2.Driver"
+db.default.url="jdbc:h2:memo:"
+
+* entity
+
+** myentity
+
+#+caption: 性質一覧
+| 項目     | 値              |
+|----------+-----------------|
+| テーブル | mytable	 |
+
+#+caption: 特性一覧
+| 特性 | 名前 | 型    | 多重度 | ラベル | カラム | データ型 | 備考 |
+|------+------+-------+--------+--------+--------+----------+------|
+| Id   | id   | long  |      1 |        |        |          |      |
+| 属性 | name | token |      1 |        |        |          |      |
+
+* fixture
+
+** myentity
+
+1,one
+2,two
+3,three
+
+* main

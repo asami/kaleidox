@@ -5,7 +5,9 @@ import org.goldenport.sexpr.SExpr
 /*
  * @since   Aug. 11, 2018
  *  version Sep. 29, 2018
- * @version Feb. 24, 2019
+ *  version Feb. 24, 2019
+ *  version Mar.  5, 2019
+ * @version Apr. 19, 2019
  * @author  ASAMI, Tomoharu
  */
 sealed trait Expression {
@@ -13,7 +15,8 @@ sealed trait Expression {
   def resolve: Expression
   def print: String
   def show: String
-  def detail: String
+  def detail: Vector[String]
+  def full: Vector[String]
 }
 
 case class LispExpression(sexpr: SExpr) extends Expression {
@@ -22,5 +25,6 @@ case class LispExpression(sexpr: SExpr) extends Expression {
   def resolve = LispExpression(sexpr.resolve)
   def print = sexpr.print
   def show = sexpr.show
-  def detail = sexpr.detail
+  def detail = sexpr.description.detail
+  def full = sexpr.fullDescription.detail
 }
