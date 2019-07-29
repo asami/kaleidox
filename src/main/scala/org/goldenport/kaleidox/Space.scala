@@ -1,8 +1,10 @@
 package org.goldenport.kaleidox
 
+import org.goldenport.RAISE
 import org.goldenport.record.v3._
 import org.goldenport.record.util.AnyUtils
 import org.goldenport.hocon.RichConfig
+import org.goldenport.incident.Incident
 import org.goldenport.sexpr.SExpr
 
 /*
@@ -10,23 +12,40 @@ import org.goldenport.sexpr.SExpr
  *  version Sep. 30, 2018
  *  version Oct. 21, 2018
  *  version Mar. 24, 2019
- * @version Apr. 18, 2019
+ *  version Apr. 18, 2019
+ * @version Jun.  9, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Space(
   getValue: Option[Expression],
-  bindings: IRecord
+  getStimulus: Option[Expression],
+  getIncident: Option[Incident],
+  bindings: IRecord // inherit
 ) {
-  def apply(v: SExpr, b: IRecord): Space = apply(LispExpression(v), b)
+  def next(v: SExpr, b: IRecord, s: SExpr, i: Option[Incident]): Space = next(LispExpression(v), b, LispExpression(s), i)
 
-  def apply(v: SExpr): Space = apply(LispExpression(v), bindings)
+  def next(v: SExpr, s: SExpr, i: Option[Incident]): Space = next(LispExpression(v), bindings, LispExpression(s), i)
 
-  def apply(b: IRecord): Space = copy(bindings = bindings.update(bindings))
+  def next(b: IRecord, s: SExpr): Space = Space(
+    None,
+    Some(LispExpression(s)),
+    None,
+    bindings.update(bindings)
+  )
 
-  def apply(): Space = copy()
+  def next(b: IRecord): Space = Space(
+    None,
+    None,
+    None,
+    bindings.update(bindings)
+  )
 
-  def apply(p: Expression, bindings: IRecord): Space = Space(
+  def next(): Space = copy(None, None, None)
+
+  def next(p: Expression, bindings: IRecord, s: Expression, i: Option[Incident]): Space = Space(
     Some(p),
+    Some(s),
+    i,
     bindings.update(bindings)
   )
 
@@ -38,11 +57,11 @@ case class Space(
 }
 
 object Space {
-  val empty = Space(None, Record.empty)
+  val empty = Space(None, None, None, Record.empty)
 
-  def create(p: RichConfig): Space = Space(None, HoconRecord(p))
-  def create(ps: Seq[RichConfig]): Space = ???
-  def create(p: IRecord): Space = Space(None, p)
+  def create(p: RichConfig): Space = Space(None, None, None, HoconRecord(p))
+  def create(ps: Seq[RichConfig]): Space = RAISE.notImplementedYetDefect
+  def create(p: IRecord): Space = Space(None, None, None, p)
 
   def show(p: IRecord): List[String] = p.fields.sortBy(_.key.name).map(x => s"${x.key.name}: ${_print(x.value)}").toList
 

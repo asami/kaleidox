@@ -18,13 +18,24 @@ import org.goldenport.kaleidox.model._
  *  version Feb. 16, 2019
  *  version Mar. 24, 2019
  *  version Apr. 18, 2019
- * @version May. 19, 2019
+ *  version May. 19, 2019
+ * @version Jul. 15, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Model(
   divisions: Vector[Model.Division]
 ) {
   import Model._
+
+  def getPrologue: Option[Script] = divisions.flatMap {
+    case m: PrologueDivision => m.getScript
+    case _ => None
+  }.headOption // TODO
+
+  def getEpilogue: Option[Script] = divisions.flatMap {
+    case m: EpilogueDivision => m.getScript
+    case _ => None
+  }.headOption // TODO
 
   def getScript: Option[Script] = divisions.collect {
     case m: Script => m
@@ -37,9 +48,17 @@ case class Model(
     a.headOption.map(x => a.tail./:(x.properties)((z, x) => z.withFallback(x.properties))) // TODO concat
   }
 
-  def getVoucherModel: Option[VoucherModel] = {
+  lazy val getVoucherModel: Option[VoucherModel] = {
     val a = divisions.collect {
       case m: VoucherDivision => m.makeModel
+    }
+    a.headOption // TODO concat
+  }
+
+  def getDataSet: Option[DataSet] = getVoucherModel.flatMap { model =>
+    val ctx = DataSet.Builder.Context(model)
+    val a = divisions.collect {
+      case m: DataDivision => m.dataset(ctx)
     }
     a.headOption // TODO concat
   }
@@ -92,7 +111,10 @@ object Model {
       Script,
       DocumentDivision, // unused
       VoucherDivision,
-      EntityDivision
+      EntityDivision,
+      PrologueDivision,
+      EpilogueDivision,
+      TestDivision
     )
 
     def take(p: LogicalSection): Division = elements.toStream.flatMap(_.accept(p)).headOption.getOrElse(DocumentDivision(p))
@@ -148,10 +170,14 @@ object Model {
     }
   }
 
-  case class DataDivision(section: LogicalSection) extends Division {
+  case class DataDivision(
+    section: LogicalSection
+  ) extends Division {
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: DataDivision => copy(section + m.section)
     }
+
+    def dataset(ctx: DataSet.Builder.Context): DataSet = DataSet.create(ctx, section)
   }
   object DataDivision extends DivisionFactory {
     override val name_Candidates = Vector("data", "domain")
@@ -214,6 +240,40 @@ object Model {
   object EntityDivision extends DivisionFactory {
     override val name_Candidates = Vector("entity")
     protected def to_Division(p: LogicalSection): Division = EntityDivision(p)
+  }
+
+  case class PrologueDivision(section: LogicalSection) extends Division {
+    def getScript: Option[Script] = Script.parseOption(section)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: PrologueDivision => copy(section + m.section)
+    }
+  }
+  object PrologueDivision extends DivisionFactory {
+    override val name_Candidates = Vector("prologue")
+    protected def to_Division(p: LogicalSection): Division = PrologueDivision(p)
+  }
+
+  case class EpilogueDivision(section: LogicalSection) extends Division {
+    def getScript: Option[Script] = Script.parseOption(section)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: EpilogueDivision => copy(section + m.section)
+    }
+  }
+  object EpilogueDivision extends DivisionFactory {
+    override val name_Candidates = Vector("epilogue")
+    protected def to_Division(p: LogicalSection): Division = EpilogueDivision(p)
+  }
+
+  case class TestDivision(section: LogicalSection) extends Division {
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: TestDivision => copy(section + m.section)
+    }
+  }
+  object TestDivision extends DivisionFactory {
+    override val name_Candidates = Vector("test")
+    protected def to_Division(p: LogicalSection): Division = TestDivision(p)
   }
 
   def apply(p: Division, ps: Division*): Model = Model(p +: ps.toVector)

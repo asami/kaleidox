@@ -18,7 +18,9 @@ import org.goldenport.util.StringUtils
  *  version Feb. 28, 2019
  *  version Mar. 24, 2019
  *  version Apr. 18, 2019
- * @version May. 20, 2019
+ *  version May. 20, 2019
+ *  version Jun. 23, 2019
+ * @version Jul. 29, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -41,16 +43,14 @@ case class Kaleidox(
     val state = Kaleidox.KaleidoxState(engine, engine.universe)
     val repl = new ReadEvalPrintLoop(environment, state, LogicalLines.Config.lisp)
     repl.execute()
+    engine.epilogue()
   }
 
   def execute(call: OperationCall) {
     val engine = _build_world(call)
-    // model.map { x =>
-    //   val rs = engine.apply(x)
-    //   // println(s"Kaleidox: $model")
-    //   rs.foreach(r => println(r.print))
-    // }
-    engine.universe.getValue.map(r => println(r.print))
+    val u = engine.universe
+    engine.epilogue()
+    u.getValue.map(r => println(r.print))
   }
 
   private def _build_world(call: OperationCall): Engine = {
@@ -70,7 +70,8 @@ case class Kaleidox(
     val interpreter = Interpreter.create(context)
     val engine0 = Engine(context, universe, interpreter)
     engine0.initialize()
-    engine0.setup(model)
+    val engine1 = engine0.setup(model)
+    engine1.execute()
   }
 
   private def _build_universe(call: OperationCall): (Universe, Model) = {
@@ -124,8 +125,8 @@ case class Kaleidox(
     val space1 = model.getVoucherModel.
       map(_.setup(space0)).
       getOrElse(space0)
-    // println(s"XXX: $space1")
-    val space = space1
+    val space2 = model.getDataSet.map(_.setup(space1)).getOrElse(space1)
+    val space = space2
     space
   }
 
@@ -157,12 +158,14 @@ object Kaleidox {
           val s = l.text
           val model = Model.parse(engine.context.config, s)
           val (_, r, newuniverse) = engine.run(universe, model)
-          val o = r.map(x => s"${x.print}\n").mkString
-          val output = StringUtils.showConsole(o, engine.context.newline, 100)
+          val o = r.map(x => s"${_output(x)}\n").mkString
+          val output = StringUtils.printConsole(o, engine.context.newline, 20)
           val newstate = copy(universe = newuniverse)
           (newstate, s"$output\n$prompt")
       }
     }
+
+    private def _output(p: Expression): String = p.display // TODO customizable
   }
 
   def main(args: Array[String]) = {

@@ -14,7 +14,9 @@ import org.goldenport.sexpr.eval.FeatureContext
  *  version Oct. 10, 2018
  *  version Feb. 25, 2019
  *  version Mar. 24, 2019
- * @version May. 16, 2019
+ *  version May. 16, 2019
+ *  version Jun. 24, 2019
+ * @version Jul. 25, 2019
  * @author  ASAMI, Tomoharu
  */
 case class ExecutionContext(
@@ -36,9 +38,12 @@ case class ExecutionContext(
   def promotion(p: SExpr): Option[String] =
     if (_is_eager_evaluation) {
       Option(p) collect {
-        case m: SUrl => "fetch"
+        case m: SUrl => m.getSuffix.map {
+          case "xsl" => "xslt"
+          case _ => "fetch"
+        }.getOrElse("fetch")
         case m: SXPath => "path-get"
-        case m: SXslt => "transform"
+        case m: SXsl => "xslt"
       }
     } else {
       None

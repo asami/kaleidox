@@ -9,13 +9,16 @@ import org.goldenport.sexpr.SExpr
  *  version Oct. 27, 2018
  *  version Jan.  1, 2019
  *  version Feb. 16, 2019
- * @version May. 17, 2019
+ *  version May. 17, 2019
+ * @version Jul. 15, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Script(
   expressions: Vector[Expression]
 ) extends Model.Division {
   import Model._
+
+  def isEmpty = expressions.isEmpty
 
   def mergeOption(p: Division): Option[Division] = Option(p) collect {
     case m: Script => Script(expressions ++ m.expressions)
@@ -65,5 +68,13 @@ object Script extends Model.DivisionFactory {
     // println(s"kaleidox.Script#parse: $p")
     val sexprs = org.goldenport.sexpr.script.Script.parse(p)
     Script(sexprs.expressions.map(LispExpression))
+  }
+
+  def parseOption(p: LogicalSection): Option[Script] = {
+    val r = parse(p.blocks)
+    if (r.isEmpty)
+      None
+    else
+      Some(r)
   }
 }

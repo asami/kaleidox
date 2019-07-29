@@ -10,7 +10,9 @@ import org.goldenport.sexpr.{SExpr, SMetaCommand, SString, SNil, SConsoleOutput}
  * @since   Feb. 17, 2019
  *  version Feb. 24, 2019
  *  version Mar. 10, 2019
- * @version Apr. 21, 2019
+ *  version Apr. 21, 2019
+ *  version Jun. 23, 2019
+ * @version Jul. 24, 2019
  * @author  ASAMI, Tomoharu
  */
 trait CommandPart { self: Engine =>
@@ -81,10 +83,13 @@ object CommandPart {
     def operations = Operations(
       ShowClass,
       ShowPrintClass,
-      ShowDetailClass,
+      ShowDisplayClass,
+      ShowDescriptionClass,
       ShowFullClass,
+      ShowMarshallClass,
       ShowViewClass,
-      ShowSaveClass // TODO
+      ShowLiteralClass,
+      ShowMuarshallClass // TODO
     )
 
     // def specification: spec.Service = spec.Service(
@@ -93,7 +98,7 @@ object CommandPart {
     //   List(
     //     Show.specification,
     //     ShowShow.specification,
-    //     ShowDetail.specification,
+    //     ShowDescription.specification,
     //     ShowView.specification
     //   )
     // )
@@ -103,7 +108,7 @@ object CommandPart {
     // }
 
     case object ShowClass extends OperationClass {
-      val specification = spec.Operation.default("print")
+      val specification = spec.Operation.default("show")
 
       def operation(req: Request): Operation = Show
     }
@@ -140,21 +145,38 @@ object CommandPart {
       }
     }
 
-    case object ShowDetailClass extends OperationClass {
-      val specification = spec.Operation.default("detail")
+    case object ShowDisplayClass extends OperationClass {
+      val specification = spec.Operation.default("display")
 
-      def operation(req: Request): Operation = ShowDetail
+      def operation(req: Request): Operation = ShowDisplay
     }
 
-    case object ShowDetail extends Operation {
+    case object ShowDisplay extends Operation {
       def apply(env: Environment, req: Request): Response =
-        ShowDetailMethod(OperationCall(env, ShowDetailClass.specification, req, Response())).run
+        ShowDisplayMethod(OperationCall(env, ShowDisplayClass.specification, req, Response())).run
     }
 
-    case class ShowDetailMethod(call: OperationCall) extends KaleidoxMethod {
+    case class ShowDisplayMethod(call: OperationCall) extends KaleidoxMethod {
       def execute = {
-        // println("ShowDetailMethod")
-        val a = universe.current.getValue.map(_.detail).getOrElse(Nil)
+        val s = universe.current.getValue.map(_.display).getOrElse("#Empty")
+        to_response(s)
+      }
+    }
+
+    case object ShowDescriptionClass extends OperationClass {
+      val specification = spec.Operation.default("description")
+
+      def operation(req: Request): Operation = ShowDescription
+    }
+
+    case object ShowDescription extends Operation {
+      def apply(env: Environment, req: Request): Response =
+        ShowDescriptionMethod(OperationCall(env, ShowDescriptionClass.specification, req, Response())).run
+    }
+
+    case class ShowDescriptionMethod(call: OperationCall) extends KaleidoxMethod {
+      def execute = {
+        val a = universe.current.getValue.map(_.description).getOrElse(Nil)
         val s = build_lines_string(a)
         to_response(s)
       }
@@ -173,9 +195,44 @@ object CommandPart {
 
     case class ShowFullMethod(call: OperationCall) extends KaleidoxMethod {
       def execute = {
-        // println("ShowFullMethod")
         val a = universe.current.getValue.map(_.full).getOrElse(Nil)
         val s = build_lines_string(a)
+        to_response(s)
+      }
+    }
+
+    case object ShowLiteralClass extends OperationClass {
+      val specification = spec.Operation.default("literal")
+
+      def operation(req: Request): Operation = ShowLiteral
+    }
+
+    case object ShowLiteral extends Operation {
+      def apply(env: Environment, req: Request): Response =
+        ShowLiteralMethod(OperationCall(env, ShowLiteralClass.specification, req, Response())).run
+    }
+
+    case class ShowLiteralMethod(call: OperationCall) extends KaleidoxMethod {
+      def execute = {
+        val s = universe.current.getValue.map(_.literal).getOrElse("#Empty")
+        to_response(s)
+      }
+    }
+
+    case object ShowMarshallClass extends OperationClass {
+      val specification = spec.Operation.default("marshall")
+
+      def operation(req: Request): Operation = ShowMarshall
+    }
+
+    case object ShowMarshall extends Operation {
+      def apply(env: Environment, req: Request): Response =
+        ShowMarshallMethod(OperationCall(env, ShowMarshallClass.specification, req, Response())).run
+    }
+
+    case class ShowMarshallMethod(call: OperationCall) extends KaleidoxMethod {
+      def execute = {
+        val s = universe.current.getValue.map(_.marshall).getOrElse("")
         to_response(s)
       }
     }
@@ -201,22 +258,20 @@ object CommandPart {
       }
     }
 
-    case object ShowSaveClass extends OperationClass {
-      val specification = spec.Operation.default("save")
+    case object ShowMuarshallClass extends OperationClass {
+      val specification = spec.Operation.default("muarshall")
 
-      def operation(req: Request): Operation = ShowSave
+      def operation(req: Request): Operation = ShowMuarshall
     }
 
-    case object ShowSave extends Operation {
+    case object ShowMuarshall extends Operation {
       def apply(env: Environment, req: Request): Response =
-        ShowSaveMethod(OperationCall(env, ShowSaveClass.specification, req, Response())).run
+        ShowMuarshallMethod(OperationCall(env, ShowMuarshallClass.specification, req, Response())).run
     }
 
-    case class ShowSaveMethod(call: OperationCall) extends KaleidoxMethod {
+    case class ShowMuarshallMethod(call: OperationCall) extends KaleidoxMethod {
       def execute = {
-        // println("ShowSaveMethod")
-        val a = universe.current.getValue.map(_.full).getOrElse(Nil) // TODO
-        val s = build_lines_string(a)
+        val s = universe.current.getValue.map(_.marshall).getOrElse("")
         to_response(s)
       }
     }
@@ -345,7 +400,7 @@ object CommandPart {
   case class StackMethod(call: OperationCall) extends KaleidoxMethod {
     def execute = {
       val xs = universe.stack.map(_.getValueSExpr.getOrElse(SNil))
-      val s = build_lines_string_with_number(xs.map(_.print))
+      val s = build_lines_string_with_number(xs.map(_.display))
       to_response(s)
     }
   }
@@ -354,7 +409,9 @@ object CommandPart {
     def name = "history"
     def defaultOperation = Some(HistoryClass)
     def operations = Operations(
-      HistoryClass
+      HistoryClass,
+      CommandHistoryClass,
+      IncidentHistoryClass
     )
   }
 
@@ -372,7 +429,48 @@ object CommandPart {
   case class HistoryMethod(call: OperationCall) extends KaleidoxMethod {
     def execute = {
       val xs = universe.history.map(_.getValueSExpr.getOrElse(SNil))
-      val s = build_lines_string_with_number(xs.map(_.print))
+      val s = build_lines_string_with_number(xs.map(_.display))
+      to_response(s)
+    }
+  }
+
+  case object CommandHistoryClass extends OperationClass {
+    val specification = spec.Operation.default("command")
+
+    def operation(req: Request): Operation = CommandHistory
+  }
+
+  case object CommandHistory extends Operation {
+    def apply(env: Environment, req: Request): Response =
+      CommandHistoryMethod(OperationCall(env, HistoryClass.specification, req, Response())).run
+  }
+
+  case class CommandHistoryMethod(call: OperationCall) extends KaleidoxMethod {
+    def execute = {
+      val xs = universe.history.map(_.getStimulusSExpr.getOrElse(SNil))
+      val s = build_lines_string_with_number(xs.map(_.display))
+      to_response(s)
+    }
+  }
+
+  case object IncidentHistoryClass extends OperationClass {
+    val specification = spec.Operation.default("incident")
+
+    def operation(req: Request): Operation = IncidentHistory
+  }
+
+  case object IncidentHistory extends Operation {
+    def apply(env: Environment, req: Request): Response =
+      IncidentHistoryMethod(OperationCall(env, HistoryClass.specification, req, Response())).run
+  }
+
+  case class IncidentHistoryMethod(call: OperationCall) extends KaleidoxMethod {
+    def execute = {
+      val xs = universe.history.map(_.getIncident).map {
+        case Some(s) => s.print
+        case None => "N/A"
+      }
+      val s = build_lines_string_with_number(xs)
       to_response(s)
     }
   }

@@ -13,3 +13,6 @@ db.default.url="jdbc:h2:mem:"
 | 属性 | id   | int    |      1 | User ID |
 | 属性 | name | string |      1 | 名前    |
 | 属性 | age  | int    |      ? | 年齢    |
+
+* main
+(store-query 'user nil)

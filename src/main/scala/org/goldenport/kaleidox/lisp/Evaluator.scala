@@ -15,7 +15,8 @@ import org.goldenport.kaleidox._
  *  version Feb. 28, 2019
  *  version Mar.  9, 2019
  *  version Apr. 21, 2019
- * @version May. 21, 2019
+ *  version May. 21, 2019
+ * @version Jun.  9, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -65,14 +66,14 @@ case class Evaluator(
     private def _apply_lambda(c: Context, l: SLambda, args: List[SExpr]): LispContext = {
       val engine = c.executionContext.engine getOrElse RAISE.noReachDefect
       val script = Script(l.expressions)
-      val universe = c.universe.apply(l.parameters, args)
+      val universe = c.universe.next(l.parameters, args)
       val r = engine.run(universe, script)
       val value = r._2.toList match {
         case Nil => SNil
         case x :: Nil => SExpr.create(x.asSExpr)
         case xs => SList.create(xs.map(x => SExpr.create(x.asSExpr)))
       }
-      val incident = None
+      val incident = None // TODO
       val bindings = c.bindings
       c.toResult(value, incident, bindings)
     }
@@ -81,7 +82,7 @@ case class Evaluator(
   def eval(p: SExpr): Universe = {
     val (u, s) = normalize(p)
     val c = evaluator(u).apply(s)
-    val r = c.pushOrMute.universe
+    val r = c.pushOrMute(p).universe
     log_trace(s"EVAL: ${p.show} => ${c.universe.show} => ${r.show}")
     r
   }
@@ -89,7 +90,7 @@ case class Evaluator(
   def evalLazy(p: SExpr): Universe = {
     val (u, s) = normalize(p)
     val c = evaluator(u).applyLazy(s)
-    val r = c.push.universe
+    val r = c.push(p).universe
     log_trace(s"EVALLAZY: ${p.show} => ${c.universe.show} => ${r.show}")
     r
   }

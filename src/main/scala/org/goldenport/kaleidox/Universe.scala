@@ -3,6 +3,7 @@ package org.goldenport.kaleidox
 import scalaz._, Scalaz._
 import scala.collection.immutable.Stack
 import org.goldenport.record.v3.{IRecord, Record}
+import org.goldenport.incident.{Incident => LibIncident}
 import org.goldenport.sexpr._
 
 /*
@@ -11,7 +12,8 @@ import org.goldenport.sexpr._
  *  version Oct. 21, 2018
  *  version Mar.  9, 2019
  *  version Apr. 13, 2019
- * @version May. 22, 2019
+ *  version May. 22, 2019
+ * @version Jun.  9, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Universe(
@@ -55,29 +57,34 @@ case class Universe(
   def takeHistory(n: Int): SExpr = history.apply(n - 1).getValueSExpr.getOrElse(SNil)
 
   // push and append
-  def apply(p: SExpr, bindings: IRecord): Universe = {
-    val newbb = current(p, bindings)
+  def next(p: SExpr, bindings: IRecord, s: SExpr, i: Option[LibIncident]): Universe = {
+    val newbb = current.next(p, bindings, s, i)
     copy(history = history :+ newbb, stack = stack.push(newbb), muteValue = None)
   }
 
-  def apply(p: SExpr): Universe = {
-    val newbb = current(p)
+  def next(p: SExpr, s: SExpr, i: Option[LibIncident]): Universe = {
+    val newbb = current.next(p, s, i)
     copy(history = history :+ newbb, stack = stack.push(newbb), muteValue = None)
   }
 
-  def apply(bindings: IRecord): Universe = {
-    val newbb = current(bindings)
-    copy(history = history :+ newbb, stack = stack.push(newbb), muteValue = None)
-  }
+  // def next(p: SExpr, bindings: IRecord, s: SExpr): Universe = {
+  //   val newbb = current.next(p, bindings, s)
+  //   copy(history = history :+ newbb, stack = stack.push(newbb), muteValue = None)
+  // }
 
-  def apply(params: List[String], args: List[SExpr]): Universe = {
+  def next(params: List[String], args: List[SExpr]): Universe = {
     val z: List[(String, SExpr)] = params.zip(args)
     val a = Record.create(z)
-    apply(a)
+    next(a)
   }
 
-  def apply(): Universe = {
-    val newbb = current()
+  def next(bindings: IRecord): Universe = {
+    val newbb = current.next(bindings)
+    copy(history = history :+ newbb, stack = stack.push(newbb), muteValue = None)
+  }
+
+  def next(): Universe = {
+    val newbb = current.next()
     copy(history = history :+ newbb, stack = stack.push(newbb))
   }
 

@@ -15,7 +15,8 @@ import org.goldenport.record.v3.sql.SqlContext
  *  version Feb.  7, 2019
  *  version Mar. 24, 2019
  *  version Apr.  6, 2019
- * @version May. 19, 2019
+ *  version May. 19, 2019
+ * @version Jul. 14, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Config(
@@ -25,7 +26,11 @@ case class Config(
   isLocation: Boolean = true
 ) extends LispConfig {
   lazy val scriptContext = new ScriptEngineManager()
-  lazy val sqlContext = SqlContext.create(properties)
+  lazy val sqlContext =
+    if (true) // TODO configurable
+      SqlContext.createSync(properties)
+    else
+      SqlContext.createConnectionPool(properties)
   lazy val feature = FeatureContext.create(properties, sqlContext)
   def properties = cliConfig.properties
   def charset = cliConfig.charset

@@ -17,13 +17,15 @@ import org.goldenport.sexpr.eval.{EvalContext, LispBinding}
  *  version Oct. 21, 2018
  *  version Feb. 25, 2019
  *  version Mar.  8, 2019
- * @version May. 21, 2019
+ *  version May. 21, 2019
+ * @version Jul. 16, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Engine(
   private val _context: ExecutionContext,
   universe: Universe,
-  interpreter: UnitOfWorkInterpreter[Task]
+  interpreter: UnitOfWorkInterpreter[Task],
+  model: Option[Model] = None
 ) extends UnitOfWorkHelper with CommandPart {
   import UnitOfWorkReaderWriterState._
 
@@ -52,15 +54,28 @@ case class Engine(
   }
 
   def setup(p: Model): Engine = {
-    val (written, result, state) = run(universe, p)
-    copy(universe = state)
+    val (written, result, state) = run(universe, p.getPrologue)
+    copy(model = Some(p), universe = state)
   }
 
-  def apply(p: Model): RWSB = {
-    // TODO environment and model.
-    p.getScript.map(apply).getOrElse(RAISE.noReachDefect)
-  }
+  def execute(): Engine = model.
+    map { x =>
+      val (written, result, state) = run(universe, x.getScript)
+      copy(universe = state)
+    }.getOrElse(this)
 
+  def epilogue(): Engine = model.
+    map { x =>
+      val (written, result, state) = run(universe, x.getEpilogue)
+      copy(universe = state)
+    }.getOrElse(this)
+
+  // def apply(p: Model): RWSB = {
+  //   // TODO environment and model.
+  //   p.getScript.map(apply).getOrElse(RAISE.noReachDefect)
+  // }
+
+  // for test
   def apply(p: Script): RWSB = {
     val (written, result, state) = run(universe, p)
     result.map(_.resolve)
@@ -69,6 +84,9 @@ case class Engine(
   def run(state: Universe, p: Model): RWSOutput = {
     p.getScript.map(run(state, _)).getOrElse((Vector.empty, Vector.empty, state))
   }
+
+  def run(state: Universe, p: Option[Script]): RWSOutput =
+    p.map(run(state, _)).getOrElse((Vector.empty, Vector.empty, state))
 
   def run(state: Universe, p: Script): RWSOutput = {
     val r = for {

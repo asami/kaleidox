@@ -4,21 +4,25 @@ import scalaz._, Scalaz._
 import org.goldenport.record.v2.{Schema, Column}
 import org.goldenport.record.v3.Record
 import org.goldenport.sexpr.SSchema
+import org.goldenport.collection.VectorMap
 import org.goldenport.kaleidox._
 import VoucherModel._
 
 /*
  * @since   Apr. 17, 2019
- * @version Apr. 19, 2019
+ *  version Apr. 19, 2019
+ * @version Jul.  7, 2019
  * @author  ASAMI, Tomoharu
  */
 case class VoucherModel(
-  classes: Vector[VoucherClass]
+  classes: VectorMap[String, VoucherClass]
 ) {
+  def get(name: String): Option[VoucherClass] = classes.get(name)
+
   def +(rhs: VoucherModel): VoucherModel = copy(classes ++ rhs.classes)
 
   def setup(p: Space): Space = {
-    val a = classes.foldMap { x =>
+    val a = classes.values.toVector.foldMap { x =>
       val path = s"model.voucher.${x.name}"
       Record.data(path -> SSchema(x.toSchema))
     }
@@ -27,14 +31,14 @@ case class VoucherModel(
 }
 
 object VoucherModel {
-  val empty = VoucherModel(Vector.empty)
+  val empty = VoucherModel(VectorMap.empty[String, VoucherClass])
 
   implicit object VoucherModelMonoid extends Monoid[VoucherModel] {
     def zero = VoucherModel.empty
     def append(lhs: VoucherModel, rhs: => VoucherModel) = lhs + rhs
   }
 
-  def apply(p: VoucherClass): VoucherModel = VoucherModel(Vector(p))
+  def apply(p: VoucherClass): VoucherModel = VoucherModel(VectorMap(p.name -> p))
 
   // TODO simplemodeler
   import org.smartdox._
