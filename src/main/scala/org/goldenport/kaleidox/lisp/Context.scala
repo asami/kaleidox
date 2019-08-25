@@ -13,7 +13,8 @@ import org.goldenport.kaleidox._
  *  version Mar. 24, 2019
  *  version Apr. 12, 2019
  *  version May. 21, 2019
- * @version Jun.  9, 2019
+ *  version Jun.  9, 2019
+ * @version Aug. 25, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Context(
@@ -24,14 +25,17 @@ case class Context(
   incident: Option[LibIncident],
   bindingsOption: Option[IRecord]
 ) extends org.goldenport.sexpr.eval.LispContext {
-  override def toString() = s"Context(${value.show}, ${universe.show})"
+  override def toString() = display
 
   def config = executionContext.config
+  def i18nContext = executionContext.i18nContext
   def serviceLogic = executionContext.serviceLogic
   def storeLogic = executionContext.storeLogic
   def scriptContext = executionContext.scriptContext
   def sqlContext = executionContext.sqlContext
+  def resourceManager = executionContext.resourceManager
   def feature = executionContext.feature
+  lazy val display = s"Context(${value.display}, ${universe.display})"
 
   def pure(p: SExpr): Context = copy(valueOption = Some(p))
   def value: SExpr = getValue getOrElse SNil

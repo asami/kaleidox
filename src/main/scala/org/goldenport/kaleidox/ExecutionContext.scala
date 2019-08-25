@@ -3,6 +3,8 @@ package org.goldenport.kaleidox
 import javax.script._
 import org.goldenport.RAISE
 import org.goldenport.config.ConfigHelper
+import org.goldenport.i18n.I18NContext
+import org.goldenport.io.ResourceManager
 import org.goldenport.record.unitofwork.interpreter.{UnitOfWorkLogic, StoreOperationLogic}
 import org.goldenport.record.v3.sql.SqlContext
 import org.goldenport.sexpr._
@@ -16,15 +18,18 @@ import org.goldenport.sexpr.eval.FeatureContext
  *  version Mar. 24, 2019
  *  version May. 16, 2019
  *  version Jun. 24, 2019
- * @version Jul. 25, 2019
+ *  version Jul. 25, 2019
+ * @version Aug. 17, 2019
  * @author  ASAMI, Tomoharu
  */
 case class ExecutionContext(
   config: Config,
+  i18nContext: I18NContext,
   serviceLogic: UnitOfWorkLogic,
   storeLogic: StoreOperationLogic,
   scriptContext: ScriptEngineManager,
   sqlContext: SqlContext,
+  resourceManager: ResourceManager,
   feature: FeatureContext,
   engine: Option[Engine] = None
 ) extends ConfigHelper {
@@ -56,10 +61,12 @@ case class ExecutionContext(
 object ExecutionContext {
   def apply(p: Config): ExecutionContext = ExecutionContext(
     p,
+    p.i18nContext,
     p.serviceLogic,
     p.storeLogic,
     p.scriptContext,
     p.sqlContext,
+    p.resourceManager,
     p.feature
   )
 }

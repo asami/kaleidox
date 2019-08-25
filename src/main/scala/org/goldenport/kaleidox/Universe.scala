@@ -2,6 +2,8 @@ package org.goldenport.kaleidox
 
 import scalaz._, Scalaz._
 import scala.collection.immutable.Stack
+import org.goldenport.RAISE
+import org.goldenport.i18n.I18NContext
 import org.goldenport.record.v3.{IRecord, Record}
 import org.goldenport.incident.{Incident => LibIncident}
 import org.goldenport.sexpr._
@@ -13,7 +15,8 @@ import org.goldenport.sexpr._
  *  version Mar.  9, 2019
  *  version Apr. 13, 2019
  *  version May. 22, 2019
- * @version Jun.  9, 2019
+ *  version Jun.  9, 2019
+ * @version Aug. 25, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Universe(
@@ -24,6 +27,8 @@ case class Universe(
   stack: Stack[Blackboard],
   muteValue: Option[SExpr] // for mute
 ) {
+  def getI18NContext: Option[I18NContext] = None
+
   def init = history.headOption getOrElse Blackboard.empty
   def current = stack.headOption getOrElse Blackboard.empty
   def getValue: Option[Expression] = muteValue.map(LispExpression) orElse current.getValue
@@ -37,7 +42,8 @@ case class Universe(
     stack.headOption.flatMap(_.getValueSExpr)
   }
 
-  def show = s"Universe(${stack.map(_.show)})"
+  lazy val display = s"Universe(${stack.map(_.show)})"
+  def show = display
 
   def pop: Universe = pop(1) // this // pop(1) & push(1)
   def pop(n: Int): Universe = {
@@ -54,7 +60,10 @@ case class Universe(
   }
   def peek: SExpr = stack.apply(0).getValueSExpr.getOrElse(SNil)
   def peek(n: Int): SExpr = stack.apply(n - 1).getValueSExpr.getOrElse(SNil)
+  def takeHistory: SExpr = RAISE.notImplementedYetDefect
   def takeHistory(n: Int): SExpr = history.apply(n - 1).getValueSExpr.getOrElse(SNil)
+  def takeCommandHistory: SExpr = RAISE.notImplementedYetDefect
+  def takeCommandHistory(n: Int): SExpr = RAISE.notImplementedYetDefect
 
   // push and append
   def next(p: SExpr, bindings: IRecord, s: SExpr, i: Option[LibIncident]): Universe = {

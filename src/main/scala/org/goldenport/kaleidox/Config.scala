@@ -3,6 +3,7 @@ package org.goldenport.kaleidox
 import javax.script._
 import java.io.File
 import org.goldenport.cli.{Environment, Config => CliConfig}
+import org.goldenport.io.ResourceManager
 import org.goldenport.sexpr.eval.{LispConfig, FeatureContext}
 import org.goldenport.log.LogLevel
 import org.goldenport.record.unitofwork.interpreter._
@@ -16,7 +17,8 @@ import org.goldenport.record.v3.sql.SqlContext
  *  version Mar. 24, 2019
  *  version Apr.  6, 2019
  *  version May. 19, 2019
- * @version Jul. 14, 2019
+ *  version Jul. 14, 2019
+ * @version Aug. 17, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Config(
@@ -31,8 +33,10 @@ case class Config(
       SqlContext.createSync(properties)
     else
       SqlContext.createConnectionPool(properties)
+  lazy val resourceManager = new ResourceManager()
   lazy val feature = FeatureContext.create(properties, sqlContext)
   def properties = cliConfig.properties
+  def i18nContext = cliConfig.i18nContext
   def charset = cliConfig.charset
   def newline = cliConfig.newline
   def homeDirectory = cliConfig.homeDirectory

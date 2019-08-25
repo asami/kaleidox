@@ -16,7 +16,8 @@ import org.goldenport.kaleidox._
  *  version Mar.  9, 2019
  *  version Apr. 21, 2019
  *  version May. 21, 2019
- * @version Jun.  9, 2019
+ *  version Jun.  9, 2019
+ * @version Aug.  4, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -28,6 +29,8 @@ case class Evaluator(
   private val _binding = new Evaluator.Binding(universe)
   private val _evaluator = new org.goldenport.sexpr.eval.LispEvaluator[Context] {
     def config = context.config
+    def i18nContext = config.i18nContext
+
     init_binding(_binding)
     override def create_Eval_Context(x: SExpr) = Context(
       this.apply,
@@ -41,8 +44,9 @@ case class Evaluator(
     override protected def eval_Atom(p: SAtom): Option[SExpr] = universe.getBinding(p.name)
   }
 
-  def evaluator(u: Universe)= new org.goldenport.sexpr.eval.LispEvaluator[Context] {
+  def evaluator(u: Universe) = new org.goldenport.sexpr.eval.LispEvaluator[Context] {
     def config = context.config
+    def i18nContext = u.getI18NContext getOrElse config.i18nContext
 
     init_binding(new Evaluator.Binding(u))
 
@@ -55,7 +59,21 @@ case class Evaluator(
       None
     )
 
-    override protected def eval_Atom(p: SAtom): Option[SExpr] = u.getBinding(p.name)
+    override protected def eval_Atom(p: SAtom): Option[SExpr] = {
+      val name = p.name
+      name match {
+        case "#" => Some(u.takeHistory)
+        case "?" => Some(u.peek)
+        case "!" => Some(u.takeCommandHistory)
+        case _ => _mark_number(name).map {
+          case ("#", n) => Some(u.takeHistory(n))
+          case ("?", n) => Some(u.peek(n))
+          case ("!", n) => Some(u.takeCommandHistory(n))
+        }.getOrElse(
+          u.getBinding(p.name)
+        )
+      }
+    }
 
     override protected def apply_Lambda(c: LispContext, l: SLambda, args: List[SExpr]): LispContext =
       c match {

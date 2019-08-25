@@ -1,10 +1,13 @@
 package org.goldenport.kaleidox
 
+import org.goldenport.RAISE
 import org.goldenport.log.LogContext
+import org.goldenport.record.v3.ITable
 import org.goldenport.record.unitofwork._, UnitOfWork._
 import org.goldenport.cli
 import org.goldenport.cli._
-import org.goldenport.sexpr.{SExpr, SMetaCommand, SString, SNil, SConsoleOutput}
+import org.goldenport.javafx.{JavaFXWindow => LibJavaFXWindow, HtmlWindow}
+import org.goldenport.sexpr._
 
 /*
  * @since   Feb. 17, 2019
@@ -12,7 +15,8 @@ import org.goldenport.sexpr.{SExpr, SMetaCommand, SString, SNil, SConsoleOutput}
  *  version Mar. 10, 2019
  *  version Apr. 21, 2019
  *  version Jun. 23, 2019
- * @version Jul. 24, 2019
+ *  version Jul. 24, 2019
+ * @version Aug. 20, 2019
  * @author  ASAMI, Tomoharu
  */
 trait CommandPart { self: Engine =>
@@ -250,11 +254,29 @@ object CommandPart {
 
     case class ShowViewMethod(call: OperationCall) extends KaleidoxMethod {
       def execute = {
-        println("ShowViewMethod")
-        // val hello = new JavaFxHello
-        // hello.run(Array())
-        Test.initAndShowGUI()
-        to_response("ShowViewMethod")
+        universe.current.getValue.map(_.asSExpr).map {
+          case m: STable => _table(m)
+          case m: SXml => RAISE.notImplementedYetDefect
+          case m: SHtml => RAISE.notImplementedYetDefect
+          case m: SJson => RAISE.notImplementedYetDefect
+          case m => RAISE.notImplementedYetDefect(s"$m")
+        }.map(_view_html).getOrElse {
+          to_response("ShowViewMethod")
+        }
+        // println("ShowViewMethod")
+        // // val hello = new JavaFxHello
+        // // hello.run(Array())
+        // Test.initAndShowGUI()
+        // to_response("ShowViewMethod")
+      }
+
+      private def _table(p: STable) = ITable.HtmlBuilder().text(p.table)
+
+      private def _view_html(p: String): Response = {
+        val c = LibJavaFXWindow.Config("HTML View", 640, 480)
+        val a = new HtmlWindow(c, p) // TODO manage
+        a.start()
+        to_response("Table View")
       }
     }
 
@@ -661,7 +683,7 @@ object Test {
     frame.add(fxPanel)
     frame.setSize(300, 200)
     frame.setVisible(true)
-//    frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE)
+    // frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE)
 
     Platform.runLater(new Runnable() {
       def run() {
@@ -692,7 +714,8 @@ object Test {
     val root = new Group()
     val scene = new Scene(root)
     val view = new WebView()
-    view.getEngine.load("http://www.yahoo.com")
+    // view.getEngine.load("http://www.yahoo.com")
+    view.getEngine.loadContent("<b>OK</b>")
     root.getChildren().add(view)
     scene
   }

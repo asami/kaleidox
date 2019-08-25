@@ -20,7 +20,8 @@ import org.goldenport.util.StringUtils
  *  version Apr. 18, 2019
  *  version May. 20, 2019
  *  version Jun. 23, 2019
- * @version Jul. 29, 2019
+ *  version Jul. 29, 2019
+ * @version Aug. 18, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -59,12 +60,15 @@ case class Kaleidox(
     val sqlcontext = config.sqlContext.
       addProperties(universe.setup.bindings).
       addProperties(universe.parameters.bindings)
+    val resourcemanager = config.resourceManager // TODO
     val context = ExecutionContext(
       config,
+      config.i18nContext,
       config.serviceLogic,
       config.storeLogic,
       config.scriptContext,
       sqlcontext,
+      resourcemanager,
       config.feature
     )
     val interpreter = Interpreter.create(context)
@@ -149,6 +153,7 @@ object Kaleidox {
     universe: Universe
   ) extends ReadEvalPrintLoop.IState {
     import org.goldenport.cli.ReadEvalPrintLoop._
+    val consoleOutputLineLength = 100
     def apply(p: ReplEvent): (IState, String) = {
       val prompt = "kaleidox> "
       p match {
@@ -159,7 +164,7 @@ object Kaleidox {
           val model = Model.parse(engine.context.config, s)
           val (_, r, newuniverse) = engine.run(universe, model)
           val o = r.map(x => s"${_output(x)}\n").mkString
-          val output = StringUtils.printConsole(o, engine.context.newline, 20)
+          val output = StringUtils.printConsole(o, engine.context.newline, consoleOutputLineLength)
           val newstate = copy(universe = newuniverse)
           (newstate, s"$output\n$prompt")
       }
