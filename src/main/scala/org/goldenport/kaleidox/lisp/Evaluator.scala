@@ -17,7 +17,8 @@ import org.goldenport.kaleidox._
  *  version Apr. 21, 2019
  *  version May. 21, 2019
  *  version Jun.  9, 2019
- * @version Aug.  4, 2019
+ *  version Aug.  4, 2019
+ * @version Sep. 28, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -95,6 +96,14 @@ case class Evaluator(
       val bindings = c.bindings
       c.toResult(value, incident, bindings)
     }
+
+    override protected def resolve_Parameters(c: LispContext, l: SLambda, args: List[SExpr]): (LispContext, List[SExpr]) = {
+      val (u, args9) = normalize_parameters(SList.create(args), l.parameters.length)
+      args9 match {
+        case m: SList => (lift_Context(c).withUniverse(u), m.list)
+        case _ => RAISE.noReachDefect
+      }
+    }
   }
 
   def eval(p: SExpr): Universe = {
@@ -164,7 +173,7 @@ case class Evaluator(
   private def _normalize(name: Option[String], p: SCell): (Universe, SExpr) =
     name.map(x => _normalize(SCell(SAtom(x), p), x)).getOrElse((universe, p))
 
-  private def _normalize(m: SList, name: String): (Universe, SExpr) =
+  private def _normalize_BAK(m: SList, name: String): (Universe, SExpr) =
     _binding.getFunction(name).map { f =>
       val params = Parameters(m)
       val n = f.specification.numberOfMeaningfulParameters
@@ -179,6 +188,24 @@ case class Evaluator(
         (universe, m)
       }
     }.getOrElse((universe, m))
+
+  private def _normalize(m: SList, name: String): (Universe, SExpr) =
+    _binding.getFunction(name).
+      map(f => normalize_parameters(m, f.specification.numberOfMeaningfulParameters)).
+      getOrElse((universe, m))
+
+  protected final def normalize_parameters(m: SList, n: Int): (Universe, SExpr) = {
+    val params = Parameters(m)
+    val nn = n - (params.arguments.length - 1)
+    if (nn > 0) {
+      universe.makeStackParameters(nn) match {
+        case \/-((u, params)) => (u, SList.create(m.list ::: params))
+        case -\/(e) => (universe, e)
+      }
+    } else {
+      (universe, m)
+    }
+  }
 }
 
 object Evaluator {

@@ -4,7 +4,7 @@ import javax.script._
 import java.io.File
 import org.goldenport.cli.{Environment, Config => CliConfig}
 import org.goldenport.io.ResourceManager
-import org.goldenport.sexpr.eval.{LispConfig, FeatureContext}
+import org.goldenport.sexpr.eval.{LispConfig, ScriptEngineContext, FeatureContext}
 import org.goldenport.log.LogLevel
 import org.goldenport.record.unitofwork.interpreter._
 import org.goldenport.record.v3.sql.SqlContext
@@ -18,7 +18,8 @@ import org.goldenport.record.v3.sql.SqlContext
  *  version Apr.  6, 2019
  *  version May. 19, 2019
  *  version Jul. 14, 2019
- * @version Aug. 17, 2019
+ *  version Aug. 17, 2019
+ * @version Sep. 23, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Config(
@@ -27,7 +28,7 @@ case class Config(
   storeLogic: StoreOperationLogic,
   isLocation: Boolean = true
 ) extends LispConfig {
-  lazy val scriptContext = new ScriptEngineManager()
+  lazy val scriptContext = ScriptEngineContext.default
   lazy val sqlContext =
     if (true) // TODO configurable
       SqlContext.createSync(properties)
@@ -52,7 +53,7 @@ case class Config(
 object Config {
   val defaultServiceLogic = new StandardUnitOfWorkLogic()
   val defaultStoreLogic = new StandardStoreOperationLogic()
-  val default = Config(CliConfig.default, defaultServiceLogic, defaultStoreLogic)
+  val default = Config(CliConfig.c, defaultServiceLogic, defaultStoreLogic)
   val noLocation = default.withoutLocation
 
   def create(env: Environment): Config = {

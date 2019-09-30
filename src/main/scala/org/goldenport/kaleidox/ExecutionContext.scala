@@ -8,7 +8,7 @@ import org.goldenport.io.ResourceManager
 import org.goldenport.record.unitofwork.interpreter.{UnitOfWorkLogic, StoreOperationLogic}
 import org.goldenport.record.v3.sql.SqlContext
 import org.goldenport.sexpr._
-import org.goldenport.sexpr.eval.FeatureContext
+import org.goldenport.sexpr.eval.{ScriptEngineContext, FeatureContext}
 
 /*
  * @since   Aug. 11, 2018
@@ -19,7 +19,8 @@ import org.goldenport.sexpr.eval.FeatureContext
  *  version May. 16, 2019
  *  version Jun. 24, 2019
  *  version Jul. 25, 2019
- * @version Aug. 17, 2019
+ *  version Aug. 17, 2019
+ * @version Sep.  1, 2019
  * @author  ASAMI, Tomoharu
  */
 case class ExecutionContext(
@@ -27,7 +28,7 @@ case class ExecutionContext(
   i18nContext: I18NContext,
   serviceLogic: UnitOfWorkLogic,
   storeLogic: StoreOperationLogic,
-  scriptContext: ScriptEngineManager,
+  scriptContext: ScriptEngineContext,
   sqlContext: SqlContext,
   resourceManager: ResourceManager,
   feature: FeatureContext,

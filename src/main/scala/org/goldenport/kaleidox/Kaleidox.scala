@@ -21,7 +21,8 @@ import org.goldenport.util.StringUtils
  *  version May. 20, 2019
  *  version Jun. 23, 2019
  *  version Jul. 29, 2019
- * @version Aug. 18, 2019
+ *  version Aug. 18, 2019
+ * @version Sep.  8, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -161,7 +162,7 @@ object Kaleidox {
         case ReplEnd => RAISE.noReachDefect
         case ReplLine(l) =>
           val s = l.text
-          val model = Model.parse(engine.context.config, s)
+          val model = Model.parseExpression(engine.context.config, s)
           val (_, r, newuniverse) = engine.run(universe, model)
           val o = r.map(x => s"${_output(x)}\n").mkString
           val output = StringUtils.printConsole(o, engine.context.newline, consoleOutputLineLength)

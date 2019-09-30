@@ -14,7 +14,8 @@ import org.goldenport.kaleidox._
  *  version Apr. 12, 2019
  *  version May. 21, 2019
  *  version Jun.  9, 2019
- * @version Aug. 25, 2019
+ *  version Aug. 25, 2019
+ * @version Sep. 28, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Context(
@@ -48,6 +49,8 @@ case class Context(
     bindingsOption = Some(bindings)
   )
   def addBindings(bindings: IRecord) = copy(bindingsOption = Some(bindings))
+
+  def withUniverse(u: Universe) = copy(universe = u)
 
   def push(p: SExpr) = (valueOption, bindingsOption) match {
     case (Some(v), Some(b)) => copy(universe = universe.next(v, b, p, incident))

@@ -13,7 +13,8 @@ import org.goldenport.sexpr.SExpr
  *  version Oct. 21, 2018
  *  version Mar. 24, 2019
  *  version Apr. 18, 2019
- * @version Jun.  9, 2019
+ *  version Jun.  9, 2019
+ * @version Sep. 28, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Space(
@@ -30,23 +31,23 @@ case class Space(
     None,
     Some(LispExpression(s)),
     None,
-    bindings.update(bindings)
+    bindings.update(b)
   )
 
   def next(b: IRecord): Space = Space(
     None,
     None,
     None,
-    bindings.update(bindings)
+    bindings.update(b)
   )
 
   def next(): Space = copy(None, None, None)
 
-  def next(p: Expression, bindings: IRecord, s: Expression, i: Option[Incident]): Space = Space(
+  def next(p: Expression, b: IRecord, s: Expression, i: Option[Incident]): Space = Space(
     Some(p),
     Some(s),
     i,
-    bindings.update(bindings)
+    bindings.update(b)
   )
 
   def getBinding(p: String): Option[SExpr] = bindings.get(p).map(SExpr.create)

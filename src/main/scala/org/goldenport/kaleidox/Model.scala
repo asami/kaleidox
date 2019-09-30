@@ -19,7 +19,8 @@ import org.goldenport.kaleidox.model._
  *  version Mar. 24, 2019
  *  version Apr. 18, 2019
  *  version May. 19, 2019
- * @version Jul. 15, 2019
+ *  version Jul. 15, 2019
+ * @version Sep.  8, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -312,6 +313,15 @@ object Model {
       LogicalBlocks.Config.noLocation.forLisp
     val blocks = LogicalBlocks.parse(bconfig, p)
     // println(s"Model#parse $p => $blocks")
+    _parse(blocks)
+  }
+
+  def parseExpression(config: Config, p: String): Model = {
+    val bconfig = if (config.isLocation)
+      LogicalBlocks.Config.expression.forLisp
+    else
+      LogicalBlocks.Config.expression.withoutLocation.forLisp
+    val blocks = LogicalBlocks.parse(bconfig, p)
     _parse(blocks)
   }
 
