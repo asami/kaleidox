@@ -18,7 +18,8 @@ import org.goldenport.sexpr.eval.{EvalContext, LispBinding}
  *  version Feb. 25, 2019
  *  version Mar.  8, 2019
  *  version May. 21, 2019
- * @version Jul. 16, 2019
+ *  version Jul. 16, 2019
+ * @version Oct.  2, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Engine(
@@ -74,6 +75,9 @@ case class Engine(
   //   // TODO environment and model.
   //   p.getScript.map(apply).getOrElse(RAISE.noReachDefect)
   // }
+
+  // for test
+  def applySExpr(p: Script): SExpr = apply(p).head.asSExpr
 
   // for test
   def apply(p: Script): RWSB = {

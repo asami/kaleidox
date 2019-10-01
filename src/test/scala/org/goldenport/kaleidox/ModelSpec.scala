@@ -11,7 +11,8 @@ import org.goldenport.kaleidox.Model._
  * @since   Sep. 24, 2018
  *  version Oct. 25, 2018
  *  version Feb.  6, 2019
- * @version Apr.  6, 2019
+ *  version Apr.  6, 2019
+ * @version Oct.  2, 2019
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -48,7 +49,7 @@ data division
 
 * Procedure
 
-[1 + 2 + 3]
+${1 + 2 + 3}
 """
       val model = Model.parseWitoutLocation(config, s)
       model should be(Model(

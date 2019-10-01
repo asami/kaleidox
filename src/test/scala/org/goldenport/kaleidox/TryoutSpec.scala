@@ -11,7 +11,8 @@ import org.goldenport.kaleidox.interpreter.Interpreter
 
 /*
  * @since   Jan.  2, 2019
- * @version Feb. 25, 2019
+ *  version Feb. 25, 2019
+ * @version Oct.  2, 2019
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -33,14 +34,20 @@ class TryoutSpec extends WordSpec with Matchers with GivenWhenThen {
       case LispExpression(sexpr) => sexpr
       case m => RAISE.noReachDefect
     }
-  "token" should {
-    "url" in {
-      val s = "http://www.yahoo.com"
-      val script = Script.parse(s)
-      val r = engine.apply(script)
-      result(r) should be(SHtml("OK"))
-    }
-  }
+
+  // "token" should {
+  //   "url" in {
+  //     val s = "http://www.yahoo.com"
+  //     val script = Script.parse(s)
+  //     val r = engine.applySExpr(script)
+  //     println(s"XXX: $r")
+  //     println(s"XXX: ${r.asString}")
+  //     println(s"XXX: ${r.display}")
+  //     println(s"XXX: ${r.print}")
+  //     println(s"XXX: ${r.show}")
+  //     r should be(SHtml("OK"))
+  //   }
+  // }
 //   "forth" should {
 //     "fetch and go" in {
 //       val s = """http://www.yahoo.com

@@ -16,7 +16,8 @@ import org.goldenport.kaleidox.interpreter.Interpreter
  *  version Oct. 25, 2018
  *  version Dec. 31, 2018
  *  version Jan.  1, 2019
- * @version Feb. 25, 2019
+ *  version Feb. 25, 2019
+ * @version Oct.  2, 2019
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -75,7 +76,7 @@ class EngineSpec extends WordSpec with Matchers with GivenWhenThen {
   }
   "javascript" should {
     "math expression" in {
-      val s = "[1 + 2 + 3]"
+      val s = "${1 + 2 + 3}"
       val script = Script.parse(s)
       val r = engine.apply(script)
       result(r) should be(SNumber(6))
@@ -83,7 +84,7 @@ class EngineSpec extends WordSpec with Matchers with GivenWhenThen {
   }
   "jexl" should {
     "math expression" in {
-      val s = "jexl[1 + 2 + 3]"
+      val s = "jexl${1 + 2 + 3}"
       val script = Script.parse(s)
       val r = engine.apply(script)
       result(r) should be(SNumber(6))
@@ -106,7 +107,7 @@ length
 // //div[@class='value']
       val script = Script.parse(s)
       val r = engine.apply(script)
-      result(r) should be(SNumber(2))
+      result(r) should be(SNumber(109))
     }
   }
   "xpath" should {
@@ -114,7 +115,7 @@ length
       val s = """path-get /html/div[id='city'] <html><div id="user">taro</div><div id="city">yokohama</div></html>"""
       val script = Script.parse(s)
       val r = engine.apply(script)
-      result(r) shouldBe a [SError]
+      result(r) should be(SNil)
     }
     "xml" in {
       val s = "path-get /user/city <user><name>taro</name><city>yokohama</city></user>"
