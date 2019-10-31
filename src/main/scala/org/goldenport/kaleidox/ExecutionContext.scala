@@ -4,6 +4,7 @@ import javax.script._
 import org.goldenport.RAISE
 import org.goldenport.config.ConfigHelper
 import org.goldenport.i18n.I18NContext
+import org.goldenport.log.LogConfig
 import org.goldenport.io.ResourceManager
 import org.goldenport.record.unitofwork.interpreter.{UnitOfWorkLogic, StoreOperationLogic}
 import org.goldenport.record.v3.sql.SqlContext
@@ -20,12 +21,14 @@ import org.goldenport.sexpr.eval.{ScriptEngineContext, FeatureContext}
  *  version Jun. 24, 2019
  *  version Jul. 25, 2019
  *  version Aug. 17, 2019
- * @version Sep.  1, 2019
+ *  version Sep.  1, 2019
+ * @version Oct. 27, 2019
  * @author  ASAMI, Tomoharu
  */
 case class ExecutionContext(
   config: Config,
   i18nContext: I18NContext,
+  logConfig: LogConfig,
   serviceLogic: UnitOfWorkLogic,
   storeLogic: StoreOperationLogic,
   scriptContext: ScriptEngineContext,
@@ -63,6 +66,7 @@ object ExecutionContext {
   def apply(p: Config): ExecutionContext = ExecutionContext(
     p,
     p.i18nContext,
+    p.logConfig,
     p.serviceLogic,
     p.storeLogic,
     p.scriptContext,

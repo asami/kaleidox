@@ -1,13 +1,17 @@
 package org.goldenport.kaleidox
 
 import org.goldenport.RAISE
+import org.goldenport.Strings
 import org.goldenport.log.LogContext
+import org.goldenport.collection.NonEmptyVector
 import org.goldenport.record.v3.ITable
 import org.goldenport.record.unitofwork._, UnitOfWork._
 import org.goldenport.cli
 import org.goldenport.cli._
+import org.goldenport.parser.CommandParser
 import org.goldenport.javafx.{JavaFXWindow => LibJavaFXWindow, HtmlWindow}
 import org.goldenport.sexpr._
+import org.goldenport.sexpr.eval.{LispFunction, FunctionSpecification}
 
 /*
  * @since   Feb. 17, 2019
@@ -16,12 +20,16 @@ import org.goldenport.sexpr._
  *  version Apr. 21, 2019
  *  version Jun. 23, 2019
  *  version Jul. 24, 2019
- * @version Aug. 20, 2019
+ *  version Aug. 20, 2019
+ * @version Oct. 15, 2019
  * @author  ASAMI, Tomoharu
  */
 trait CommandPart { self: Engine =>
   protected def execute_command(ctx: ExecutionContext, u: Universe, p: SMetaCommand): UnitOfWorkFM[RWSOutput] = {
-    val env: Environment = Environment(ctx.config.cliConfig, CommandPart.KaleidoxEnvironment(u))
+    val env: Environment = Environment(
+      ctx.config.cliConfig,
+      CommandPart.KaleidoxEnvironment(ctx, u, CommandPart.engine.commandParser)
+    )
     val r = CommandPart.engine.apply(env, p.command, p.args)
     val a = LispExpression(SConsoleOutput(r.text))
     uow_lift((Vector.empty, Vector(a), u))
@@ -36,14 +44,21 @@ object CommandPart {
     StackServiceClass,
     HistoryServiceClass,
     UniverseServiceClass,
-    EvalServiceClass
+    EvalServiceClass,
+    HelpServiceClass,
+    ManualServiceClass
   )
   val operations = Operations(ExitClass, VersionClass)
   val engine = cli.Engine(services, operations)
 
   case class KaleidoxEnvironment(
-    universe: Universe
+    context: ExecutionContext,
+    universe: Universe,
+    commandParser: CommandParser[cli.Engine.Candidate]
   ) extends Environment.AppEnvironment {
+    private lazy val _evaluator = lisp.Evaluator(context, universe)
+
+    lazy val functions: CommandParser[LispFunction] = _evaluator.functionParser
   }
 
   trait KaleidoxMethod extends Method {
@@ -627,96 +642,133 @@ object CommandPart {
 
     case class EvalMethod(call: OperationCall) extends KaleidoxMethod {
       def execute = {
-        ???
+        RAISE.notImplementedYetDefect
       }
     }
   }
-}
 
-//
-import javafx.application.Application
-import javafx.event.EventHandler
-import javafx.scene.Scene
-import javafx.scene.control.Button
-import javafx.scene.input.MouseEvent
-import javafx.scene.layout.VBox
-import javafx.stage.Stage
+  case object HelpServiceClass extends ServiceClass {
+    def name = "help"
+    def defaultOperation = Some(HelpClass)
+    def operations = Operations(
+      HelpClass
+    )
 
-class JavaFxHello extends Application {
-  def run(args: Array[String]) {
-    Application.launch(args: _*)
-  }
+    case object HelpClass extends OperationClass {
+      val specification = spec.Operation.default("help")
 
-  override def start(stage: Stage) {
-    val button: Button = new Button("Hello World")
-
-    val handler = new EventHandler[MouseEvent] {
-      override def handle(t: MouseEvent) {
-        println("Hello!")
-      }
+      def operation(req: Request): Operation = Help
     }
 
-    button.setOnMouseClicked(handler)
-    val vbox: VBox = new VBox(button)
-    val scene: Scene = new Scene(vbox)
-    stage.setScene(scene)
-    stage.setTitle("Hello")
-    stage.show()
-  }
-}
+    case object Help extends Operation {
+      def apply(env: Environment, req: Request): Response =
+        HelpMethod(OperationCall(env, HelpClass.specification, req, Response())).run
+    }
 
-object Test {
-  import javafx.application.Platform
-  import javafx.embed.swing.JFXPanel
-  import javafx.scene.Group
-  import javafx.scene.Scene
-  import javafx.scene.paint.Color
-  import javafx.scene.text.Font
-  import javafx.scene.text.Text
-  import javafx.scene.web.WebView
-  import javax.swing.JFrame
-  import javax.swing.SwingUtilities
+    case class HelpMethod(call: OperationCall) extends KaleidoxMethod {
+      import CommandParser._
+      import cli.Engine._
 
-  def initAndShowGUI() {
-    val frame = new JFrame("Swing and JavaFX")
-    val fxPanel = new JFXPanel()
-    frame.add(fxPanel)
-    frame.setSize(300, 200)
-    frame.setVisible(true)
-    // frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE)
+      def execute = call.request.arguments.headOption.map(_.asString).
+        map(_help).
+        getOrElse(_introduction)
 
-    Platform.runLater(new Runnable() {
-      def run() {
-        initFX(fxPanel)
+      private def _introduction() = {
+        val s = "#Help introduction"
+        to_response_lines_string(s)
       }
-    })
+
+      private def _help(p: String) = {
+        Strings.totokens(p, ":") match {
+          case Nil => _introduction
+          case x :: Nil =>
+            val parser = kaleidoxEnvironment.commandParser
+            parser(x) match {
+              case _: NotFound[_] => _notfound(p)
+              case Found(c) => _found(c)
+              case Candidates(cs) => _candidates(cs)
+            }
+          case x :: xs =>
+            RAISE.notImplementedYetDefect
+        }
+      }
+
+      private def _notfound(name: String) = {
+        val s = s"Command not found: $name"
+        to_response_lines_string(s)
+      }
+
+      private def _found(c: Candidate) = {
+        val s = c match {
+          case ServiceCandidate(srv) => s"${srv}" // TODO
+          case OperationCandidate(op) => s"${op}" // TODO
+        }
+        to_response_lines_string(s)
+      }
+
+      private def _candidates(cs: NonEmptyVector[Slot[Candidate]]) = {
+        val s = cs.vector.map(_.name).mkString(" ") // TODO
+        to_response_lines_string(s)
+      }
+    }
   }
 
-  def initFX(fxPanel: JFXPanel) {
-    val scene = createScene()
-    fxPanel.setScene(scene)
-  }
+  case object ManualServiceClass extends ServiceClass {
+    def name = "manual"
+    def defaultOperation = Some(ManualClass)
+    def operations = Operations(
+      ManualClass
+    )
 
-  // def createScene() = {
-  //   val root = new Group()
-  //   val scene = new Scene(root, Color.ALICEBLUE)
-  //   val text = new Text()
-  //   text.setX(40)
-  //   text.setY(100)
-  //   text.setFont(new Font(25))
-  //   text.setText("Welcome JavaFX!")
+    case object ManualClass extends OperationClass {
+      val specification = spec.Operation.default("manual")
 
-  //   root.getChildren().add(text)
-  //   scene
-  // }
+      def operation(req: Request): Operation = Manual
+    }
 
-  def createScene() = {
-    val root = new Group()
-    val scene = new Scene(root)
-    val view = new WebView()
-    // view.getEngine.load("http://www.yahoo.com")
-    view.getEngine.loadContent("<b>OK</b>")
-    root.getChildren().add(view)
-    scene
+    case object Manual extends Operation {
+      def apply(env: Environment, req: Request): Response =
+        ManualMethod(OperationCall(env, ManualClass.specification, req, Response())).run
+    }
+
+    case class ManualMethod(call: OperationCall) extends KaleidoxMethod {
+      import CommandParser._
+
+      def execute = call.request.arguments.headOption.
+        map(x => _man(x.asString)).
+        getOrElse(_not_specified)
+
+      private def _man(name: String) = {
+        kaleidoxEnvironment.functions(name) match {
+          case NotFound() => _not_found(name)
+          case Found(c) => _found(c.specification)
+          case Candidates(cs) => _ambiguous(name, cs.map(_.command.specification))
+        }
+      }
+
+      private def _found(p: FunctionSpecification) = {
+        val s = _spec_to_man(p)
+        to_response_lines_string(s)
+      }
+
+      private def _not_found(name: String) = {
+        val s = "not found" // TODO
+        to_response_lines_string(s)
+      }
+
+      private def _ambiguous(name: String, ps: NonEmptyVector[FunctionSpecification]) = {
+        val s = s"""Ambiguos command '$name': ${ps.vector.map(_.name).mkString(", ")}"""
+        to_response_lines_string(s)
+      }
+
+      private def _not_specified = {
+        val s = "Missing parameter" // TODO
+        to_response_lines_string(s)
+      }
+
+      private def _spec_to_man(p: FunctionSpecification): String = {
+        p.name // TODO
+      }
+    }
   }
 }

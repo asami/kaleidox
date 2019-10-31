@@ -19,7 +19,7 @@ import org.goldenport.sexpr.eval.{EvalContext, LispBinding}
  *  version Mar.  8, 2019
  *  version May. 21, 2019
  *  version Jul. 16, 2019
- * @version Oct.  2, 2019
+ * @version Oct. 27, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Engine(
@@ -50,11 +50,25 @@ case class Engine(
 
   def initialize(): Engine = {
     LispBinding.initialize()
-    LogContext.setRootLevel(LogLevel.Info)
+    val logurl = context.logConfig.confFile
+    val level = context.logConfig.level
+    LogContext.init(logurl, level)
     this
   }
 
   def setup(p: Model): Engine = {
+    _setup_store(p)
+    _setup_model_prologue(p)
+  }
+
+  private def _setup_store(p: Model): Unit =
+    p.getVoucherModel.foreach { vm =>
+      vm.classes.foreach {
+        case (name, x) => _context.feature.store.define(Symbol(name), x.toSchema)
+      }
+    }
+
+  private def _setup_model_prologue(p: Model): Engine = {
     val (written, result, state) = run(universe, p.getPrologue)
     copy(model = Some(p), universe = state)
   }

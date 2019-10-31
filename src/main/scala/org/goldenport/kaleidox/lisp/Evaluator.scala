@@ -18,7 +18,8 @@ import org.goldenport.kaleidox._
  *  version May. 21, 2019
  *  version Jun.  9, 2019
  *  version Aug.  4, 2019
- * @version Sep. 28, 2019
+ *  version Sep. 28, 2019
+ * @version Oct. 14, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -206,6 +207,8 @@ case class Evaluator(
       (universe, m)
     }
   }
+
+  def functionParser = _evaluator.functionParser
 }
 
 object Evaluator {

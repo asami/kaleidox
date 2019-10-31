@@ -3,7 +3,8 @@ package org.goldenport.kaleidox
 import scalaz._, Scalaz._
 import java.io.File
 import org.goldenport.RAISE
-import org.goldenport.log.{LogContext, LogLevel}
+import org.goldenport.i18n.I18NContext
+import org.goldenport.log.{LogContext, LogLevel, LogConfig}
 import org.goldenport.cli._
 import org.goldenport.bag.BufferBag
 import org.goldenport.record.v3.Record
@@ -22,7 +23,8 @@ import org.goldenport.util.StringUtils
  *  version Jun. 23, 2019
  *  version Jul. 29, 2019
  *  version Aug. 18, 2019
- * @version Sep.  8, 2019
+ *  version Sep.  8, 2019
+ * @version Oct. 27, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -56,15 +58,18 @@ case class Kaleidox(
   }
 
   private def _build_world(call: OperationCall): Engine = {
-    LogContext.setRootLevel(LogLevel.Info)
+    LogContext.setRootLevel(LogLevel.Info) // suppress boot sequence logging.
     val (universe, model) = _build_universe(call)
+    val i18nconfig = _i18n_context(model, config)
+    val logconfig = _log_config(model, config)
     val sqlcontext = config.sqlContext.
       addProperties(universe.setup.bindings).
       addProperties(universe.parameters.bindings)
     val resourcemanager = config.resourceManager // TODO
     val context = ExecutionContext(
       config,
-      config.i18nContext,
+      i18nconfig,
+      logconfig,
       config.serviceLogic,
       config.storeLogic,
       config.scriptContext,
@@ -133,6 +138,35 @@ case class Kaleidox(
     val space2 = model.getDataSet.map(_.setup(space1)).getOrElse(space1)
     val space = space2
     space
+  }
+
+  private def _i18n_context(model: Model, config: Config): I18NContext = {
+    config.i18nContext // TODO model
+  }
+
+  private def _log_config(model: Model, config: Config): LogConfig = {
+    val c = config.logConfig
+    // TODO model : conf file, level
+    val logurl = c.confFile orElse _get_implicit_log_conf_file.map(_.toURI.toURL)
+    logurl match {
+      case Some(l) => c.withConfFile(l)
+      case None => c
+    }
+  }
+
+  private def _get_implicit_log_conf_file: Option[File] = {
+    def homeindir = config.homeDirectory.flatMap(_ensure_file(_, ".kaleidox/logback.xml"))
+    def project = config.getProjectDirectory.flatMap(_ensure_file(_, "logback.xml"))
+    def work = config.workDirectory.flatMap(_ensure_file(_, "logback.xml"))
+    work orElse project orElse homeindir
+  }
+
+  private def _ensure_file(parent: File, name: String): Option[File] = {
+    val a = new File(parent, name)
+    if (a.exists)
+      Some(a)
+    else
+      None
   }
 
   private def _to_parameter_record(p: Request): Record = {

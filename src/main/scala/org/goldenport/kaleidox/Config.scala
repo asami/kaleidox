@@ -19,7 +19,8 @@ import org.goldenport.record.v3.sql.SqlContext
  *  version May. 19, 2019
  *  version Jul. 14, 2019
  *  version Aug. 17, 2019
- * @version Sep. 23, 2019
+ *  version Sep. 23, 2019
+ * @version Oct. 31, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Config(
@@ -31,19 +32,22 @@ case class Config(
   lazy val scriptContext = ScriptEngineContext.default
   lazy val sqlContext =
     if (true) // TODO configurable
-      SqlContext.createSync(properties)
+      SqlContext.createEachTime(properties)
+    else if (false)
+      SqlContext.createAutoCommit(properties)
     else
       SqlContext.createConnectionPool(properties)
   lazy val resourceManager = new ResourceManager()
   lazy val feature = FeatureContext.create(properties, sqlContext)
   def properties = cliConfig.properties
-  def i18nContext = cliConfig.i18nContext
+  def i18nContext = cliConfig.i18n
+  def logConfig = cliConfig.log
   def charset = cliConfig.charset
   def newline = cliConfig.newline
   def homeDirectory = cliConfig.homeDirectory
   def getProjectDirectory = cliConfig.projectDirectory
   def workDirectory = cliConfig.workDirectory
-  def logLevel: LogLevel = cliConfig.logLevel
+  def logLevel: LogLevel = logConfig.level getOrElse LogLevel.Info
   def withLogLevel(p: LogLevel) = copy(cliConfig.withLogLevel(p))
   def withServiceLogic(p: UnitOfWorkLogic) = copy(serviceLogic = p)
   def withStoreLogic(p: StoreOperationLogic) = copy(storeLogic = p)
