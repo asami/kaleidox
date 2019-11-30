@@ -21,7 +21,8 @@ import org.goldenport.sexpr.eval.{LispFunction, FunctionSpecification}
  *  version Jun. 23, 2019
  *  version Jul. 24, 2019
  *  version Aug. 20, 2019
- * @version Oct. 15, 2019
+ *  version Oct. 15, 2019
+ * @version Nov. 28, 2019
  * @author  ASAMI, Tomoharu
  */
 trait CommandPart { self: Engine =>
@@ -675,6 +676,12 @@ object CommandPart {
 
       private def _introduction() = {
         val s = "#Help introduction"
+  // # : history
+  // ? : stack
+  // ! : command
+
+  // % : format
+  // . : expression
         to_response_lines_string(s)
       }
 

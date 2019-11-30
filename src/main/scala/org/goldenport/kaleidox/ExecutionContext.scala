@@ -22,7 +22,8 @@ import org.goldenport.sexpr.eval.{ScriptEngineContext, FeatureContext}
  *  version Jul. 25, 2019
  *  version Aug. 17, 2019
  *  version Sep.  1, 2019
- * @version Oct. 27, 2019
+ *  version Oct. 27, 2019
+ * @version Nov.  9, 2019
  * @author  ASAMI, Tomoharu
  */
 case class ExecutionContext(
@@ -38,6 +39,7 @@ case class ExecutionContext(
   engine: Option[Engine] = None
 ) extends ConfigHelper {
   def newline = config.newline
+  def queryContext = sqlContext.queryContext
 
   def withEngine(p: Engine) = copy(engine = Some(p))
 

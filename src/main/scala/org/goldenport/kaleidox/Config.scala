@@ -8,6 +8,8 @@ import org.goldenport.sexpr.eval.{LispConfig, ScriptEngineContext, FeatureContex
 import org.goldenport.log.LogLevel
 import org.goldenport.record.unitofwork.interpreter._
 import org.goldenport.record.v3.sql.SqlContext
+import org.goldenport.record.query.QueryExpression
+import org.goldenport.util.DateTimeUtils
 
 /*
  * @since   Aug. 20, 2018
@@ -20,7 +22,8 @@ import org.goldenport.record.v3.sql.SqlContext
  *  version Jul. 14, 2019
  *  version Aug. 17, 2019
  *  version Sep. 23, 2019
- * @version Oct. 31, 2019
+ *  version Oct. 31, 2019
+ * @version Nov.  9, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Config(
@@ -32,15 +35,19 @@ case class Config(
   lazy val scriptContext = ScriptEngineContext.default
   lazy val sqlContext =
     if (true) // TODO configurable
-      SqlContext.createEachTime(properties)
+      SqlContext.createEachTime(properties, createQueryContext())
     else if (false)
-      SqlContext.createAutoCommit(properties)
+      SqlContext.createAutoCommit(properties, createQueryContext())
     else
-      SqlContext.createConnectionPool(properties)
+      SqlContext.createConnectionPool(properties, createQueryContext())
   lazy val resourceManager = new ResourceManager()
   lazy val feature = FeatureContext.create(properties, sqlContext)
   def properties = cliConfig.properties
   def i18nContext = cliConfig.i18n
+  def createQueryContext() = QueryExpression.Context(
+    DateTimeUtils.toDateTime(System.currentTimeMillis, i18nContext.datetimezone),
+    i18nContext.datetimezone
+  )
   def logConfig = cliConfig.log
   def charset = cliConfig.charset
   def newline = cliConfig.newline

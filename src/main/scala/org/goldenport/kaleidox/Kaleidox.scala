@@ -24,7 +24,8 @@ import org.goldenport.util.StringUtils
  *  version Jul. 29, 2019
  *  version Aug. 18, 2019
  *  version Sep.  8, 2019
- * @version Oct. 27, 2019
+ *  version Oct. 27, 2019
+ * @version Nov.  9, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(

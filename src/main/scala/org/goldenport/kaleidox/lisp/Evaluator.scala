@@ -19,7 +19,8 @@ import org.goldenport.kaleidox._
  *  version Jun.  9, 2019
  *  version Aug.  4, 2019
  *  version Sep. 28, 2019
- * @version Oct. 14, 2019
+ *  version Oct. 14, 2019
+ * @version Nov.  8, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -32,6 +33,7 @@ case class Evaluator(
   private val _evaluator = new org.goldenport.sexpr.eval.LispEvaluator[Context] {
     def config = context.config
     def i18nContext = config.i18nContext
+    def queryContext = context.queryContext
 
     init_binding(_binding)
     override def create_Eval_Context(x: SExpr) = Context(
@@ -49,6 +51,7 @@ case class Evaluator(
   def evaluator(u: Universe) = new org.goldenport.sexpr.eval.LispEvaluator[Context] {
     def config = context.config
     def i18nContext = u.getI18NContext getOrElse config.i18nContext
+    def queryContext = context.queryContext
 
     init_binding(new Evaluator.Binding(u))
 

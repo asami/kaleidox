@@ -20,7 +20,8 @@ import org.goldenport.kaleidox.model._
  *  version Apr. 18, 2019
  *  version May. 19, 2019
  *  version Jul. 15, 2019
- * @version Sep.  8, 2019
+ *  version Sep.  8, 2019
+ * @version Nov. 16, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -199,14 +200,14 @@ object Model {
     def makeModel: VoucherModel = {
       val doxconfig = Dox2Parser.Config.default // TODO
       val dox = Dox2Parser.parse(doxconfig, section)
-      println(s"VoucherDivision#makeModel $dox")
+      // println(s"VoucherDivision#makeModel $dox")
       _make(dox)
     }
 
     import org.smartdox._
 
     private def _make(p: Dox): VoucherModel = {
-      println(s"VoucherModel#_make $p")
+      // println(s"VoucherModel#_make $p")
       p match {
         case m: Section =>
           if (m.titleName.toLowerCase == "voucher") // TODO
