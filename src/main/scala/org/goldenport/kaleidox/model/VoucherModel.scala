@@ -12,7 +12,8 @@ import VoucherModel._
  * @since   Apr. 17, 2019
  *  version Apr. 19, 2019
  *  version Jul.  7, 2019
- * @version Oct.  5, 2019
+ *  version Oct.  5, 2019
+ * @version Dec.  7, 2019
  * @author  ASAMI, Tomoharu
  */
 case class VoucherModel(
@@ -25,7 +26,7 @@ case class VoucherModel(
   def setup(p: Space): Space = {
     val a = classes.values.toVector.foldMap { x =>
       val path = s"model.voucher.${x.name}"
-      Record.data(path -> SSchema(x.toSchema))
+      Record.data(path -> SSchema(x.schema))
     }
     p.updateBindings(a)
   }
@@ -53,7 +54,7 @@ object VoucherModel {
     features: VoucherClass.Features,
     slots: Vector[Slot]
   ) {
-    def toSchema: Schema = {
+    lazy val schema: Schema = {
       val tablename = features.tableName
       val columns = slots.map(_.toColumn)
       tablename match {

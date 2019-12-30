@@ -19,7 +19,8 @@ import org.goldenport.sexpr.eval.{EvalContext, LispBinding}
  *  version Mar.  8, 2019
  *  version May. 21, 2019
  *  version Jul. 16, 2019
- * @version Oct. 27, 2019
+ *  version Oct. 27, 2019
+ * @version Dec.  7, 2019
  * @author  ASAMI, Tomoharu
  */
 case class Engine(
@@ -64,7 +65,7 @@ case class Engine(
   private def _setup_store(p: Model): Unit =
     p.getVoucherModel.foreach { vm =>
       vm.classes.foreach {
-        case (name, x) => _context.feature.store.define(Symbol(name), x.toSchema)
+        case (name, x) => _context.feature.store.define(Symbol(name), x.schema)
       }
     }
 

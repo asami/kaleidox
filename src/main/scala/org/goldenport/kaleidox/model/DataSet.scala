@@ -2,8 +2,8 @@ package org.goldenport.kaleidox.model
 
 import scalaz._, Scalaz._
 import org.goldenport.record.v2.{Schema, Column}
-import org.goldenport.record.v3.{Record, RecordSequence, Field, MultipleValue}
-import org.goldenport.sexpr.SSchema
+import org.goldenport.record.v3.{Record, RecordSequence, Field, SingleValue, Table}
+import org.goldenport.sexpr.{SSchema, STable}
 import org.goldenport.parser._
 import org.goldenport.collection.VectorMap
 import org.goldenport.xsv.Xsv
@@ -12,7 +12,8 @@ import VoucherModel._
 
 /*
  * @since   Jul.  6, 2019
- * @version Jul. 16, 2019
+ *  version Jul. 16, 2019
+ * @version Dec. 29, 2019
  * @author  ASAMI, Tomoharu
  */
 case class DataSet(
@@ -21,7 +22,7 @@ case class DataSet(
 ) {
   def setup(p: Space): Space = {
     val rs: Seq[Field] = slots.vector.map {
-      case (k, v) => Field(k, MultipleValue(v.data.irecords))
+      case (k, v) => Field(k, SingleValue(v.data))
     }
     val rec = Record(rs)
     p.updateBindings(rec)
@@ -43,7 +44,7 @@ object DataSet {
 
   case class Slot(
     model: VoucherClass,
-    data: RecordSequence
+    data: STable
   )
 
   def create(ctx: Builder.Context, p: LogicalSection): DataSet =
@@ -52,9 +53,8 @@ object DataSet {
   def create(dataname: String, model: VoucherClass, xs: Iterator[Record]): DataSet =
     create(dataname, model, RecordSequence(xs))
 
-  def create(dataname: String, model: VoucherClass, xs: RecordSequence): DataSet = {
-    DataSet(VectorMap(Symbol(dataname) -> DataSet.Slot(model, xs)))
-  }
+  def create(dataname: String, model: VoucherClass, xs: RecordSequence): DataSet =
+    DataSet(VectorMap(Symbol(dataname) -> DataSet.Slot(model, STable(Table.create(model.schema, xs)))))
 
   def warning(p: String): DataSet = DataSet(parseMessages = ParseMessageSequence.warning(p))
 
@@ -102,7 +102,7 @@ object DataSet {
       p: LogicalParagraph
     ): DataSet = {
       val matrix = Xsv.parse(p)
-      val schema = model.toSchema
+      val schema = model.schema
       val xs = for (row <- matrix.rowIterator) yield {
         Record.create(schema, row.map(_.value))
       }
