@@ -6,6 +6,7 @@ import org.goldenport.cli.{Environment, Config => CliConfig}
 import org.goldenport.io.ResourceManager
 import org.goldenport.sexpr.eval.{LispConfig, ScriptEngineContext, FeatureContext}
 import org.goldenport.log.LogLevel
+import org.goldenport.matrix.INumericalOperations
 import org.goldenport.record.unitofwork.interpreter._
 import org.goldenport.record.v3.sql.SqlContext
 import org.goldenport.record.query.QueryExpression
@@ -23,7 +24,8 @@ import org.goldenport.util.DateTimeUtils
  *  version Aug. 17, 2019
  *  version Sep. 23, 2019
  *  version Oct. 31, 2019
- * @version Nov.  9, 2019
+ *  version Nov.  9, 2019
+ * @version Feb. 26, 2020
  * @author  ASAMI, Tomoharu
  */
 case class Config(
@@ -55,6 +57,7 @@ case class Config(
   def getProjectDirectory = cliConfig.projectDirectory
   def workDirectory = cliConfig.workDirectory
   def logLevel: LogLevel = logConfig.level getOrElse LogLevel.Info
+  def numericalOperations: INumericalOperations = cliConfig.numericalOperations
   def withLogLevel(p: LogLevel) = copy(cliConfig.withLogLevel(p))
   def withServiceLogic(p: UnitOfWorkLogic) = copy(serviceLogic = p)
   def withStoreLogic(p: StoreOperationLogic) = copy(storeLogic = p)

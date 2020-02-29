@@ -20,7 +20,8 @@ import org.goldenport.kaleidox._
  *  version Aug.  4, 2019
  *  version Sep. 28, 2019
  *  version Oct. 14, 2019
- * @version Nov.  8, 2019
+ *  version Nov.  8, 2019
+ * @version Feb. 29, 2020
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -64,9 +65,12 @@ case class Evaluator(
       None
     )
 
+    override protected def resolve_Aliase(name: String): Option[SExpr] =
+      resolve_aliase(name)
+
     override protected def eval_Atom(p: SAtom): Option[SExpr] = {
       val name = p.name
-      name match {
+      name match { // This logic for aliases are virtually unused. See normalize.
         case "#" => Some(u.takeHistory)
         case "?" => Some(u.peek)
         case "!" => Some(u.takeCommandHistory)
@@ -135,20 +139,7 @@ case class Evaluator(
         case -\/(e) => (universe, e)
       }
     }.getOrElse {
-      val name = m.name
-      val expr = name match {
-        case "#" => SList(SAtom("history"), SNumber(1))
-        case "?" => SList(SAtom("peek"), SNumber(1))
-        case "!" => SList(SAtom("command"), SNumber(1))
-        case _ => 
-          _mark_number(m.name).map {
-            case ("#", n) => SList(SAtom("history"), SNumber(n))
-            case ("?", n) => SList(SAtom("peek"), SNumber(n))
-            case ("!", n) => SList(SAtom("command"), SNumber(n))
-          }.getOrElse {
-            SList(SAtom("eval-or-invoke"), m)
-          }
-      }
+      val expr = resolve_aliase(m.name) getOrElse SList(SAtom("eval-or-invoke"), m)
       (universe, expr)
     }
     case m: SCell => m.car match {
@@ -160,6 +151,21 @@ case class Evaluator(
     }
     case m => (universe, m)
   }
+
+  protected final def resolve_aliase(name: String): Option[SExpr] =
+    name match {
+      case "#" => Some(SList(SAtom("history")))
+      case "?" => Some(SList(SAtom("peek")))
+      case "??" => Some(SList(SAtom("pop")))
+      case "!" => Some(SList(SAtom("command")))
+      case _ =>
+        _mark_number(name).map {
+          case ("#", n) => SList(SAtom("history"), SNumber(n))
+          case ("?", n) => SList(SAtom("peek"), SNumber(n))
+          case ("??", n) => SList(SAtom("pop"), SNumber(n))
+          case ("!", n) => SList(SAtom("command"), SNumber(n))
+        }
+    }
 
   private def _mark_number(p: String): Option[(String, Int)] =
     p.headOption.flatMap(c => 

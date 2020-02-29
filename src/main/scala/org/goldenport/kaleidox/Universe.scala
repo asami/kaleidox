@@ -16,7 +16,8 @@ import org.goldenport.sexpr._
  *  version Apr. 13, 2019
  *  version May. 22, 2019
  *  version Jun.  9, 2019
- * @version Aug. 25, 2019
+ *  version Aug. 25, 2019
+ * @version Feb. 29, 2020
  * @author  ASAMI, Tomoharu
  */
 case class Universe(
@@ -60,7 +61,7 @@ case class Universe(
   }
   def peek: SExpr = stack.apply(0).getValueSExpr.getOrElse(SNil)
   def peek(n: Int): SExpr = stack.apply(n - 1).getValueSExpr.getOrElse(SNil)
-  def takeHistory: SExpr = RAISE.notImplementedYetDefect
+  def takeHistory: SExpr = history.lastOption.flatMap(_.getValueSExpr).getOrElse(SNil)
   def takeHistory(n: Int): SExpr = history.apply(n - 1).getValueSExpr.getOrElse(SNil)
   def takeCommandHistory: SExpr = RAISE.notImplementedYetDefect
   def takeCommandHistory(n: Int): SExpr = RAISE.notImplementedYetDefect

@@ -23,7 +23,8 @@ import org.goldenport.sexpr.eval.{ScriptEngineContext, FeatureContext}
  *  version Aug. 17, 2019
  *  version Sep.  1, 2019
  *  version Oct. 27, 2019
- * @version Nov.  9, 2019
+ *  version Nov.  9, 2019
+ * @version Feb. 26, 2020
  * @author  ASAMI, Tomoharu
  */
 case class ExecutionContext(
@@ -38,6 +39,7 @@ case class ExecutionContext(
   feature: FeatureContext,
   engine: Option[Engine] = None
 ) extends ConfigHelper {
+  def numericalOperations = config.numericalOperations
   def newline = config.newline
   def queryContext = sqlContext.queryContext
 

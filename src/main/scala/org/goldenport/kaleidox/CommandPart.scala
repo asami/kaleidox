@@ -22,7 +22,8 @@ import org.goldenport.sexpr.eval.{LispFunction, FunctionSpecification}
  *  version Jul. 24, 2019
  *  version Aug. 20, 2019
  *  version Oct. 15, 2019
- * @version Nov. 28, 2019
+ *  version Nov. 28, 2019
+ * @version Feb. 23, 2020
  * @author  ASAMI, Tomoharu
  */
 trait CommandPart { self: Engine =>
@@ -50,7 +51,7 @@ object CommandPart {
     ManualServiceClass
   )
   val operations = Operations(ExitClass, VersionClass)
-  val engine = cli.Engine(services, operations)
+  val engine = cli.Engine.terse(services, operations)
 
   case class KaleidoxEnvironment(
     context: ExecutionContext,
@@ -675,13 +676,12 @@ object CommandPart {
         getOrElse(_introduction)
 
       private def _introduction() = {
-        val s = "#Help introduction"
-  // # : history
-  // ? : stack
-  // ! : command
+        val s = """# : history
+? : stack
+! : command
 
-  // % : format
-  // . : expression
+% : format
+. : expression"""
         to_response_lines_string(s)
       }
 

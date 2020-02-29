@@ -15,7 +15,8 @@ import org.goldenport.kaleidox._
  *  version May. 21, 2019
  *  version Jun.  9, 2019
  *  version Aug. 25, 2019
- * @version Sep. 28, 2019
+ *  version Sep. 28, 2019
+ * @version Feb. 29, 2020
  * @author  ASAMI, Tomoharu
  */
 case class Context(
@@ -35,6 +36,7 @@ case class Context(
   def scriptContext = executionContext.scriptContext
   def sqlContext = executionContext.sqlContext
   def resourceManager = executionContext.resourceManager
+  def numericalOperations = executionContext.numericalOperations
   def feature = executionContext.feature
   lazy val display = s"Context(${value.display}, ${universe.display})"
 
@@ -70,8 +72,8 @@ case class Context(
     bindingsOption = Some(universe.bindings),
     universe = universe.pop(n)
   )
-  override def peek = universe.peek
-  override def peek(n: Int) = universe.peek(n)
+  override def peek = SMute(universe.peek)
+  override def peek(n: Int) = SMute(universe.peek(n))
   override def takeHistory(n: Int) = universe.takeHistory(n)
 
   override def getPipelineIn: Option[SExpr] = universe.getPipelineIn
