@@ -25,7 +25,8 @@ import org.goldenport.util.DateTimeUtils
  *  version Sep. 23, 2019
  *  version Oct. 31, 2019
  *  version Nov.  9, 2019
- * @version Feb. 26, 2020
+ *  version Feb. 26, 2020
+ * @version Mar. 30, 2020
  * @author  ASAMI, Tomoharu
  */
 case class Config(
@@ -43,7 +44,7 @@ case class Config(
     else
       SqlContext.createConnectionPool(properties, createQueryContext())
   lazy val resourceManager = new ResourceManager()
-  lazy val feature = FeatureContext.create(properties, sqlContext)
+  lazy val feature = FeatureContext.create(properties, cliConfig.i18n, sqlContext)
   def properties = cliConfig.properties
   def i18nContext = cliConfig.i18n
   def createQueryContext() = QueryExpression.Context(
