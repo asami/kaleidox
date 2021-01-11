@@ -23,14 +23,20 @@ import org.goldenport.sexpr.eval.{LispFunction, FunctionSpecification}
  *  version Aug. 20, 2019
  *  version Oct. 15, 2019
  *  version Nov. 28, 2019
- * @version Feb. 23, 2020
+ *  version Feb. 23, 2020
+ *  version May. 30, 2020
+ * @version Jan. 11, 2021
  * @author  ASAMI, Tomoharu
  */
 trait CommandPart { self: Engine =>
   protected def execute_command(ctx: ExecutionContext, u: Universe, p: SMetaCommand): UnitOfWorkFM[RWSOutput] = {
-    val env: Environment = Environment(
-      ctx.config.cliConfig,
-      CommandPart.KaleidoxEnvironment(ctx, u, CommandPart.engine.commandParser)
+    // val env: Environment = Environment(
+    //   ctx.monitor,
+    //   ctx.config.cliConfig,
+    //   CommandPart.KaleidoxEnvironment(ctx, u, CommandPart.engine.commandParser)
+    // )
+    val env = ctx.environment.copy(
+      appEnvironment = CommandPart.KaleidoxEnvironment(ctx, u, CommandPart.engine.commandParser)
     )
     val r = CommandPart.engine.apply(env, p.command, p.args)
     val a = LispExpression(SConsoleOutput(r.text))

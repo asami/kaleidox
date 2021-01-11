@@ -4,6 +4,7 @@ import scalaz._, Scalaz._
 import scala.collection.immutable.Stack
 import org.goldenport.RAISE
 import org.goldenport.i18n.I18NContext
+import org.goldenport.parser.{ErrorMessage, WarningMessage}
 import org.goldenport.record.v3.{IRecord, Record}
 import org.goldenport.incident.{Incident => LibIncident}
 import org.goldenport.sexpr._
@@ -17,7 +18,8 @@ import org.goldenport.sexpr._
  *  version May. 22, 2019
  *  version Jun.  9, 2019
  *  version Aug. 25, 2019
- * @version Feb. 29, 2020
+ *  version Feb. 29, 2020
+ * @version Jan.  9, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Universe(
@@ -26,7 +28,9 @@ case class Universe(
   parameters: Space,
   history: Vector[Blackboard],
   stack: Stack[Blackboard],
-  muteValue: Option[SExpr] // for mute
+  muteValue: Option[SExpr], // for mute
+  errors: Vector[ErrorMessage],
+  warnings: Vector[WarningMessage]
 ) {
   def getI18NContext: Option[I18NContext] = None
 
@@ -131,9 +135,18 @@ object Universe {
     Space.empty,
     Vector(Blackboard.empty),
     Stack(Blackboard.empty),
-    None
+    None,
+    Vector.empty,
+    Vector.empty
   )
 
-  def apply(config: Space, setup: Space, parameters: Space, init: Blackboard): Universe =
-    Universe(config, setup, parameters, Vector(init), Stack(init), None)
+  def apply(
+    config: Space,
+    setup: Space,
+    parameters: Space,
+    init: Blackboard,
+    errors: Vector[ErrorMessage],
+    warnings: Vector[WarningMessage]
+  ): Universe =
+    Universe(config, setup, parameters, Vector(init), Stack(init), None, errors, warnings)
 }

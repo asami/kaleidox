@@ -1,9 +1,11 @@
 package org.goldenport.kaleidox
 
 import scalaz._, Scalaz._
+import scala.util.control.NonFatal
 import java.io.File
 import java.net.{URL, URI}
 import org.goldenport.RAISE
+import org.goldenport.exception.SyntaxErrorFaultException
 import org.goldenport.i18n.I18NElement
 import org.goldenport.parser._
 import org.goldenport.hocon.{RichConfig, HoconUtils}
@@ -21,11 +23,14 @@ import org.goldenport.kaleidox.model._
  *  version May. 19, 2019
  *  version Jul. 15, 2019
  *  version Sep.  8, 2019
- * @version Nov. 16, 2019
+ *  version Nov. 16, 2019
+ * @version Jan. 10, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Model(
-  divisions: Vector[Model.Division]
+  divisions: Vector[Model.Division],
+  errors: Vector[ErrorMessage] = Vector.empty,
+  warnings: Vector[WarningMessage] = Vector.empty
 ) {
   import Model._
 
@@ -72,7 +77,10 @@ case class Model(
         // Z(r./:(ZZ())(_+_).r)
       }
     }
-    Model(p.divisions./:(Z(divisions))(_+_).r)
+    val ds = p.divisions./:(Z(divisions))(_+_).r
+    val es = errors ++ p.errors
+    val ws = warnings ++ p.warnings
+    Model(ds, es, ws)
   }
 
   private def _divisions(xs: Vector[Division], p: Division) = {
@@ -282,48 +290,62 @@ object Model {
 
   // def parse(p: String): Model = parse(Config.default, p)
 
-  def load(config: Config, p: File): Model = {
+  def load(config: Config, p: File): Model = try {
     val encoding = config.charset
     val s = IoUtils.toText(p, encoding)
-    parse(config, s)
+    _parse(config, s)
+  } catch {
+    case NonFatal(e) => error(p, e)
   }
 
-  def load(config: Config, p: String): Model = {
+  def load(config: Config, p: String): Model = try {
     val encoding = config.charset
     val s = IoUtils.toText(p, encoding)
-    parse(config, s)
+    _parse(config, s)
+  } catch {
+    case NonFatal(e) => error(e)
   }
 
-  def load(config: Config, p: URL): Model = {
+  def load(config: Config, p: URL): Model = try {
     val encoding = config.charset
     val s = IoUtils.toText(p, encoding)
-    parse(config, s)
+    _parse(config, s)
+  } catch {
+    case NonFatal(e) => error(p, e)
   }
 
-  def load(config: Config, p: URI): Model = {
+  def load(config: Config, p: URI): Model = try {
     val encoding = config.charset
     val s = IoUtils.toText(p, encoding)
-    parse(config, s)
+    _parse(config, s)
+  } catch {
+    case NonFatal(e) => error(p, e)
   }
 
-  def parse(config: Config, p: String): Model = {
-    // println(s"Model#parse: $p")
+  def parse(config: Config, p: String): Model = try {
+    _parse(config, p)
+  } catch {
+    case NonFatal(e) => error(e)
+  }
+
+  private def _parse(config: Config, p: String): Model =  {
     val bconfig = if (config.isLocation)
       LogicalBlocks.Config.default.forLisp
     else
       LogicalBlocks.Config.noLocation.forLisp
     val blocks = LogicalBlocks.parse(bconfig, p)
-    // println(s"Model#parse $p => $blocks")
     _parse(blocks)
   }
 
-  def parseExpression(config: Config, p: String): Model = {
+  def parseExpression(config: Config, p: String): Model = try {
     val bconfig = if (config.isLocation)
       LogicalBlocks.Config.expression.forLisp
     else
       LogicalBlocks.Config.expression.withoutLocation.forLisp
     val blocks = LogicalBlocks.parse(bconfig, p)
     _parse(blocks)
+  } catch {
+    case NonFatal(e) => error(e)
   }
 
   private def _parse(blocks: LogicalBlocks): Model = {
@@ -337,4 +359,30 @@ object Model {
   }
 
   def parseWitoutLocation(config: Config, p: String): Model = parse(config.withoutLocation, p)
+
+  def error(p: Throwable): Model = Model(Vector.empty, Vector(ErrorMessage(p)), Vector.empty)
+
+  def error(url: URL, p: Throwable): Model = p match {
+    case m: SyntaxErrorFaultException => _error(m.complementUrl(url))
+    case m: ParseSyntaxErrorException => _error(m.complementUrl(url))
+    case m => error(m)
+  }
+
+  def error(uri: URI, p: Throwable): Model = p match {
+    case m: SyntaxErrorFaultException => _error(m.complementUri(uri))
+    case m: ParseSyntaxErrorException => _error(m.complementUri(uri))
+    case m => error(m)
+  }
+
+  def error(file: File, p: Throwable): Model = p match {
+    case m: SyntaxErrorFaultException => _error(m.complementFile(file))
+    case m: ParseSyntaxErrorException => _error(m.complementFile(file))
+    case m => error(m)
+  }
+
+  private def _error(p: SyntaxErrorFaultException) =
+    Model(Vector.empty, p.errorMessages, p.warningMessages)
+
+  private def _error(p: ParseSyntaxErrorException) =
+    Model(Vector.empty, p.errors, p.warnings)
 }

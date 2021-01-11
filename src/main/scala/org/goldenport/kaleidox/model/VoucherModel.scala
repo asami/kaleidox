@@ -13,7 +13,8 @@ import VoucherModel._
  *  version Apr. 19, 2019
  *  version Jul.  7, 2019
  *  version Oct.  5, 2019
- * @version Dec.  7, 2019
+ *  version Dec.  7, 2019
+ * @version Jan.  9, 2021
  * @author  ASAMI, Tomoharu
  */
 case class VoucherModel(
@@ -204,7 +205,7 @@ object SimpleModelerUtils {
     }
   }
 
-  private def _to_field_value(ps: List[Inline]): FieldValue = ps match {
+  private def _to_field_value(ps: List[Dox]): FieldValue = ps match {
     case Nil => EmptyValue
     case x :: Nil => x match {
       case m: Text => SingleValue(m.toText)

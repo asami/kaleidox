@@ -3,12 +3,16 @@ package org.goldenport.kaleidox
 import scalaz._, Scalaz._
 import java.io.File
 import org.goldenport.RAISE
+import org.goldenport.monitor.Monitor
 import org.goldenport.i18n.I18NContext
 import org.goldenport.log.{LogContext, LogLevel, LogConfig}
 import org.goldenport.cli._
 import org.goldenport.bag.BufferBag
 import org.goldenport.record.v3.Record
 import org.goldenport.parser.LogicalLines
+import org.goldenport.parser.ParseMessage
+import org.goldenport.console.{ConsoleManager, MessageSequence, Message}
+import org.goldenport.console.{StandardMessage, ErrorMessage, WarningMessage, Prompt}
 import org.goldenport.kaleidox.interpreter.Interpreter
 import org.goldenport.util.StringUtils
 
@@ -25,7 +29,9 @@ import org.goldenport.util.StringUtils
  *  version Aug. 18, 2019
  *  version Sep.  8, 2019
  *  version Oct. 27, 2019
- * @version Nov.  9, 2019
+ *  version Nov.  9, 2019
+ *  version May. 30, 2020
+ * @version Jan. 11, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -46,7 +52,8 @@ case class Kaleidox(
   def repl(call: OperationCall) {
     val engine = _build_world(call)
     val state = Kaleidox.KaleidoxState(engine, engine.universe)
-    val repl = new ReadEvalPrintLoop(environment, state, LogicalLines.Config.lisp)
+    val console = ConsoleManager.createColorHilight(environment)
+    val repl = new ReadEvalPrintLoop(console, state, LogicalLines.Config.lisp)
     repl.execute()
     engine.epilogue()
   }
@@ -68,6 +75,7 @@ case class Kaleidox(
       addProperties(universe.parameters.bindings)
     val resourcemanager = config.resourceManager // TODO
     val context = ExecutionContext(
+      environment,
       config,
       i18nconfig,
       logconfig,
@@ -107,7 +115,15 @@ case class Kaleidox(
     // }
     val parameterspace = Space.create(_to_parameter_record(call.request))
     val blackboard = Blackboard.empty // TODO
-    (Universe(configspace, setupspace, parameterspace, blackboard), model)
+    val universe = Universe(
+      configspace,
+      setupspace,
+      parameterspace,
+      blackboard,
+      model.errors,
+      model.warnings
+    )
+    (universe, model)
   }
 
   private def _conf_model: Model = _implicit_model_files.foldMap(Model.load(config, _))
@@ -189,22 +205,39 @@ object Kaleidox {
     universe: Universe
   ) extends ReadEvalPrintLoop.IState {
     import org.goldenport.cli.ReadEvalPrintLoop._
+
+    val environment = engine.context.environment
+    val newline = engine.context.newline
     val consoleOutputLineLength = 100
-    def apply(p: ReplEvent): (IState, String) = {
+
+    def apply(p: ReplEvent): (IState, MessageSequence) = {
       val prompt = "kaleidox> "
       p match {
-        case ReplStart => (this, s"$prompt")
+        case ReplStart =>
+          val msgs = _errors_warnings_messages(universe)
+          (this, msgs :+ Prompt(prompt))
         case ReplEnd => RAISE.noReachDefect
         case ReplLine(l) =>
           val s = l.text
           val model = Model.parseExpression(engine.context.config, s)
           val (_, r, newuniverse) = engine.run(universe, model)
-          val o = r.map(x => s"${_output(x)}\n").mkString
-          val output = StringUtils.printConsole(o, engine.context.newline, consoleOutputLineLength)
+          val o = r.map(x => s"${_output(x)}${newline}").mkString
+          val output = StringUtils.printConsole(o, newline, consoleOutputLineLength)
           val newstate = copy(universe = newuniverse)
-          (newstate, s"$output\n$prompt")
+          (newstate, MessageSequence(Message(output), Prompt(prompt)))
       }
     }
+
+    private def _errors_warnings_messages(p: Universe): MessageSequence = {
+      val errors = MessageSequence.createErrorNormalized(universe.errors.map(_to_message))
+      val warnings = MessageSequence.createWarningNormalized(universe.warnings.map(_to_message))
+      errors + warnings
+    }
+
+    private def _to_message(p: ParseMessage): String = p.en(environment)
+
+    // private def _normalize_newline_with_newline(p: String) =
+    //   StringUtils.normalizeConsoleMessageWithTrailingNewline(newline)(p)
 
     private def _output(p: Expression): String = p.display // TODO customizable
   }

@@ -12,7 +12,8 @@ import org.goldenport.kaleidox.interpreter.Interpreter
 /*
  * @since   Jan.  2, 2019
  *  version Feb. 25, 2019
- * @version Oct.  2, 2019
+ *  version Oct.  2, 2019
+ * @version Nov. 20, 2020
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -20,11 +21,12 @@ class TryoutSpec extends WordSpec with Matchers with GivenWhenThen {
   val mocklogic = MockUnitOfWorkLogic.build(
     "http://www.yahoo.com" -> "OK"
   )
+  val monitor = ???
   val config = {
     val a = Config.log.trace // trace // warn // debug
     a.withServiceLogic(mocklogic)
   }
-  val context = ExecutionContext(config)
+  val context = ExecutionContext(monitor, config)
   val interpreter = Interpreter.create(context)
   val engine = Engine(context, Universe.empty, interpreter)
   engine.initialize()

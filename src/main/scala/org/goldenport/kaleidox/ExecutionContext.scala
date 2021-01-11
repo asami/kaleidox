@@ -2,6 +2,8 @@ package org.goldenport.kaleidox
 
 import javax.script._
 import org.goldenport.RAISE
+import org.goldenport.monitor.Monitor
+import org.goldenport.cli.Environment
 import org.goldenport.config.ConfigHelper
 import org.goldenport.i18n.I18NContext
 import org.goldenport.log.LogConfig
@@ -24,10 +26,13 @@ import org.goldenport.sexpr.eval.{ScriptEngineContext, FeatureContext}
  *  version Sep.  1, 2019
  *  version Oct. 27, 2019
  *  version Nov.  9, 2019
- * @version Feb. 26, 2020
+ *  version Feb. 26, 2020
+ *  version May. 30, 2020
+ * @version Jan. 11, 2021
  * @author  ASAMI, Tomoharu
  */
 case class ExecutionContext(
+  environment: Environment,
   config: Config,
   i18nContext: I18NContext,
   logConfig: LogConfig,
@@ -67,7 +72,8 @@ case class ExecutionContext(
 }
 
 object ExecutionContext {
-  def apply(p: Config): ExecutionContext = ExecutionContext(
+  def apply(env: Environment, p: Config): ExecutionContext = ExecutionContext(
+    env,
     p,
     p.i18nContext,
     p.logConfig,
