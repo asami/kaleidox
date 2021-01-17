@@ -2,7 +2,7 @@ organization := "org.goldenport"
 
 name := "kaleidox"
 
-version := "0.1.12"
+version := "0.1.13"
 
 scalaVersion := "2.10.3"
 // crossScalaVersions := Seq("2.10.39.2", "2.9.1")
@@ -26,14 +26,14 @@ resolvers += "Asami Maven Repository" at "http://www.asamioffice.com/maven"
 resolvers += "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository"
 
 // override goldenport-record
-libraryDependencies += "org.goldenport" %% "goldenport-scala-lib" % "1.2.75"
+libraryDependencies += "org.goldenport" %% "goldenport-scala-lib" % "1.2.76"
 
 // override goldenport-sexpr
 libraryDependencies += "org.goldenport" %% "goldenport-record" % "1.3.30"
 
-libraryDependencies += "org.goldenport" %% "goldenport-sexpr" % "2.0.13"
+libraryDependencies += "org.goldenport" %% "goldenport-sexpr" % "2.0.14"
 
-libraryDependencies += "org.smartdox" %% "smartdox" % "1.3.1"
+libraryDependencies += "org.smartdox" %% "smartdox" % "1.3.2"
 
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
 
