@@ -5,6 +5,7 @@ import scalaz.{Store => _, _}, Scalaz._
 import scalaz.concurrent.Task
 import org.goldenport.exception.RAISE
 import org.goldenport.log._
+import org.goldenport.console.MessageSequence
 import org.goldenport.record.unitofwork._, UnitOfWork._
 import org.goldenport.record.unitofwork.interpreter.UnitOfWorkInterpreter
 import org.goldenport.record.v2.unitofwork.UnitOfWorkHelper
@@ -20,7 +21,8 @@ import org.goldenport.sexpr.eval.{EvalContext, LispBinding}
  *  version May. 21, 2019
  *  version Jul. 16, 2019
  *  version Oct. 27, 2019
- * @version Dec.  7, 2019
+ *  version Dec.  7, 2019
+ * @version Jan. 12, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Engine(
@@ -36,7 +38,7 @@ case class Engine(
   // State : Universe
   // A: Expression
   // B: Vector[Expression]
-  type RWSWriter = Vector[String]
+  type RWSWriter = MessageSequence
   type RWSA = Expression
   type RWSB = Vector[Expression]
   type RWSOutput = (RWSWriter, RWSB, Universe)
@@ -101,11 +103,11 @@ case class Engine(
   }
 
   def run(state: Universe, p: Model): RWSOutput = {
-    p.getScript.map(run(state, _)).getOrElse((Vector.empty, Vector.empty, state))
+    p.getScript.map(run(state, _)).getOrElse((MessageSequence.empty, Vector.empty, state))
   }
 
   def run(state: Universe, p: Option[Script]): RWSOutput =
-    p.map(run(state, _)).getOrElse((Vector.empty, Vector.empty, state))
+    p.map(run(state, _)).getOrElse((MessageSequence.empty, Vector.empty, state))
 
   def run(state: Universe, p: Script): RWSOutput = {
     val r = for {
@@ -154,7 +156,7 @@ case class Engine(
       evaluator.evalLazy(sexpr) // TODO UnitOfWorkFM
     // println(s"Engine#_eval_lisp: $p => $newstate")
     val b = newstate.getValue.toVector
-    uow_lift((Vector.empty, b, newstate))
+    uow_lift((MessageSequence.empty, b, newstate))
   }
 
   private def _normalize(p: SExpr): SExpr = context.promotion(p).

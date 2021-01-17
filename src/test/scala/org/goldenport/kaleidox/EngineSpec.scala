@@ -5,6 +5,7 @@ import org.scalatest.junit.JUnitRunner
 import org.scalatest._
 import scalaz._, Scalaz._
 import org.goldenport.RAISE
+import org.goldenport.cli.Environment
 import org.goldenport.sexpr._
 import org.goldenport.record.v2._
 import org.goldenport.record.unitofwork.interpreter.MockUnitOfWorkLogic
@@ -18,7 +19,8 @@ import org.goldenport.kaleidox.interpreter.Interpreter
  *  version Jan.  1, 2019
  *  version Feb. 25, 2019
  *  version Oct.  2, 2019
- * @version Nov. 20, 2020
+ *  version Nov. 20, 2020
+ * @version Jan. 17, 2021
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -26,12 +28,12 @@ class EngineSpec extends WordSpec with Matchers with GivenWhenThen {
   val mocklogic = MockUnitOfWorkLogic.build(
     "http://www.yahoo.com" -> "OK"
   )
-  val monitor = ???
+  val env = Environment.create()
   val config = {
     val a = Config.log.debug // trace // warn // debug
     a.withServiceLogic(mocklogic)
   }
-  val context = ExecutionContext(monitor, config)
+  val context = ExecutionContext(env, config)
   val interpreter = Interpreter.create(context)
   val engine = Engine(context, Universe.empty, interpreter)
   engine.initialize()

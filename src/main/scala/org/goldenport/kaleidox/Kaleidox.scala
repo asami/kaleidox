@@ -12,7 +12,6 @@ import org.goldenport.record.v3.Record
 import org.goldenport.parser.LogicalLines
 import org.goldenport.parser.ParseMessage
 import org.goldenport.console.{ConsoleManager, MessageSequence, Message}
-import org.goldenport.console.{StandardMessage, ErrorMessage, WarningMessage, Prompt}
 import org.goldenport.kaleidox.interpreter.Interpreter
 import org.goldenport.util.StringUtils
 
@@ -31,7 +30,7 @@ import org.goldenport.util.StringUtils
  *  version Oct. 27, 2019
  *  version Nov.  9, 2019
  *  version May. 30, 2020
- * @version Jan. 11, 2021
+ * @version Jan. 17, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -215,16 +214,19 @@ object Kaleidox {
       p match {
         case ReplStart =>
           val msgs = _errors_warnings_messages(universe)
-          (this, msgs :+ Prompt(prompt))
+          (this, msgs :+ Message.prompt(prompt))
         case ReplEnd => RAISE.noReachDefect
         case ReplLine(l) =>
           val s = l.text
           val model = Model.parseExpression(engine.context.config, s)
-          val (_, r, newuniverse) = engine.run(universe, model)
-          val o = r.map(x => s"${_output(x)}${newline}").mkString
-          val output = StringUtils.printConsole(o, newline, consoleOutputLineLength)
+          val (msgs, r, newuniverse) = engine.run(universe, model)
+          // val o = r.map(x => s"${_output(x)}${newline}").mkString
+          // val output = StringUtils.printConsole(o, newline, consoleOutputLineLength)
+          // val newstate = copy(universe = newuniverse)
+          // (newstate, msgs + MessageSequence(Message(output), Prompt(prompt)))
+          val output = _to_messages(r)
           val newstate = copy(universe = newuniverse)
-          (newstate, MessageSequence(Message(output), Prompt(prompt)))
+          (newstate, msgs + output :+ Message.prompt(prompt))
       }
     }
 
@@ -238,6 +240,96 @@ object Kaleidox {
 
     // private def _normalize_newline_with_newline(p: String) =
     //   StringUtils.normalizeConsoleMessageWithTrailingNewline(newline)(p)
+
+    private def _to_messages(p: Vector[Expression]): MessageSequence =
+      MessageSequence(p.map(_to_message))
+
+    private def _to_message(p: Expression): Message = {
+      import org.goldenport.sexpr._
+      val s = StringUtils.printConsole(_output(p), newline, consoleOutputLineLength)
+      p.asSExpr match {
+        case m: SAtom => _keyword(s)
+        case m: SKeyword => _keyword(s)
+        case m: SNumber => _number(s)
+        case m: SRational => _number(s)
+        case m: SComplex => _number(s)
+        case m: SBoolean => _number(s)
+        case m: SRange => _number(s)
+        case m: SInterval => _number(s)
+        case m: SString => _string(s)
+        case m: SList => _sexpr(s)
+        case m: SLambda => _special(s)
+        case m: SError => _error(s)
+        case m: SConsoleOutput => _special(s)
+        case m: SBinary => _special(s)
+        case m: SI18NString => _special(s)
+        case m: SI18NTemplate => _special(s)
+        case m: SRegex => _special(s)
+        case m: SClob => _special(s)
+        case m: SBlob => _special(s)
+        case m: SRecord => _special(s)
+        case m: STable => _special(s)
+        case m: SVector => _special(s)
+        case m: SMatrix => _special(s)
+        case m: SDataFrame => _special(s)
+        case m: SLxsv => _special(s)
+        case m: SUrl => _special(s)
+        case m: SUrn => _special(s)
+        case m: SUri => _special(s)
+        case m: SExpression => _special(s)
+        case m: SScript => _special(s)
+        case m: SProcess => _control(s)
+        case m: SWindow => _control(s)
+        case m: SBean => _special(s)
+        case m: SXml => _special(s)
+        case m: SHtml => _special(s)
+        case m: SXPath => _special(s)
+        case m: SXsl => _special(s)
+        case m: SPug => _special(s)
+        case m: SJson => _special(s)
+        case m: SDateTime => _datetime(s)
+        case m: SLocalDateTime => _datetime(s)
+        case m: SLocalDate => _datetime(s)
+        case m: SLocalTime => _datetime(s)
+        case m: SMonthDay => _datetime(s)
+        case m: SDateTimeInterval => _datetime(s)
+        case m: SDuration => _datetime(s)
+        case m: SPeriod => _datetime(s)
+        case m: SMoney => _value(s)
+        case m: SPercent => _value(s)
+        case m: SUnit => _value(s)
+        case m: SChart => _special(s)
+        case m: SChartSpace => _special(s)
+        case m: SChartSeries => _special(s)
+        case m: SMute => _special(s)
+        case m: SFuture => _special(s)
+        case m: SLazy => _special(s)
+        case m: SLazyFuture => _special(s)
+        case m: SWait => _special(s)
+        case m: SFutureWait => _special(s)
+        case m => _unknown(s)
+      }
+    }
+
+    private def _keyword(p: String): Message = Message(p)
+
+    private def _number(p: String): Message = Message.blue(p)
+
+    private def _string(p: String): Message = Message.black(p)
+
+    private def _datetime(p: String): Message = Message.cyan(p)
+
+    private def _value(p: String): Message = Message.cyan(p)
+
+    private def _sexpr(p: String): Message = Message.magenta(p)
+
+    private def _control(p: String): Message = Message.green(p).withBlink()
+
+    private def _error(p: String): Message = Message.red(p).withUnderline()
+
+    private def _special(p: String): Message = Message.underline(p)
+
+    private def _unknown(p: String): Message = Message.yellow(p).withUnderline()
 
     private def _output(p: Expression): String = p.display // TODO customizable
   }

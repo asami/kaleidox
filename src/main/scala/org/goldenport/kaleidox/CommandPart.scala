@@ -3,6 +3,7 @@ package org.goldenport.kaleidox
 import org.goldenport.RAISE
 import org.goldenport.Strings
 import org.goldenport.log.LogContext
+import org.goldenport.console.MessageSequence
 import org.goldenport.collection.NonEmptyVector
 import org.goldenport.record.v3.ITable
 import org.goldenport.record.unitofwork._, UnitOfWork._
@@ -12,6 +13,7 @@ import org.goldenport.parser.CommandParser
 import org.goldenport.javafx.{JavaFXWindow => LibJavaFXWindow, HtmlWindow}
 import org.goldenport.sexpr._
 import org.goldenport.sexpr.eval.{LispFunction, FunctionSpecification}
+import org.goldenport.record.util.AnyUtils
 
 /*
  * @since   Feb. 17, 2019
@@ -25,7 +27,7 @@ import org.goldenport.sexpr.eval.{LispFunction, FunctionSpecification}
  *  version Nov. 28, 2019
  *  version Feb. 23, 2020
  *  version May. 30, 2020
- * @version Jan. 11, 2021
+ * @version Jan. 17, 2021
  * @author  ASAMI, Tomoharu
  */
 trait CommandPart { self: Engine =>
@@ -40,7 +42,7 @@ trait CommandPart { self: Engine =>
     )
     val r = CommandPart.engine.apply(env, p.command, p.args)
     val a = LispExpression(SConsoleOutput(r.text))
-    uow_lift((Vector.empty, Vector(a), u))
+    uow_lift((MessageSequence.empty, Vector(a), u))
   }
 }
 
@@ -276,9 +278,12 @@ object CommandPart {
     }
 
     case class ShowViewMethod(call: OperationCall) extends KaleidoxMethod {
+      import org.smartdox.Dox
+
       def execute = {
         universe.current.getValue.map(_.asSExpr).map {
           case m: STable => _table(m)
+          case m: SRecord => _record(m)
           case m: SXml => RAISE.notImplementedYetDefect
           case m: SHtml => RAISE.notImplementedYetDefect
           case m: SJson => RAISE.notImplementedYetDefect
@@ -293,7 +298,54 @@ object CommandPart {
         // to_response("ShowViewMethod")
       }
 
-      private def _table(p: STable) = ITable.HtmlBuilder().text(p.table)
+      // private def _table(p: STable) = ITable.HtmlBuilder().text(p.table)
+
+      private def _table(p: STable): String = {
+        import org.smartdox.Table
+        val t = p.table
+        val head: Option[List[String]] = t.head.map(_.names.map(_.text))
+        val doxtable = head.map { h =>
+          val data = t.data
+          val builder = Table.Builder.headerString(h)
+          for (y <- 0 until data.height) {
+            val xs = for (x <- 0 until data.width) yield {
+              data.get(x, y) match {
+                case Some(cell) => cell.text
+                case None => ""
+              }
+            }
+            builder.appendString(xs)
+          }
+          builder.apply()
+        }.getOrElse(RAISE.noReachDefect)
+        _to_html(doxtable)
+      }
+
+      private def _record(p: SRecord): String = {
+        import org.smartdox.Table
+        val head: List[String] = List("Key", "Value") // TODO
+        val builder = Table.Builder.headerString(head)
+        for (key <- p.record.keys) {
+          val data = p.record.get(key).map(AnyUtils.toString).getOrElse("")
+          val kv = List(key, data)
+          builder.appendString(kv)
+        }
+        _to_html(builder.apply())
+      }
+
+      private def _to_html(p: Dox): String = {
+        import org.goldenport.parser._
+        import org.smartdox.generator.Context
+        import org.smartdox.transformers.Dox2HtmlTransformer
+
+        val ctx = Context.create()
+        val tx = Dox2HtmlTransformer(ctx)
+        tx.transform(p) match {
+          case m: ParseSuccess[_] => m.ast
+          case m: EmptyParseResult[_] => RAISE.noReachDefect
+          case m: ParseFailure[_] => RAISE.noReachDefect
+        }
+      }
 
       private def _view_html(p: String): Response = {
         val c = LibJavaFXWindow.Config("HTML View", 640, 480)

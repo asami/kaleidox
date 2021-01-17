@@ -21,7 +21,8 @@ import org.goldenport.kaleidox._
  *  version Sep. 28, 2019
  *  version Oct. 14, 2019
  *  version Nov.  8, 2019
- * @version Feb. 29, 2020
+ *  version Feb. 29, 2020
+ * @version Jan. 16, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -106,7 +107,7 @@ case class Evaluator(
     }
 
     override protected def resolve_Parameters(c: LispContext, l: SLambda, args: List[SExpr]): (LispContext, List[SExpr]) = {
-      val (u, args9) = normalize_parameters(SList.create(args), l.parameters.length)
+      val (u, args9) = normalize_parameters_lambda(SList.create(args), l.parameters.length)
       args9 match {
         case m: SList => (lift_Context(c).withUniverse(u), m.list)
         case _ => RAISE.noReachDefect
@@ -201,15 +202,28 @@ case class Evaluator(
 
   private def _normalize(m: SList, name: String): (Universe, SExpr) =
     _binding.getFunction(name).
-      map(f => normalize_parameters(m, f.specification.numberOfMeaningfulParameters)).
+      map(f => normalize_parameters_function(m, f.specification.numberOfMeaningfulParameters)).
       getOrElse((universe, m))
 
-  protected final def normalize_parameters(m: SList, n: Int): (Universe, SExpr) = {
-    val params = Parameters(m)
-    val nn = n - (params.arguments.length - 1)
+  protected final def normalize_parameters_function(m: SList, n: Int): (Universe, SExpr) = {
+    val params = Parameters.fromExpression(m)
+    val nn = n - params.arguments.length
     if (nn > 0) {
       universe.makeStackParameters(nn) match {
-        case \/-((u, params)) => (u, SList.create(m.list ::: params))
+        case \/-((u, xs)) => (u, SList.create(m.list ::: xs))
+        case -\/(e) => (universe, e)
+      }
+    } else {
+      (universe, m)
+    }
+  }
+
+  protected final def normalize_parameters_lambda(m: SList, n: Int): (Universe, SExpr) = {
+    val params = Parameters(m)
+    val nn = n - params.arguments.length
+    if (nn > 0) {
+      universe.makeStackParameters(nn) match {
+        case \/-((u, xs)) => (u, SList.create(m.list ::: xs))
         case -\/(e) => (universe, e)
       }
     } else {
