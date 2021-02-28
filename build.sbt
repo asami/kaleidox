@@ -2,7 +2,7 @@ organization := "org.goldenport"
 
 name := "kaleidox"
 
-version := "0.1.13"
+version := "0.1.14"
 
 scalaVersion := "2.10.3"
 // crossScalaVersions := Seq("2.10.39.2", "2.9.1")
@@ -13,7 +13,8 @@ scalacOptions += "-unchecked"
 
 scalacOptions += "-feature"
 
-resolvers += "Scalaz Bintray Repo" at "http://dl.bintray.com/scalaz/releases"
+// scalaz-stream
+// resolvers += "Scalaz Bintray Repo" at "http://dl.bintray.com/scalaz/releases"
 
 resolvers += "GitHab releases 2019" at "https://raw.github.com/asami/maven-repository/2019/releases"
 
@@ -26,14 +27,14 @@ resolvers += "Asami Maven Repository" at "http://www.asamioffice.com/maven"
 resolvers += "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository"
 
 // override goldenport-record
-libraryDependencies += "org.goldenport" %% "goldenport-scala-lib" % "1.2.76"
+libraryDependencies += "org.goldenport" %% "goldenport-scala-lib" % "1.2.77"
 
 // override goldenport-sexpr
-libraryDependencies += "org.goldenport" %% "goldenport-record" % "1.3.30"
+libraryDependencies += "org.goldenport" %% "goldenport-record" % "1.3.31"
 
-libraryDependencies += "org.goldenport" %% "goldenport-sexpr" % "2.0.14"
+libraryDependencies += "org.goldenport" %% "goldenport-sexpr" % "2.0.15"
 
-libraryDependencies += "org.smartdox" %% "smartdox" % "1.3.2"
+libraryDependencies += "org.smartdox" %% "smartdox" % "1.3.3"
 
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
 
