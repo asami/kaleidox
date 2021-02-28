@@ -5,6 +5,7 @@ import java.io.File
 import org.goldenport.cli.{Environment, Config => CliConfig}
 import org.goldenport.io.ResourceManager
 import org.goldenport.sexpr.eval.{LispConfig, ScriptEngineContext, FeatureContext}
+import org.goldenport.sexpr.script.Script.{Config => SConfig}
 import org.goldenport.log.LogLevel
 import org.goldenport.matrix.INumericalOperations
 import org.goldenport.record.unitofwork.interpreter._
@@ -26,11 +27,13 @@ import org.goldenport.util.DateTimeUtils
  *  version Oct. 31, 2019
  *  version Nov.  9, 2019
  *  version Feb. 26, 2020
- * @version Mar. 30, 2020
+ *  version Mar. 30, 2020
+ * @version Feb. 20, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Config(
   cliConfig: CliConfig,
+  scriptConfig: SConfig,
   serviceLogic: UnitOfWorkLogic,
   storeLogic: StoreOperationLogic,
   isLocation: Boolean = true
@@ -48,8 +51,7 @@ case class Config(
   def properties = cliConfig.properties
   def i18nContext = cliConfig.i18n
   def createQueryContext() = QueryExpression.Context(
-    DateTimeUtils.toDateTime(System.currentTimeMillis, i18nContext.datetimezone),
-    i18nContext.datetimezone
+    DateTimeUtils.toDateTime(System.currentTimeMillis, i18nContext.datetimezone)
   )
   def logConfig = cliConfig.log
   def charset = cliConfig.charset
@@ -66,14 +68,20 @@ case class Config(
 }
 
 object Config {
+  import Script._
+
   val defaultServiceLogic = new StandardUnitOfWorkLogic()
   val defaultStoreLogic = new StandardStoreOperationLogic()
-  val default = Config(CliConfig.c, defaultServiceLogic, defaultStoreLogic)
+  val scriptConfig = SConfig.default.addStringLiteralTokenizers(
+    DoxLiteralTokenizer
+  )
+  val default = Config(CliConfig.c, scriptConfig, defaultServiceLogic, defaultStoreLogic)
   val noLocation = default.withoutLocation
 
   def create(env: Environment): Config = {
     Config(
       env.config,
+      scriptConfig,
       defaultServiceLogic,
       defaultStoreLogic
     )

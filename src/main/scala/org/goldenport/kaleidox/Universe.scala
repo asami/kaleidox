@@ -4,6 +4,7 @@ import scalaz._, Scalaz._
 import scala.collection.immutable.Stack
 import org.goldenport.RAISE
 import org.goldenport.i18n.I18NContext
+import org.goldenport.trace.TraceHandle
 import org.goldenport.parser.{ErrorMessage, WarningMessage}
 import org.goldenport.record.v3.{IRecord, Record}
 import org.goldenport.incident.{Incident => LibIncident}
@@ -19,7 +20,8 @@ import org.goldenport.sexpr._
  *  version Jun.  9, 2019
  *  version Aug. 25, 2019
  *  version Feb. 29, 2020
- * @version Jan.  9, 2021
+ *  version Jan.  9, 2021
+ * @version Feb. 25, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Universe(
@@ -28,6 +30,7 @@ case class Universe(
   parameters: Space,
   history: Vector[Blackboard],
   stack: Stack[Blackboard],
+  trace: Vector[TraceHandle],
   muteValue: Option[SExpr], // for mute
   errors: Vector[ErrorMessage],
   warnings: Vector[WarningMessage]
@@ -71,14 +74,35 @@ case class Universe(
   def takeCommandHistory(n: Int): SExpr = RAISE.notImplementedYetDefect
 
   // push and append
-  def next(p: SExpr, bindings: IRecord, s: SExpr, i: Option[LibIncident]): Universe = {
+  def next(
+    p: SExpr,
+    bindings: IRecord,
+    s: SExpr,
+    i: Option[LibIncident],
+    t: TraceHandle
+  ): Universe = {
     val newbb = current.next(p, bindings, s, i)
-    copy(history = history :+ newbb, stack = stack.push(newbb), muteValue = None)
+    copy(
+      history = history :+ newbb,
+      stack = stack.push(newbb),
+      trace = trace :+ t,
+      muteValue = None
+    )
   }
 
-  def next(p: SExpr, s: SExpr, i: Option[LibIncident]): Universe = {
+  def next(
+    p: SExpr,
+    s: SExpr,
+    i: Option[LibIncident],
+    t: TraceHandle
+  ): Universe = {
     val newbb = current.next(p, s, i)
-    copy(history = history :+ newbb, stack = stack.push(newbb), muteValue = None)
+    copy(
+      history = history :+ newbb,
+      stack = stack.push(newbb),
+      trace = trace :+ t,
+      muteValue = None
+    )
   }
 
   // def next(p: SExpr, bindings: IRecord, s: SExpr): Universe = {
@@ -86,20 +110,30 @@ case class Universe(
   //   copy(history = history :+ newbb, stack = stack.push(newbb), muteValue = None)
   // }
 
+  // TODO for lambda evaluation
   def next(params: List[String], args: List[SExpr]): Universe = {
     val z: List[(String, SExpr)] = params.zip(args)
     val a = Record.create(z)
-    next(a)
+    next(a, TraceHandle.empty) // TODO
   }
 
-  def next(bindings: IRecord): Universe = {
+  def next(bindings: IRecord, t: TraceHandle): Universe = {
     val newbb = current.next(bindings)
-    copy(history = history :+ newbb, stack = stack.push(newbb), muteValue = None)
+    copy(
+      history = history :+ newbb,
+      stack = stack.push(newbb),
+      trace = trace :+ t,
+      muteValue = None
+    )
   }
 
-  def next(): Universe = {
+  def next(t: TraceHandle): Universe = {
     val newbb = current.next()
-    copy(history = history :+ newbb, stack = stack.push(newbb))
+    copy(
+      history = history :+ newbb,
+      stack = stack.push(newbb),
+      trace = trace :+ t
+    )
   }
 
   def withMuteValue(p: SExpr): Universe = copy(muteValue = Some(p))
@@ -135,6 +169,7 @@ object Universe {
     Space.empty,
     Vector(Blackboard.empty),
     Stack(Blackboard.empty),
+    Vector(TraceHandle.empty),
     None,
     Vector.empty,
     Vector.empty
@@ -148,5 +183,15 @@ object Universe {
     errors: Vector[ErrorMessage],
     warnings: Vector[WarningMessage]
   ): Universe =
-    Universe(config, setup, parameters, Vector(init), Stack(init), None, errors, warnings)
+    Universe(
+      config,
+      setup,
+      parameters,
+      Vector(init),
+      Stack(init),
+      Vector(TraceHandle.empty),
+      None,
+      errors,
+      warnings
+    )
 }

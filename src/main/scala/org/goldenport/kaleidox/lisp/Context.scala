@@ -1,5 +1,6 @@
 package org.goldenport.kaleidox.lisp
 
+import org.goldenport.trace.TraceContext
 import org.goldenport.record.v3.{IRecord, Record}
 import org.goldenport.incident.{Incident => LibIncident}
 import org.goldenport.sexpr._
@@ -16,12 +17,14 @@ import org.goldenport.kaleidox._
  *  version Jun.  9, 2019
  *  version Aug. 25, 2019
  *  version Sep. 28, 2019
- * @version Feb. 29, 2020
+ *  version Feb. 29, 2020
+ * @version Feb. 25, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Context(
   evaluator: LispContext => LispContext,
   executionContext: ExecutionContext,
+  traceContext: TraceContext,
   universe: Universe,
   valueOption: Option[SExpr],
   incident: Option[LibIncident],
@@ -54,11 +57,14 @@ case class Context(
 
   def withUniverse(u: Universe) = copy(universe = u)
 
-  def push(p: SExpr) = (valueOption, bindingsOption) match {
-    case (Some(v), Some(b)) => copy(universe = universe.next(v, b, p, incident))
-    case (Some(v), None) => copy(universe = universe.next(v, p, incident))
-    case (None, Some(b)) => copy(universe = universe.next(b))
-    case (None, None) => copy(universe = universe.next())
+  def push(p: SExpr) = {
+    val t = traceContext.toHandle
+    (valueOption, bindingsOption) match {
+      case (Some(v), Some(b)) => copy(universe = universe.next(v, b, p, incident, t))
+      case (Some(v), None) => copy(universe = universe.next(v, p, incident, t))
+      case (None, Some(b)) => copy(universe = universe.next(b, t))
+      case (None, None) => copy(universe = universe.next(t))
+    }
   }
 
   def pushOrMute(p: SExpr) = valueOption match {

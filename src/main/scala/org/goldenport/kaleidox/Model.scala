@@ -24,7 +24,8 @@ import org.goldenport.kaleidox.model._
  *  version Jul. 15, 2019
  *  version Sep.  8, 2019
  *  version Nov. 16, 2019
- * @version Jan. 10, 2021
+ *  version Jan. 10, 2021
+ * @version Feb. 24, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -34,13 +35,13 @@ case class Model(
 ) {
   import Model._
 
-  def getPrologue: Option[Script] = divisions.flatMap {
-    case m: PrologueDivision => m.getScript
+  def getPrologue(config: Config): Option[Script] = divisions.flatMap {
+    case m: PrologueDivision => m.getScript(config)
     case _ => None
   }.headOption // TODO
 
-  def getEpilogue: Option[Script] = divisions.flatMap {
-    case m: EpilogueDivision => m.getScript
+  def getEpilogue(config: Config): Option[Script] = divisions.flatMap {
+    case m: EpilogueDivision => m.getScript(config)
     case _ => None
   }.headOption // TODO
 
@@ -62,12 +63,33 @@ case class Model(
     a.headOption // TODO concat
   }
 
-  def getDataSet: Option[DataSet] = getVoucherModel.flatMap { model =>
-    val ctx = DataSet.Builder.Context(model)
+  lazy val getSchemaModel: Option[SchemaModel] = {
     val a = divisions.collect {
-      case m: DataDivision => m.dataset(ctx)
+      case m: SchemaDivision => m.makeModel
     }
     a.headOption // TODO concat
+  }
+
+  private lazy val _ctx = (getSchemaModel, getVoucherModel) match {
+    case (None, None) => None
+    case (Some(s), None) => Some(DataSet.Builder.Context(s))
+    case (None, Some(v)) => Some(DataSet.Builder.Context(v))
+    case (Some(s), Some(v)) => Some(DataSet.Builder.Context(s, v))
+  }
+
+
+  def getDataSet: Option[DataSet] = {
+    val a = divisions.collect {
+      case m: DataDivision => _ctx.map(m.dataset)
+    }
+    a.flatten.headOption // TODO concat
+  }
+
+  def getDataStore: Option[DataSet] = {
+    val a = divisions.collect {
+      case m: DataStoreDivision => _ctx.map(m.dataset)
+    }
+    a.flatten.headOption // TODO concat
   }
 
   def +(p: Model): Model = {
@@ -116,11 +138,16 @@ object Model {
   object Division {
     val elements = Vector(
       IdentificationDivision,
+      SignatureDivision,
       EnvironmentDivision,
-      DataDivision,
+      DataDivision, // TODO change semantics
+      DataStoreDivision,
+      DataBagDivision,
+      DataSourceDivision,
       Script,
       DocumentDivision, // unused
       VoucherDivision,
+      SchemaDivision,
       EntityDivision,
       PrologueDivision,
       EpilogueDivision,
@@ -134,7 +161,7 @@ object Model {
     protected val name_Candidates: Vector[String] = Vector.empty
 
     def accept(p: LogicalSection): Option[Division] =
-      if (is_Match(p.title.toI18NString.key))
+      if (is_Match(p.keyForModel))
         Some(to_Division(p))
       else
         None
@@ -151,6 +178,17 @@ object Model {
   }
   object IdentificationDivision extends DivisionFactory {
     override val name_Candidates = Vector("id", "identification")
+
+    protected def to_Division(p: LogicalSection): Division = IdentificationDivision(p)
+  }
+
+  case class SignatureDivision(section: LogicalSection) extends Division {
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: SignatureDivision => copy(section + m.section)
+    }
+  }
+  object SignatureDivision extends DivisionFactory {
+    override val name_Candidates = Vector("signature")
 
     protected def to_Division(p: LogicalSection): Division = IdentificationDivision(p)
   }
@@ -180,6 +218,7 @@ object Model {
     }
   }
 
+  // TODO change semantics more generic: refer COBOL data division
   case class DataDivision(
     section: LogicalSection
   ) extends Division {
@@ -194,6 +233,49 @@ object Model {
     protected def to_Division(p: LogicalSection): Division = DataDivision(p)
   }
 
+  case class DataStoreDivision(
+    section: LogicalSection
+  ) extends Division {
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: DataStoreDivision => copy(section + m.section)
+    }
+
+    def dataset(ctx: DataSet.Builder.Context): DataSet = DataSet.create(ctx, section)
+  }
+  object DataStoreDivision extends DivisionFactory {
+    override val name_Candidates = Vector("data-store")
+    protected def to_Division(p: LogicalSection): Division = DataStoreDivision(p)
+  }
+
+  case class DataBagDivision(
+    section: LogicalSection
+  ) extends Division {
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: DataBagDivision => copy(section + m.section)
+    }
+
+    def dataset(ctx: DataSet.Builder.Context): DataSet = DataSet.create(ctx, section)
+  }
+  object DataBagDivision extends DivisionFactory {
+    override val name_Candidates = Vector("data-bag")
+    protected def to_Division(p: LogicalSection): Division = DataBagDivision(p)
+  }
+
+  case class DataSourceDivision(
+    section: LogicalSection
+  ) extends Division {
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: DataSourceDivision => copy(section + m.section)
+    }
+
+    def dataset(ctx: DataSet.Builder.Context): DataSet = DataSet.create(ctx, section)
+  }
+  object DataSourceDivision extends DivisionFactory {
+    override val name_Candidates = Vector("data-source")
+    protected def to_Division(p: LogicalSection): Division = DataSourceDivision(p)
+  }
+
+  // TODO literal document (not value object)
   case class DocumentDivision(section: LogicalSection) extends Division {
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: DocumentDivision => copy(section + m.section)
@@ -218,7 +300,7 @@ object Model {
       // println(s"VoucherModel#_make $p")
       p match {
         case m: Section =>
-          if (m.titleName.toLowerCase == "voucher") // TODO
+          if (m.keyForModel == "voucher") // TODO
             _make_vouchers(m)
           else
             VoucherModel.empty
@@ -242,6 +324,44 @@ object Model {
     protected def to_Division(p: LogicalSection): Division = VoucherDivision(p)
   }
 
+  case class SchemaDivision(section: LogicalSection) extends Division {
+    def makeModel: SchemaModel = {
+      val doxconfig = Dox2Parser.Config.default // TODO
+      val dox = Dox2Parser.parse(doxconfig, section)
+      // println(s"SchemaDivision#makeModel $dox")
+      _make(dox)
+    }
+
+    import org.smartdox._
+
+    private def _make(p: Dox): SchemaModel = {
+      // println(s"SchemaModel#_make $p")
+      p match {
+        case m: Section =>
+          if (m.keyForModel == "schema") // TODO
+            _make_schemas(m)
+          else
+            SchemaModel.empty
+        case m => m.elements.foldMap(_make)
+      }
+    }
+
+    private def _make_schemas(p: Section): SchemaModel = p.sections.foldMap(_make_schema)
+
+    private def _make_schema(p: Section): SchemaModel =
+      SchemaModel.SchemaClass.createOption(p).
+        map(SchemaModel.apply).
+        getOrElse(SchemaModel.empty)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: SchemaDivision => copy(section + m.section)
+    }
+  }
+  object SchemaDivision extends DivisionFactory {
+    override val name_Candidates = Vector("schema")
+    protected def to_Division(p: LogicalSection): Division = SchemaDivision(p)
+  }
+
   case class EntityDivision(section: LogicalSection) extends Division {
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: EntityDivision => copy(section + m.section)
@@ -253,7 +373,7 @@ object Model {
   }
 
   case class PrologueDivision(section: LogicalSection) extends Division {
-    def getScript: Option[Script] = Script.parseOption(section)
+    def getScript(config: Config): Option[Script] = Script.parseOption(config, section)
 
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: PrologueDivision => copy(section + m.section)
@@ -265,7 +385,7 @@ object Model {
   }
 
   case class EpilogueDivision(section: LogicalSection) extends Division {
-    def getScript: Option[Script] = Script.parseOption(section)
+    def getScript(config: Config): Option[Script] = Script.parseOption(config, section)
 
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: EpilogueDivision => copy(section + m.section)
@@ -334,7 +454,7 @@ object Model {
     else
       LogicalBlocks.Config.noLocation.forLisp
     val blocks = LogicalBlocks.parse(bconfig, p)
-    _parse(blocks)
+    _parse(config, blocks)
   }
 
   def parseExpression(config: Config, p: String): Model = try {
@@ -343,17 +463,17 @@ object Model {
     else
       LogicalBlocks.Config.expression.withoutLocation.forLisp
     val blocks = LogicalBlocks.parse(bconfig, p)
-    _parse(blocks)
+    _parse(config, blocks)
   } catch {
     case NonFatal(e) => error(e)
   }
 
-  private def _parse(blocks: LogicalBlocks): Model = {
+  private def _parse(config: Config, blocks: LogicalBlocks): Model = {
     val divs = blocks.blocks collect {
       case m: LogicalSection => Division.take(m)
     }
     if (divs.isEmpty)
-      Model(Script.parse(blocks))
+      Model(Script.parse(config, blocks))
     else
       Model(divs)
   }

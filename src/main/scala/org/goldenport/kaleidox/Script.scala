@@ -2,6 +2,8 @@ package org.goldenport.kaleidox
 
 import org.goldenport.parser._
 import org.goldenport.sexpr.SExpr
+import org.goldenport.sexpr.SError
+import org.goldenport.sexpr.script.Script.StringLiteralTokenizer
 
 /*
  * @since   Aug. 11, 2018
@@ -10,7 +12,9 @@ import org.goldenport.sexpr.SExpr
  *  version Jan.  1, 2019
  *  version Feb. 16, 2019
  *  version May. 17, 2019
- * @version Jul. 15, 2019
+ *  version Jul. 15, 2019
+ *  version Jan. 22, 2021
+ * @version Feb. 11, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Script(
@@ -58,23 +62,50 @@ object Script extends Model.DivisionFactory {
 
   def apply(ps: Seq[SExpr]): Script = Script(ps.map(LispExpression).toVector)
 
-  def parse(p: String): Script = {
+  def parse(config: Config, p: String): Script = {
     // println(s"kaleidox.Script#parse: $p")
-    val sexprs = org.goldenport.sexpr.script.Script.parse(p)
+    val sexprs = org.goldenport.sexpr.script.Script.parse(config.scriptConfig, p)
     Script(sexprs.expressions.map(LispExpression))
   }
 
-  def parse(p: LogicalBlocks): Script = {
+  def parse(config: Config, p: LogicalBlocks): Script = {
     // println(s"kaleidox.Script#parse: $p")
-    val sexprs = org.goldenport.sexpr.script.Script.parse(p)
+    val sexprs = org.goldenport.sexpr.script.Script.parse(config.scriptConfig, p)
     Script(sexprs.expressions.map(LispExpression))
   }
 
-  def parseOption(p: LogicalSection): Option[Script] = {
-    val r = parse(p.blocks)
+  def parseWithoutMetaCommand(config: Config, p: String): Script = {
+    val sexprs = org.goldenport.sexpr.script.Script.parseWithoutMetaCommand(config.scriptConfig, p)
+    Script(sexprs.expressions.map(LispExpression))
+  }
+
+  def parseOption(config: Config, p: LogicalSection): Option[Script] = {
+    val r = parse(config, p.blocks)
     if (r.isEmpty)
       None
     else
       Some(r)
+  }
+
+  case object DoxLiteralTokenizer extends StringLiteralTokenizer {
+    import org.goldenport.sexpr.IDocument
+    import org.goldenport.sexpr.SDocument
+    import org.smartdox._
+    import org.smartdox.parser.Dox2Parser
+
+    private val _config = Dox2Parser.Config.orgmodeInline
+
+    case class DoxDocument(dox: Dox) extends IDocument {
+    }
+
+    def name = "dox"
+    def literal(p: String): SExpr = {
+      val parser = new Dox2Parser(_config)
+      parser.apply(p) match {
+        case ParseSuccess(dox, _) => SDocument(DoxDocument(dox))
+        case m: ParseFailure[_] => SError.syntaxError(m)
+        case EmptyParseResult() => SDocument(DoxDocument(Dox.empty))
+      }
+    }
   }
 }

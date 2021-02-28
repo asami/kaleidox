@@ -22,7 +22,8 @@ import org.goldenport.sexpr.eval.{EvalContext, LispBinding}
  *  version Jul. 16, 2019
  *  version Oct. 27, 2019
  *  version Dec.  7, 2019
- * @version Jan. 12, 2021
+ *  version Jan. 12, 2021
+ * @version Feb. 26, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Engine(
@@ -64,15 +65,26 @@ case class Engine(
     _setup_model_prologue(p)
   }
 
-  private def _setup_store(p: Model): Unit =
+  private def _setup_store(p: Model): Unit = {
     p.getVoucherModel.foreach { vm =>
       vm.classes.foreach {
         case (name, x) => _context.feature.store.define(Symbol(name), x.schema)
       }
     }
+    p.getSchemaModel.foreach { model =>
+      model.classes.foreach {
+        case (name, x) => _context.feature.store.define(Symbol(name), x.schema)
+      }
+    }
+    p.getDataStore.foreach { model =>
+      model.slots.foreach {
+        case (name, x) => _context.feature.store.setup(name, x.data)
+      }
+    }
+  }
 
   private def _setup_model_prologue(p: Model): Engine = {
-    val (written, result, state) = run(universe, p.getPrologue)
+    val (written, result, state) = run(universe, p.getPrologue(context.config))
     copy(model = Some(p), universe = state)
   }
 
@@ -84,7 +96,7 @@ case class Engine(
 
   def epilogue(): Engine = model.
     map { x =>
-      val (written, result, state) = run(universe, x.getEpilogue)
+      val (written, result, state) = run(universe, x.getEpilogue(context.config))
       copy(universe = state)
     }.getOrElse(this)
 

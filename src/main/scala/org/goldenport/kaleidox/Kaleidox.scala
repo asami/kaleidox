@@ -6,11 +6,13 @@ import org.goldenport.RAISE
 import org.goldenport.monitor.Monitor
 import org.goldenport.i18n.I18NContext
 import org.goldenport.log.{LogContext, LogLevel, LogConfig}
+import org.goldenport.trace.TraceContext
 import org.goldenport.cli._
 import org.goldenport.bag.BufferBag
 import org.goldenport.record.v3.Record
 import org.goldenport.parser.LogicalLines
 import org.goldenport.parser.ParseMessage
+import org.goldenport.parser.{ErrorMessage, WarningMessage}
 import org.goldenport.console.{ConsoleManager, MessageSequence, Message}
 import org.goldenport.kaleidox.interpreter.Interpreter
 import org.goldenport.util.StringUtils
@@ -30,7 +32,8 @@ import org.goldenport.util.StringUtils
  *  version Oct. 27, 2019
  *  version Nov.  9, 2019
  *  version May. 30, 2020
- * @version Jan. 17, 2021
+ *  version Jan. 22, 2021
+ * @version Feb. 25, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -69,6 +72,7 @@ case class Kaleidox(
     val (universe, model) = _build_universe(call)
     val i18nconfig = _i18n_context(model, config)
     val logconfig = _log_config(model, config)
+    val tracecontext = TraceContext.create()
     val sqlcontext = config.sqlContext.
       addProperties(universe.setup.bindings).
       addProperties(universe.parameters.bindings)
@@ -78,6 +82,7 @@ case class Kaleidox(
       config,
       i18nconfig,
       logconfig,
+      tracecontext,
       config.serviceLogic,
       config.storeLogic,
       config.scriptContext,
@@ -151,8 +156,11 @@ case class Kaleidox(
     val space1 = model.getVoucherModel.
       map(_.setup(space0)).
       getOrElse(space0)
-    val space2 = model.getDataSet.map(_.setup(space1)).getOrElse(space1)
-    val space = space2
+    val space2 = model.getSchemaModel.
+      map(_.setup(space1)).
+      getOrElse(space1)
+    val space3 = model.getDataSet.map(_.setup(space2)).getOrElse(space2)
+    val space = space3
     space
   }
 
@@ -224,9 +232,10 @@ object Kaleidox {
           // val output = StringUtils.printConsole(o, newline, consoleOutputLineLength)
           // val newstate = copy(universe = newuniverse)
           // (newstate, msgs + MessageSequence(Message(output), Prompt(prompt)))
-          val output = _to_messages(r)
+          val o = _to_messages(r)
+          val output = _errors_to_messages(model.errors) + _warnings_to_messages(model.warnings) + msgs + o
           val newstate = copy(universe = newuniverse)
-          (newstate, msgs + output :+ Message.prompt(prompt))
+          (newstate, output :+ Message.prompt(prompt))
       }
     }
 
@@ -237,6 +246,12 @@ object Kaleidox {
     }
 
     private def _to_message(p: ParseMessage): String = p.en(environment)
+
+    private def _errors_to_messages(p: Seq[ErrorMessage]) = 
+      MessageSequence.createErrorNormalized(p.map(_to_message))
+
+    private def _warnings_to_messages(p: Seq[WarningMessage]) = 
+      MessageSequence.createWarningNormalized(p.map(_to_message))
 
     // private def _normalize_newline_with_newline(p: String) =
     //   StringUtils.normalizeConsoleMessageWithTrailingNewline(newline)(p)

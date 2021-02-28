@@ -27,7 +27,8 @@ import org.goldenport.record.util.AnyUtils
  *  version Nov. 28, 2019
  *  version Feb. 23, 2020
  *  version May. 30, 2020
- * @version Jan. 17, 2021
+ *  version Jan. 24, 2021
+ * @version Feb. 25, 2021
  * @author  ASAMI, Tomoharu
  */
 trait CommandPart { self: Engine =>
@@ -50,9 +51,11 @@ object CommandPart {
   val services = Services(
     ShowServiceClass,
     LogServiceClass,
+    RecorderServiceClass,
     PropertyServiceClass,
     StackServiceClass,
     HistoryServiceClass,
+    TraceServiceClass,
     UniverseServiceClass,
     EvalServiceClass,
     HelpServiceClass,
@@ -448,6 +451,33 @@ object CommandPart {
     }
   }
 
+  case object RecorderServiceClass extends ServiceClass {
+    def name = "recorder"
+    def defaultOperation = Some(RecorderReportClass)
+    def operations = Operations(
+      RecorderReportClass
+    )
+
+    case object RecorderReportClass extends OperationClass {
+      val specification = spec.Operation.default("report")
+
+      def operation(req: Request): Operation = RecorderReport
+    }
+
+    case object RecorderReport extends Operation {
+      def apply(env: Environment, req: Request): Response =
+        RecorderReportMethod(OperationCall(env, RecorderReportClass.specification, req, Response())).run
+    }
+
+    case class RecorderReportMethod(call: OperationCall) extends KaleidoxMethod {
+      def execute = {
+        val recorder = call.environment.recorder
+        recorder.setReportFile(???)
+        ???
+      }
+    }
+  }
+
   case object PropertyServiceClass extends ServiceClass {
     def name = "property"
     def defaultOperation = Some(PropertyClass)
@@ -568,6 +598,33 @@ object CommandPart {
         case None => "N/A"
       }
       val s = build_lines_string_with_number(xs)
+      to_response(s)
+    }
+  }
+
+  case object TraceServiceClass extends ServiceClass {
+    def name = "trace"
+    def defaultOperation = Some(TraceClass)
+    def operations = Operations(
+      TraceClass
+    )
+  }
+
+  case object TraceClass extends OperationClass {
+    val specification = spec.Operation.default("trace")
+
+    def operation(req: Request): Operation = Trace
+  }
+
+  case object Trace extends Operation {
+    def apply(env: Environment, req: Request): Response =
+      TraceMethod(OperationCall(env, TraceClass.specification, req, Response())).run
+  }
+
+  case class TraceMethod(call: OperationCall) extends KaleidoxMethod {
+    def execute = {
+      val xs = universe.trace
+      val s = build_lines_string_with_number(xs.map(_.display))
       to_response(s)
     }
   }

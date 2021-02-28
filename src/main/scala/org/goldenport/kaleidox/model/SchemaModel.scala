@@ -6,43 +6,39 @@ import org.goldenport.record.v3.Record
 import org.goldenport.sexpr.SSchema
 import org.goldenport.collection.VectorMap
 import org.goldenport.kaleidox._
-import VoucherModel._
 
 /*
- * @since   Apr. 17, 2019
- *  version Apr. 19, 2019
- *  version Jul.  7, 2019
- *  version Oct.  5, 2019
- *  version Dec.  7, 2019
- *  version Jan.  9, 2021
- * @version Feb. 23, 2021
+ * @since   Feb. 18, 2021
+ * @version Feb. 25, 2021
  * @author  ASAMI, Tomoharu
  */
-case class VoucherModel(
-  classes: VectorMap[String, VoucherClass]
+case class SchemaModel(
+  classes: VectorMap[String, SchemaModel.SchemaClass]
 ) extends ISchemaModel {
-  def get(name: String): Option[VoucherClass] = classes.get(name)
+  import SchemaModel._
 
-  def +(rhs: VoucherModel): VoucherModel = copy(classes ++ rhs.classes)
+  def get(name: String): Option[SchemaClass] = classes.get(name)
+
+  def +(rhs: SchemaModel): SchemaModel = copy(classes ++ rhs.classes)
 
   def setup(p: Space): Space = {
     val a = classes.values.toVector.foldMap { x =>
-      val path = s"model.voucher.${x.name}"
+      val path = s"model.schema.${x.name}"
       Record.data(path -> SSchema(x.schema))
     }
     p.updateBindings(a)
   }
 }
 
-object VoucherModel {
-  val empty = VoucherModel(VectorMap.empty[String, VoucherClass])
+object SchemaModel {
+  val empty = SchemaModel(VectorMap.empty[String, SchemaClass])
 
-  implicit object VoucherModelMonoid extends Monoid[VoucherModel] {
-    def zero = VoucherModel.empty
-    def append(lhs: VoucherModel, rhs: => VoucherModel) = lhs + rhs
+  implicit object SchemaModelMonoid extends Monoid[SchemaModel] {
+    def zero = SchemaModel.empty
+    def append(lhs: SchemaModel, rhs: => SchemaModel) = lhs + rhs
   }
 
-  def apply(p: VoucherClass): VoucherModel = VoucherModel(VectorMap(p.name -> p))
+  def apply(p: SchemaClass): SchemaModel = SchemaModel(VectorMap(p.name -> p))
 
   // TODO simplemodeler
   import org.smartdox._
@@ -51,9 +47,9 @@ object VoucherModel {
   import org.goldenport.i18n.I18NString
   import org.goldenport.record.v2.{DataType, Multiplicity, XString, MOne}
 
-  case class VoucherClass(
+  case class SchemaClass(
     name: String,
-    features: VoucherClass.Features,
+    features: SchemaClass.Features,
     slots: Vector[Slot]
   ) extends ISchemaClass {
     lazy val schema: Schema = {
@@ -65,8 +61,8 @@ object VoucherModel {
       }
     }
   }
-  object VoucherClass {
-    // def apply(ps: Iterable[Slot]): VoucherClass = new VoucherClass(ps.toVector)
+  object SchemaClass {
+    // def apply(ps: Iterable[Slot]): SchemaClass = new SchemaClass(ps.toVector)
 
     case class Features(
       tableName: Option[String] = None
@@ -75,19 +71,42 @@ object VoucherModel {
       val empty = Features()
     }
 
-    def apply(name: String, features: Option[Features], slots: Vector[Slot]): VoucherClass =
-      VoucherClass(name, features getOrElse Features.empty, slots)
+    def apply(name: String, features: Option[Features], slots: Vector[Slot]): SchemaClass =
+      SchemaClass(name, features getOrElse Features.empty, slots)
 
-    def createOption(p: Section): Option[VoucherClass] =
+    def createOption(p: Section): Option[SchemaClass] =
       new Builder().createOption(p)
 
     class Builder() {
       val autoCapitalize: Boolean = false
 
-      def createOption(p: Section): Option[VoucherClass] = {
-        val features = p.elements.collect(_feature_table).headOption
-        val props = p.elements.collect(_property_table).headOption
-        props.map(_to_voucher_class(p.nameForModel, features, _))
+      def createOption(p: Section): Option[SchemaClass] = {
+        case class Z(
+          propertyTables: Vector[Table] = Vector.empty,
+          featureTables: Vector[Table] = Vector.empty,
+          anonTables: Vector[Table] = Vector.empty
+        ) {
+          def r = {
+            val features = propertyTables.headOption
+            val props = propertyTables.headOption orElse anonTables.headOption
+            props.map(_to_schema_class(p.nameForModel, features, _))
+          }
+
+          def +(rhs: Dox) = rhs match {
+            case m: Table =>
+              if (_is_property_table(m))
+                copy(propertyTables = propertyTables :+ m)
+              else if (_is_property_table(m))
+                copy(featureTables = featureTables :+ m)
+              else if (_is_anon_table(m))
+                copy(anonTables = anonTables :+ m)
+              else
+                this
+            case m: Paragraph =>
+              RAISE.notImplementedYetDefect // TODO features by property
+          }
+        }
+        p.elements./:(Z())(_+_).r
       }
 
       private def _is_property_table(p: Table) = p.getCaptionName.
@@ -104,12 +123,14 @@ object VoucherModel {
         case m: Table if _is_feature_table(m) => m
       }
 
-      private def _to_voucher_class(pname: String, features: Option[Table], props: Table) = {
+      private def _is_anon_table(p: Table) = p.getCaptionName.isEmpty
+
+      private def _to_schema_class(pname: String, features: Option[Table], props: Table) = {
         val name = if (autoCapitalize) UString.capitalize(pname) else pname
         val rs = SimpleModelerUtils.toRecords(props)
         val xs = rs.flatMap(_slot)
         val fs = features.flatMap(_to_features)
-        VoucherClass(name, fs, xs.toVector)
+        SchemaClass(name, fs, xs.toVector)
       }
 
       private def _slot(p: Record): Option[Slot] =
@@ -177,41 +198,5 @@ object VoucherModel {
       multiplicity,
       i18nLabel = label
     )
-  }
-}
-
-import org.goldenport.Strings
-import org.goldenport.record.v3.{Table => _, _}
-import org.smartdox._
-
-object SimpleModelerUtils {
-  def toRecords(p: Table): List[Record] = p.head.map { head =>
-    val columns = head.columns
-    p.body.records.map { x =>
-      val fields = columns.zip(x.fields).flatMap {
-        case (k, v) =>
-          if (Strings.blankp(k))
-            None
-          else
-            Some(Field(k, _to_field_value(v.contents)))
-      }
-      Record(fields)
-    }
-  }.getOrElse {
-    p.body.records.map { x =>
-      val fields = x.fields.zipWithIndex.map {
-        case (v, k) => Field(s"${k + 1}", _to_field_value(v.contents))
-      }
-      Record(fields)
-    }
-  }
-
-  private def _to_field_value(ps: List[Dox]): FieldValue = ps match {
-    case Nil => EmptyValue
-    case x :: Nil => x match {
-      case m: Text => SingleValue(m.toText)
-      case m => SingleValue(m)
-    }
-    case xs => SingleValue(Fragment(xs))
   }
 }

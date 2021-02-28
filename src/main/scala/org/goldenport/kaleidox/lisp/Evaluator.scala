@@ -3,6 +3,7 @@ package org.goldenport.kaleidox.lisp
 import scalaz._, Scalaz._
 import org.goldenport.RAISE
 import org.goldenport.log.Loggable
+import org.goldenport.trace.TraceContext
 import org.goldenport.sexpr._
 import org.goldenport.sexpr.eval.{LispBinding, Parameters, LispContext}
 import org.goldenport.util.StringUtils
@@ -22,7 +23,8 @@ import org.goldenport.kaleidox._
  *  version Oct. 14, 2019
  *  version Nov.  8, 2019
  *  version Feb. 29, 2020
- * @version Jan. 16, 2021
+ *  version Jan. 16, 2021
+ * @version Feb. 25, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -41,6 +43,7 @@ case class Evaluator(
     override def create_Eval_Context(x: SExpr) = Context(
       this.apply,
       context,
+      TraceContext.create(),
       universe,
       Some(x),
       None,
@@ -60,6 +63,7 @@ case class Evaluator(
     override def create_Eval_Context(x: SExpr) = Context(
       this.apply,
       context,
+      TraceContext.create(),
       u,
       Some(x),
       None,
@@ -94,7 +98,7 @@ case class Evaluator(
     private def _apply_lambda(c: Context, l: SLambda, args: List[SExpr]): LispContext = {
       val engine = c.executionContext.engine getOrElse RAISE.noReachDefect
       val script = Script(l.expressions)
-      val universe = c.universe.next(l.parameters, args)
+      val universe = c.universe.next(l.parameters, args) // TODO trace
       val r = engine.run(universe, script)
       val value = r._2.toList match {
         case Nil => SNil
