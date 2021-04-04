@@ -23,11 +23,12 @@ import org.goldenport.sexpr.eval.{EvalContext, LispBinding}
  *  version Oct. 27, 2019
  *  version Dec.  7, 2019
  *  version Jan. 12, 2021
- * @version Feb. 26, 2021
+ *  version Feb. 26, 2021
+ * @version Mar. 28, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Engine(
-  private val _context: ExecutionContext,
+  context: ExecutionContext,
   universe: Universe,
   interpreter: UnitOfWorkInterpreter[Task],
   model: Option[Model] = None
@@ -39,12 +40,12 @@ case class Engine(
   // State : Universe
   // A: Expression
   // B: Vector[Expression]
-  type RWSWriter = MessageSequence
+  type RWSWriter = EvalReport // MessageSequence
   type RWSA = Expression
   type RWSB = Vector[Expression]
   type RWSOutput = (RWSWriter, RWSB, Universe)
 
-  lazy val context = _context.withEngine(this)
+//  lazy val context = _context.withEngine(this)
 
   implicit val uowMonad = new Monad[UnitOfWorkFM] {
     def point[A](a: => A): UnitOfWorkFM[A] = UnitOfWork.lift(a)
@@ -68,17 +69,17 @@ case class Engine(
   private def _setup_store(p: Model): Unit = {
     p.getVoucherModel.foreach { vm =>
       vm.classes.foreach {
-        case (name, x) => _context.feature.store.define(Symbol(name), x.schema)
+        case (name, x) => context.feature.store.define(Symbol(name), x.schema)
       }
     }
     p.getSchemaModel.foreach { model =>
       model.classes.foreach {
-        case (name, x) => _context.feature.store.define(Symbol(name), x.schema)
+        case (name, x) => context.feature.store.define(Symbol(name), x.schema)
       }
     }
     p.getDataStore.foreach { model =>
       model.slots.foreach {
-        case (name, x) => _context.feature.store.setup(name, x.data)
+        case (name, x) => context.feature.store.setup(name, x.data)
       }
     }
   }
@@ -115,20 +116,31 @@ case class Engine(
   }
 
   def run(state: Universe, p: Model): RWSOutput = {
-    p.getScript.map(run(state, _)).getOrElse((MessageSequence.empty, Vector.empty, state))
+    p.getScript.map(run(state, _)).getOrElse((EvalReport.create(_new_context), Vector.empty, state))
   }
 
   def run(state: Universe, p: Option[Script]): RWSOutput =
-    p.map(run(state, _)).getOrElse((MessageSequence.empty, Vector.empty, state))
+    p.map(run(state, _)).getOrElse((EvalReport.create(_new_context), Vector.empty, state))
 
   def run(state: Universe, p: Script): RWSOutput = {
     val r = for {
       _ <- urws[ExecutionContext, RWSWriter, Universe]
       r <- execute(p)
     } yield r
-    val rr: UnitOfWorkFM[RWSOutput] = r.run(context, state)
+    val rr: UnitOfWorkFM[RWSOutput] = r.run(_new_context, state)
     runTask(rr)(interpreter).run
   }
+
+  def run(ctx: ExecutionContext, state: Universe, p: Script): RWSOutput = {
+    val r = for {
+      _ <- urws[ExecutionContext, RWSWriter, Universe]
+      r <- execute(p)
+    } yield r
+    val rr: UnitOfWorkFM[RWSOutput] = r.run(ctx, state)
+    runTask(rr)(interpreter).run
+  }
+
+  private def _new_context = context.newContext(this)
 
   private def execute(p: Script): ReaderWriterStateT[UnitOfWorkFM, ExecutionContext, RWSWriter, Universe, RWSB] = {
     val c: ReaderWriterStateT[UnitOfWorkFM, ExecutionContext, RWSWriter, Universe, RWSB] = urwso[ExecutionContext, RWSWriter, Universe, RWSB]
@@ -168,7 +180,7 @@ case class Engine(
       evaluator.evalLazy(sexpr) // TODO UnitOfWorkFM
     // println(s"Engine#_eval_lisp: $p => $newstate")
     val b = newstate.getValue.toVector
-    uow_lift((MessageSequence.empty, b, newstate))
+    uow_lift((EvalReport.create(reader), b, newstate))
   }
 
   private def _normalize(p: SExpr): SExpr = context.promotion(p).

@@ -15,6 +15,7 @@ import org.goldenport.parser.ParseMessage
 import org.goldenport.parser.{ErrorMessage, WarningMessage}
 import org.goldenport.console.{ConsoleManager, MessageSequence, Message}
 import org.goldenport.kaleidox.interpreter.Interpreter
+import org.goldenport.kaleidox.http.HttpHandle
 import org.goldenport.util.StringUtils
 
 /*
@@ -33,7 +34,9 @@ import org.goldenport.util.StringUtils
  *  version Nov.  9, 2019
  *  version May. 30, 2020
  *  version Jan. 22, 2021
- * @version Feb. 25, 2021
+ *  version Feb. 25, 2021
+ *  version Mar. 28, 2021
+ * @version Apr.  4, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -65,6 +68,11 @@ case class Kaleidox(
     val u = engine.universe
     engine.epilogue()
     u.getValue.map(r => println(r.print))
+  }
+
+  def http(call: OperationCall): HttpHandle = {
+    val engine = _build_world(call)
+    new HttpHandle(engine)
   }
 
   private def _build_world(call: OperationCall): Engine = {
@@ -125,7 +133,8 @@ case class Kaleidox(
       parameterspace,
       blackboard,
       model.errors,
-      model.warnings
+      model.warnings,
+      model.getServiceModel.orZero
     )
     (universe, model)
   }
@@ -149,20 +158,23 @@ case class Kaleidox(
     ).flatten.distinct.filter(_.exists)
   }
 
-  private def _space(model: Model) = {
-    val space0 = model.getEnvironmentProperties.
-      map(Space.create).
-      getOrElse(Space.empty)
-    val space1 = model.getVoucherModel.
-      map(_.setup(space0)).
-      getOrElse(space0)
-    val space2 = model.getSchemaModel.
-      map(_.setup(space1)).
-      getOrElse(space1)
-    val space3 = model.getDataSet.map(_.setup(space2)).getOrElse(space2)
-    val space = space3
-    space
-  }
+  // private def _space(model: Model) = {
+  //   val space0 = model.getEnvironmentProperties.
+  //     map(Space.create).
+  //     getOrElse(Space.empty)
+  //   val space1 = model.getVoucherModel. // obsolated
+  //     map(_.setup(space0)).
+  //     getOrElse(space0)
+  //   val space2 = model.getSchemaModel.
+  //     map(_.setup(space1)).
+  //     getOrElse(space1)
+  //   val space3 = model.getDataSet.map(_.setup(space2)).getOrElse(space2) // obsolated
+  //   val space4 = model.getDataBag.map(_.setup(space3)).getOrElse(space3)
+  //   val space = space4
+  //   space
+  // }
+
+  private def _space(model: Model) = Space.empty.addModel(model)
 
   private def _i18n_context(model: Model, config: Config): I18NContext = {
     config.i18nContext // TODO model
@@ -227,13 +239,13 @@ object Kaleidox {
         case ReplLine(l) =>
           val s = l.text
           val model = Model.parseExpression(engine.context.config, s)
-          val (msgs, r, newuniverse) = engine.run(universe, model)
+          val (report, r, newuniverse) = engine.run(universe, model)
           // val o = r.map(x => s"${_output(x)}${newline}").mkString
           // val output = StringUtils.printConsole(o, newline, consoleOutputLineLength)
           // val newstate = copy(universe = newuniverse)
           // (newstate, msgs + MessageSequence(Message(output), Prompt(prompt)))
           val o = _to_messages(r)
-          val output = _errors_to_messages(model.errors) + _warnings_to_messages(model.warnings) + msgs + o
+          val output = _errors_to_messages(model.errors) + _warnings_to_messages(model.warnings) + report.messages + o
           val newstate = copy(universe = newuniverse)
           (newstate, output :+ Message.prompt(prompt))
       }
@@ -261,7 +273,7 @@ object Kaleidox {
 
     private def _to_message(p: Expression): Message = {
       import org.goldenport.sexpr._
-      val s = StringUtils.printConsole(_output(p), newline, consoleOutputLineLength)
+      def s = StringUtils.printConsole(_output(p), newline, consoleOutputLineLength)
       p.asSExpr match {
         case m: SAtom => _keyword(s)
         case m: SKeyword => _keyword(s)
@@ -275,19 +287,19 @@ object Kaleidox {
         case m: SList => _sexpr(s)
         case m: SLambda => _special(s)
         case m: SError => _error(s)
-        case m: SConsoleOutput => _special(s)
+        case m: SConsoleOutput => _console(m.output)
         case m: SBinary => _special(s)
         case m: SI18NString => _special(s)
         case m: SI18NTemplate => _special(s)
         case m: SRegex => _special(s)
         case m: SClob => _special(s)
         case m: SBlob => _special(s)
-        case m: SRecord => _special(s)
-        case m: STable => _special(s)
-        case m: SVector => _special(s)
-        case m: SMatrix => _special(s)
-        case m: SDataFrame => _special(s)
-        case m: SLxsv => _special(s)
+        case m: SRecord => _record(s)
+        case m: STable => _record(s)
+        case m: SVector => _record(s)
+        case m: SMatrix => _record(s)
+        case m: SDataFrame => _record(s)
+        case m: SLxsv => _record(s)
         case m: SUrl => _special(s)
         case m: SUrn => _special(s)
         case m: SUri => _special(s)
@@ -338,6 +350,8 @@ object Kaleidox {
 
     private def _sexpr(p: String): Message = Message.magenta(p)
 
+    private def _record(p: String): Message = Message.white(p)
+
     private def _control(p: String): Message = Message.green(p).withBlink()
 
     private def _error(p: String): Message = Message.red(p).withUnderline()
@@ -345,6 +359,8 @@ object Kaleidox {
     private def _special(p: String): Message = Message.underline(p)
 
     private def _unknown(p: String): Message = Message.yellow(p).withUnderline()
+
+    private def _console(m: Message): Message = m
 
     private def _output(p: Expression): String = p.display // TODO customizable
   }

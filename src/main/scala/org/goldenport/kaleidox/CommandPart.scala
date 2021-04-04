@@ -3,6 +3,8 @@ package org.goldenport.kaleidox
 import org.goldenport.RAISE
 import org.goldenport.Strings
 import org.goldenport.log.LogContext
+import org.goldenport.context.Conclusion
+import org.goldenport.console.Message
 import org.goldenport.console.MessageSequence
 import org.goldenport.collection.NonEmptyVector
 import org.goldenport.record.v3.ITable
@@ -28,7 +30,9 @@ import org.goldenport.record.util.AnyUtils
  *  version Feb. 23, 2020
  *  version May. 30, 2020
  *  version Jan. 24, 2021
- * @version Feb. 25, 2021
+ *  version Feb. 25, 2021
+ *  version Mar. 28, 2021
+ * @version Apr.  4, 2021
  * @author  ASAMI, Tomoharu
  */
 trait CommandPart { self: Engine =>
@@ -42,14 +46,19 @@ trait CommandPart { self: Engine =>
       appEnvironment = CommandPart.KaleidoxEnvironment(ctx, u, CommandPart.engine.commandParser)
     )
     val r = CommandPart.engine.apply(env, p.command, p.args)
-    val a = LispExpression(SConsoleOutput(r.text))
-    uow_lift((MessageSequence.empty, Vector(a), u))
+    val ru = r match {
+      case m: CommandPart.UniverseResponse => m.universe
+      case _ => u
+    }
+    val a = LispExpression(SConsoleOutput(Message(r.text)))
+    uow_lift((EvalReport.create(ctx), Vector(a), ru))
   }
 }
 
 object CommandPart {
   val services = Services(
     ShowServiceClass,
+    ViewServiceClass,
     LogServiceClass,
     RecorderServiceClass,
     PropertyServiceClass,
@@ -58,11 +67,16 @@ object CommandPart {
     TraceServiceClass,
     UniverseServiceClass,
     EvalServiceClass,
+    LoadServiceClass,
+    SaveServiceClass,
     HelpServiceClass,
     ManualServiceClass
   )
   val operations = Operations(ExitClass, VersionClass)
   val engine = cli.Engine.terse(services, operations)
+
+  case class UniverseResponse(universe: Universe) extends ApplicationResponse {
+  }
 
   case class KaleidoxEnvironment(
     context: ExecutionContext,
@@ -76,6 +90,7 @@ object CommandPart {
 
   trait KaleidoxMethod extends Method {
     lazy val kaleidoxEnvironment: KaleidoxEnvironment = toAppEnvironment[KaleidoxEnvironment]
+    def config = kaleidoxEnvironment.context.config
     def universe = kaleidoxEnvironment.universe
   }
 
@@ -118,10 +133,10 @@ object CommandPart {
       ShowDisplayClass,
       ShowDescriptionClass,
       ShowFullClass,
-      ShowMarshallClass,
-      ShowViewClass,
       ShowLiteralClass,
-      ShowMuarshallClass // TODO
+      ShowMarshallClass,
+      ShowPrettyClass,
+      ShowViewClass
     )
 
     // def specification: spec.Service = spec.Service(
@@ -172,7 +187,7 @@ object CommandPart {
     case class ShowPrintMethod(call: OperationCall) extends KaleidoxMethod {
       def execute = {
         // println("ShowPrintMethod")
-        val s = universe.current.getValue.map(_.print).getOrElse("#Empty")
+        val s = universe.current.getValue.map(_.print).getOrElse("")
         to_response(s)
       }
     }
@@ -233,24 +248,6 @@ object CommandPart {
       }
     }
 
-    case object ShowLiteralClass extends OperationClass {
-      val specification = spec.Operation.default("literal")
-
-      def operation(req: Request): Operation = ShowLiteral
-    }
-
-    case object ShowLiteral extends Operation {
-      def apply(env: Environment, req: Request): Response =
-        ShowLiteralMethod(OperationCall(env, ShowLiteralClass.specification, req, Response())).run
-    }
-
-    case class ShowLiteralMethod(call: OperationCall) extends KaleidoxMethod {
-      def execute = {
-        val s = universe.current.getValue.map(_.literal).getOrElse("#Empty")
-        to_response(s)
-      }
-    }
-
     case object ShowMarshallClass extends OperationClass {
       val specification = spec.Operation.default("marshall")
 
@@ -269,6 +266,43 @@ object CommandPart {
       }
     }
 
+    case object ShowLiteralClass extends OperationClass {
+      val specification = spec.Operation.default("literal")
+
+      def operation(req: Request): Operation = ShowLiteral
+    }
+
+    case object ShowLiteral extends Operation {
+      def apply(env: Environment, req: Request): Response =
+        ShowLiteralMethod(OperationCall(env, ShowLiteralClass.specification, req, Response())).run
+    }
+
+    case class ShowLiteralMethod(call: OperationCall) extends KaleidoxMethod {
+      def execute = {
+        val s = universe.current.getValue.map(_.literal).getOrElse("#Empty")
+        to_response(s)
+      }
+    }
+
+    case object ShowPrettyClass extends OperationClass {
+      val specification = spec.Operation.default("pretty")
+
+      def operation(req: Request): Operation = ShowPretty
+    }
+
+    case object ShowPretty extends Operation {
+      def apply(env: Environment, req: Request): Response =
+        ShowPrettyMethod(OperationCall(env, ShowPrettyClass.specification, req, Response())).run
+    }
+
+    case class ShowPrettyMethod(call: OperationCall) extends KaleidoxMethod {
+      def execute = {
+        val a = universe.current.getValue.map(_.pretty).getOrElse(Nil)
+        val s = build_lines_string(a)
+        to_response(s)
+      }
+    }
+
     case object ShowViewClass extends OperationClass {
       val specification = spec.Operation.default("view")
 
@@ -277,20 +311,44 @@ object CommandPart {
 
     case object ShowView extends Operation {
       def apply(env: Environment, req: Request): Response =
-        ShowViewMethod(OperationCall(env, ShowViewClass.specification, req, Response())).run
+        ViewServiceClass.ViewMethod(OperationCall(env, ShowViewClass.specification, req, Response())).run
+    }
+  }
+
+  case object ViewServiceClass extends ServiceClass {
+    import org.smartdox._
+
+    def name = "view"
+    def defaultOperation = Some(ViewClass)
+    def operations = Operations(
+      ViewClass
+    )
+
+    case object ViewClass extends OperationClass {
+      val specification = spec.Operation.default("view")
+
+      def operation(req: Request): Operation = View
     }
 
-    case class ShowViewMethod(call: OperationCall) extends KaleidoxMethod {
+    case object View extends Operation {
+      def apply(env: Environment, req: Request): Response =
+        ViewMethod(OperationCall(env, ViewClass.specification, req, Response())).run
+    }
+
+    case class ViewMethod(call: OperationCall) extends KaleidoxMethod {
       import org.smartdox.Dox
 
       def execute = {
         universe.current.getValue.map(_.asSExpr).map {
           case m: STable => _table(m)
           case m: SRecord => _record(m)
-          case m: SXml => RAISE.notImplementedYetDefect
-          case m: SHtml => RAISE.notImplementedYetDefect
-          case m: SJson => RAISE.notImplementedYetDefect
-          case m => RAISE.notImplementedYetDefect(s"$m")
+          case m: SXml => _xml(m)
+          case m: SHtml => _html(m)
+          case m: SJson => _json(m)
+          case m: SError => _error(m)
+          case m: SBlob => _blob(m)
+          case m: SClob => _clob(m)
+          case m => _sexpr(m)
         }.map(_view_html).getOrElse {
           to_response("ShowViewMethod")
         }
@@ -304,7 +362,6 @@ object CommandPart {
       // private def _table(p: STable) = ITable.HtmlBuilder().text(p.table)
 
       private def _table(p: STable): String = {
-        import org.smartdox.Table
         val t = p.table
         val head: Option[List[String]] = t.head.map(_.names.map(_.text))
         val doxtable = head.map { h =>
@@ -336,6 +393,40 @@ object CommandPart {
         _to_html(builder.apply())
       }
 
+      private def _xml(p: SXml): String = {
+        _to_html_program(p, "xml")
+      }
+
+      private def _html(p: SHtml): String = {
+        _to_html_program(p, "html")
+      }
+
+      private def _json(p: SJson): String = {
+        _to_html_program(p, "json")
+      }
+
+      private def _error(p: SError): String = {
+        _to_html_program(p, "error")
+      }
+
+      private def _blob(p: SBlob): String = {
+        _to_html_program(p, "blob")
+      }
+
+      private def _clob(p: SClob): String = {
+        _to_html_program(p, "clob")
+      }
+
+      private def _sexpr(p: SExpr): String = {
+        _to_html_program(p, "lisp")
+      }
+
+      private def _to_html_program(p: SExpr, lang: String) = {
+        val s = p.pretty
+        val prog = Program(s, "program" -> lang)
+        _to_html(prog)
+      }
+
       private def _to_html(p: Dox): String = {
         import org.goldenport.parser._
         import org.smartdox.generator.Context
@@ -354,25 +445,7 @@ object CommandPart {
         val c = LibJavaFXWindow.Config("HTML View", 640, 480)
         val a = new HtmlWindow(c, p) // TODO manage
         a.start()
-        to_response("Table View")
-      }
-    }
-
-    case object ShowMuarshallClass extends OperationClass {
-      val specification = spec.Operation.default("muarshall")
-
-      def operation(req: Request): Operation = ShowMuarshall
-    }
-
-    case object ShowMuarshall extends Operation {
-      def apply(env: Environment, req: Request): Response =
-        ShowMuarshallMethod(OperationCall(env, ShowMuarshallClass.specification, req, Response())).run
-    }
-
-    case class ShowMuarshallMethod(call: OperationCall) extends KaleidoxMethod {
-      def execute = {
-        val s = universe.current.getValue.map(_.marshall).getOrElse("")
-        to_response(s)
+        to_response("View")
       }
     }
   }
@@ -472,8 +545,9 @@ object CommandPart {
     case class RecorderReportMethod(call: OperationCall) extends KaleidoxMethod {
       def execute = {
         val recorder = call.environment.recorder
-        recorder.setReportFile(???)
-        ???
+        val file = RAISE.notImplementedYetDefect
+        recorder.setReportFile(file)
+        RAISE.notImplementedYetDefect
       }
     }
   }
@@ -606,26 +680,60 @@ object CommandPart {
     def name = "trace"
     def defaultOperation = Some(TraceClass)
     def operations = Operations(
-      TraceClass
+      TraceClass,
+      HistoryClass
     )
-  }
 
-  case object TraceClass extends OperationClass {
-    val specification = spec.Operation.default("trace")
+    case object TraceClass extends OperationClass {
+      val specification = spec.Operation.default("trace")
 
-    def operation(req: Request): Operation = Trace
-  }
+      def operation(req: Request): Operation = Trace
+    }
 
-  case object Trace extends Operation {
-    def apply(env: Environment, req: Request): Response =
-      TraceMethod(OperationCall(env, TraceClass.specification, req, Response())).run
-  }
+    case object Trace extends Operation {
+      def apply(env: Environment, req: Request): Response =
+        TraceMethod(OperationCall(env, TraceClass.specification, req, Response())).run
+    }
 
-  case class TraceMethod(call: OperationCall) extends KaleidoxMethod {
-    def execute = {
-      val xs = universe.trace
-      val s = build_lines_string_with_number(xs.map(_.display))
-      to_response(s)
+    case class TraceMethod(call: OperationCall) extends KaleidoxMethod {
+      def execute = {
+        val xs = universe.history
+        val s = xs.lastOption.map(_print).getOrElse("")
+        to_response(s)
+      }
+    }
+
+    case object HistoryClass extends OperationClass {
+      val specification = spec.Operation.default("history")
+
+      def operation(req: Request): Operation = History
+    }
+
+    case object History extends Operation {
+      def apply(env: Environment, req: Request): Response =
+        HistoryMethod(OperationCall(env, HistoryClass.specification, req, Response())).run
+    }
+
+    case class HistoryMethod(call: OperationCall) extends KaleidoxMethod {
+      def execute = {
+        val xs = universe.history
+        val s = build_lines_string_with_number(xs.map(_display))
+        to_response(s)
+      }
+    }
+
+    private def _print(p: Universe.HistorySlot): String = _print(p.conclusion)
+
+    private def _print(p: Conclusion): String = {
+      // TODO
+      org.goldenport.trace.Trace.Printer.print(p.trace)
+    }
+
+    private def _display(p: Universe.HistorySlot): String = _display(p.conclusion)
+
+    private def _display(p: Conclusion): String = {
+      // TODO
+      org.goldenport.trace.Trace.Printer.display(p.trace)
     }
   }
 
@@ -758,6 +866,59 @@ object CommandPart {
     }
 
     case class EvalMethod(call: OperationCall) extends KaleidoxMethod {
+      def execute = {
+        RAISE.notImplementedYetDefect
+      }
+    }
+  }
+
+  case object LoadServiceClass extends ServiceClass {
+    def name = "load"
+    def defaultOperation = Some(LoadClass)
+    def operations = Operations(
+      LoadClass
+    )
+
+    case object LoadClass extends OperationClass {
+      val specification = spec.Operation.default("load")
+
+      def operation(req: Request): Operation = Load
+    }
+
+    case object Load extends Operation {
+      def apply(env: Environment, req: Request): Response =
+        LoadMethod(OperationCall(env, LoadClass.specification, req, Response())).run
+    }
+
+    case class LoadMethod(call: OperationCall) extends KaleidoxMethod {
+      def execute = {
+        val url = call.request.arg1Url
+        val model = Model.load(config, url)
+        val ru = universe.addSetupModel(model)
+        UniverseResponse(ru)
+      }
+    }
+  }
+
+  case object SaveServiceClass extends ServiceClass {
+    def name = "save"
+    def defaultOperation = Some(SaveClass)
+    def operations = Operations(
+      SaveClass
+    )
+
+    case object SaveClass extends OperationClass {
+      val specification = spec.Operation.default("save")
+
+      def operation(req: Request): Operation = Save
+    }
+
+    case object Save extends Operation {
+      def apply(env: Environment, req: Request): Response =
+        SaveMethod(OperationCall(env, SaveClass.specification, req, Response())).run
+    }
+
+    case class SaveMethod(call: OperationCall) extends KaleidoxMethod {
       def execute = {
         RAISE.notImplementedYetDefect
       }

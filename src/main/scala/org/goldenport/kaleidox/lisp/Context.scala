@@ -18,13 +18,13 @@ import org.goldenport.kaleidox._
  *  version Aug. 25, 2019
  *  version Sep. 28, 2019
  *  version Feb. 29, 2020
- * @version Feb. 25, 2021
+ *  version Feb. 25, 2021
+ * @version Mar. 28, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Context(
   evaluator: LispContext => LispContext,
   executionContext: ExecutionContext,
-  traceContext: TraceContext,
   universe: Universe,
   valueOption: Option[SExpr],
   incident: Option[LibIncident],
@@ -41,6 +41,7 @@ case class Context(
   def resourceManager = executionContext.resourceManager
   def numericalOperations = executionContext.numericalOperations
   def feature = executionContext.feature
+  def traceContext = executionContext.traceContext
   lazy val display = s"Context(${value.display}, ${universe.display})"
 
   def pure(p: SExpr): Context = copy(valueOption = Some(p))

@@ -9,7 +9,8 @@ import org.goldenport.sexpr.SExpr
  *  version Mar.  5, 2019
  *  version Apr. 19, 2019
  *  version Jun. 23, 2019
- * @version Jul. 24, 2019
+ *  version Jul. 24, 2019
+ * @version Apr.  3, 2021
  * @author  ASAMI, Tomoharu
  */
 sealed trait Expression {
@@ -41,6 +42,11 @@ sealed trait Expression {
   def full: Vector[String]
 
   /*
+   * Show pretty representation of the data.
+   */
+  def pretty: Vector[String]
+
+  /*
    * Literal representation in Programming Language.
    */
   def literal: String
@@ -60,6 +66,7 @@ case class LispExpression(sexpr: SExpr) extends Expression {
   def show = sexpr.show
   def description = sexpr.description.detail
   def full = sexpr.fullDescription.detail
+  def pretty = sexpr.pretty.toVector
   def literal = sexpr.literal
   def marshall = sexpr.marshall
 }

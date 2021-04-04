@@ -6,6 +6,8 @@ import org.goldenport.log.Loggable
 import org.goldenport.trace.TraceContext
 import org.goldenport.sexpr._
 import org.goldenport.sexpr.eval.{LispBinding, Parameters, LispContext}
+import org.goldenport.sexpr.eval.LispFunction
+import org.goldenport.sexpr.eval.FunctionSpecification
 import org.goldenport.util.StringUtils
 import org.goldenport.kaleidox._
 
@@ -24,7 +26,8 @@ import org.goldenport.kaleidox._
  *  version Nov.  8, 2019
  *  version Feb. 29, 2020
  *  version Jan. 16, 2021
- * @version Feb. 25, 2021
+ *  version Feb. 25, 2021
+ * @version Mar. 28, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -43,7 +46,6 @@ case class Evaluator(
     override def create_Eval_Context(x: SExpr) = Context(
       this.apply,
       context,
-      TraceContext.create(),
       universe,
       Some(x),
       None,
@@ -63,7 +65,7 @@ case class Evaluator(
     override def create_Eval_Context(x: SExpr) = Context(
       this.apply,
       context,
-      TraceContext.create(),
+      
       u,
       Some(x),
       None,
@@ -98,8 +100,8 @@ case class Evaluator(
     private def _apply_lambda(c: Context, l: SLambda, args: List[SExpr]): LispContext = {
       val engine = c.executionContext.engine getOrElse RAISE.noReachDefect
       val script = Script(l.expressions)
-      val universe = c.universe.next(l.parameters, args) // TODO trace
-      val r = engine.run(universe, script)
+      val universe = c.universe.next(l.parameters, args, c.traceContext.toHandle)
+      val r = engine.run(c.executionContext, universe, script)
       val value = r._2.toList match {
         case Nil => SNil
         case x :: Nil => SExpr.create(x.asSExpr)
@@ -120,6 +122,7 @@ case class Evaluator(
   }
 
   def eval(p: SExpr): Universe = {
+    // TODO trace
     val (u, s) = normalize(p)
     val c = evaluator(u).apply(s)
     val r = c.pushOrMute(p).universe
@@ -128,6 +131,7 @@ case class Evaluator(
   }
 
   def evalLazy(p: SExpr): Universe = {
+    // TODO trace
     val (u, s) = normalize(p)
     val c = evaluator(u).applyLazy(s)
     val r = c.push(p).universe
@@ -205,20 +209,28 @@ case class Evaluator(
     }.getOrElse((universe, m))
 
   private def _normalize(m: SList, name: String): (Universe, SExpr) =
-    _binding.getFunction(name).
-      map(f => normalize_parameters_function(m, f.specification.numberOfMeaningfulParameters)).
+    _get_specification(name). //    get_specification(name).
+      map(spec => normalize_parameters_function(m, spec)).
       getOrElse((universe, m))
 
-  protected final def normalize_parameters_function(m: SList, n: Int): (Universe, SExpr) = {
-    val params = Parameters.fromExpression(m)
+  // see KaleidoxFunction
+  // see org.goldenport.sexpr.eval.LispEvaluator.getSpecification
+  // see org.goldenport.sexpr.eval.Evaluator.get_specification
+  private def _get_specification(name: String) = _binding.getFunction(name).map(_.specification)
+
+  protected final def normalize_parameters_function(m: SList, spec: FunctionSpecification): (Universe, SExpr) = {
+    val n = spec.numberOfMeaningfulParameters
+    val a = Parameters.fromExpression(m)
+    val params = spec.resolve(a)
+    val resolved = m.list(0) :: params.arguments
     val nn = n - params.arguments.length
     if (nn > 0) {
       universe.makeStackParameters(nn) match {
-        case \/-((u, xs)) => (u, SList.create(m.list ::: xs))
+        case \/-((u, xs)) => (u, SList.create(resolved ::: xs))
         case -\/(e) => (universe, e)
       }
     } else {
-      (universe, m)
+      (universe, SList.create(resolved))
     }
   }
 
@@ -242,5 +254,18 @@ object Evaluator {
   class Binding(val universe: Universe) extends LispBinding[Context] {
     override protected def get_Atom(name: String): Option[SExpr] =
       universe.bindings.get(name).map(SExpr.create)
+
+    override protected def get_Function(p: Context): Option[LispFunction] =
+      p.value match {
+        case m: SCell => p.args match {
+          case Nil => None
+          case x :: xs => x match {
+            case SAtom(name) => universe.service.getFunction(name)
+            case SExpression(expr) => universe.service.getFunction(expr)
+            case _ => None
+          }
+        }
+        case _ => None
+      }
   }
 }

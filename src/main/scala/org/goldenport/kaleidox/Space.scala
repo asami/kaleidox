@@ -14,7 +14,8 @@ import org.goldenport.sexpr.SExpr
  *  version Mar. 24, 2019
  *  version Apr. 18, 2019
  *  version Jun.  9, 2019
- * @version Sep. 28, 2019
+ *  version Sep. 28, 2019
+ * @version Apr.  4, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Space(
@@ -23,6 +24,22 @@ case class Space(
   getIncident: Option[Incident],
   bindings: IRecord // inherit
 ) {
+  def addModel(model: Model): Space = {
+    val space0 = model.getEnvironmentProperties.
+      map(updateBindings).
+      getOrElse(this)
+    val space1 = model.getVoucherModel. // obsolated
+      map(_.setup(space0)).
+      getOrElse(space0)
+    val space2 = model.getSchemaModel.
+      map(_.setup(space1)).
+      getOrElse(space1)
+    val space3 = model.getDataSet.map(_.setup(space2)).getOrElse(space2) // obsolated
+    val space4 = model.getDataBag.map(_.setup(space3)).getOrElse(space3)
+    val space = space4
+    space
+  }
+
   def next(v: SExpr, b: IRecord, s: SExpr, i: Option[Incident]): Space = next(LispExpression(v), b, LispExpression(s), i)
 
   def next(v: SExpr, s: SExpr, i: Option[Incident]): Space = next(LispExpression(v), bindings, LispExpression(s), i)
@@ -51,6 +68,8 @@ case class Space(
   )
 
   def getBinding(p: String): Option[SExpr] = bindings.get(p).map(SExpr.create)
+
+  def updateBindings(p: RichConfig): Space = copy(bindings = bindings + HoconRecord(p))
 
   def updateBindings(p: Record): Space = copy(bindings = bindings + p)
 

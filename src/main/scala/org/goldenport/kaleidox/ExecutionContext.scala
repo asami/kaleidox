@@ -42,7 +42,8 @@ import org.goldenport.sexpr.eval.{ScriptEngineContext, FeatureContext}
  *  version Feb. 26, 2020
  *  version May. 30, 2020
  *  version Jan. 23, 2021
- * @version Feb. 25, 2021
+ *  version Feb. 25, 2021
+ * @version Mar. 28, 2021
  * @author  ASAMI, Tomoharu
  */
 case class ExecutionContext(
@@ -50,7 +51,7 @@ case class ExecutionContext(
   config: Config,
   i18nContext: I18NContext,
   logConfig: LogConfig,
-  traceContext: TraceContext, // unused
+  traceContext: TraceContext,
   serviceLogic: UnitOfWorkLogic,
   storeLogic: StoreOperationLogic,
   scriptContext: ScriptEngineContext,
@@ -63,7 +64,7 @@ case class ExecutionContext(
   def newline = config.newline
   def queryContext = sqlContext.queryContext
 
-  def withEngine(p: Engine) = copy(engine = Some(p))
+  def newContext(p: Engine) = copy(engine = Some(p), traceContext = TraceContext.create())
 
   // FUTURE customizable
   private def _is_eager_evaluation = true
@@ -87,6 +88,11 @@ case class ExecutionContext(
 }
 
 object ExecutionContext {
+  trait Logic {
+    def context: ExecutionContext
+    def locale = context.locale
+  }
+
   def apply(env: Environment, p: Config): ExecutionContext = ExecutionContext(
     env,
     p,

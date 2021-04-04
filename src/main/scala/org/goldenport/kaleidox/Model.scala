@@ -4,6 +4,8 @@ import scalaz._, Scalaz._
 import scala.util.control.NonFatal
 import java.io.File
 import java.net.{URL, URI}
+import org.smartdox.parser.Dox2Parser
+import org.goldenport.sexpr.{SExpr, SAtom, SKeyword, SList}
 import org.goldenport.RAISE
 import org.goldenport.exception.SyntaxErrorFaultException
 import org.goldenport.i18n.I18NElement
@@ -11,7 +13,7 @@ import org.goldenport.parser._
 import org.goldenport.hocon.{RichConfig, HoconUtils}
 import org.goldenport.bag.BufferBag
 import org.goldenport.io.IoUtils
-import org.smartdox.parser.Dox2Parser
+import org.goldenport.record.v3.{IRecord, SingleValue, MultipleValue, EmptyValue}
 import org.goldenport.kaleidox.model._
 
 /*
@@ -25,20 +27,30 @@ import org.goldenport.kaleidox.model._
  *  version Sep.  8, 2019
  *  version Nov. 16, 2019
  *  version Jan. 10, 2021
- * @version Feb. 24, 2021
+ *  version Feb. 24, 2021
+ * @version Mar. 21, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Model(
+  config: Config,
   divisions: Vector[Model.Division],
   errors: Vector[ErrorMessage] = Vector.empty,
   warnings: Vector[WarningMessage] = Vector.empty
 ) {
   import Model._
 
+  private lazy val _ctx = (getSchemaModel, getVoucherModel) match {
+    case (None, None) => DataSet.Builder.Context(config)
+    case (Some(s), None) => DataSet.Builder.Context(config, s)
+    case (None, Some(v)) => DataSet.Builder.Context(config, v)
+    case (Some(s), Some(v)) => DataSet.Builder.Context(config, s, v)
+  }
+
   def getPrologue(config: Config): Option[Script] = divisions.flatMap {
     case m: PrologueDivision => m.getScript(config)
+    case m: DataBagDivision => m.getScript(_ctx)
     case _ => None
-  }.headOption // TODO
+  }.concatenate.toOption
 
   def getEpilogue(config: Config): Option[Script] = divisions.flatMap {
     case m: EpilogueDivision => m.getScript(config)
@@ -70,26 +82,32 @@ case class Model(
     a.headOption // TODO concat
   }
 
-  private lazy val _ctx = (getSchemaModel, getVoucherModel) match {
-    case (None, None) => None
-    case (Some(s), None) => Some(DataSet.Builder.Context(s))
-    case (None, Some(v)) => Some(DataSet.Builder.Context(v))
-    case (Some(s), Some(v)) => Some(DataSet.Builder.Context(s, v))
+  lazy val getServiceModel: Option[ServiceModel] = {
+    val a = divisions.collect {
+      case m: ServiceDivision => m.makeModel(config)
+    }
+    a.headOption // TODO concat
   }
-
 
   def getDataSet: Option[DataSet] = {
     val a = divisions.collect {
-      case m: DataDivision => _ctx.map(m.dataset)
+      case m: DataDivision => m.dataset(_ctx)
     }
-    a.flatten.headOption // TODO concat
+    a.headOption // TODO concat
   }
 
   def getDataStore: Option[DataSet] = {
     val a = divisions.collect {
-      case m: DataStoreDivision => _ctx.map(m.dataset)
+      case m: DataStoreDivision => m.dataset(_ctx)
     }
-    a.flatten.headOption // TODO concat
+    a.headOption // TODO concat
+  }
+
+  def getDataBag: Option[DataSet] = {
+    val a = divisions.collect {
+      case m: DataBagDivision => m.dataset(_ctx)
+    }
+    a.headOption // TODO concat
   }
 
   def +(p: Model): Model = {
@@ -102,7 +120,7 @@ case class Model(
     val ds = p.divisions./:(Z(divisions))(_+_).r
     val es = errors ++ p.errors
     val ws = warnings ++ p.warnings
-    Model(ds, es, ws)
+    Model(p.config, ds, es, ws)
   }
 
   private def _divisions(xs: Vector[Division], p: Division) = {
@@ -125,7 +143,7 @@ case class Model(
 }
 
 object Model {
-  val empty = Model(Vector.empty)
+  val empty = Model(Config.default, Vector.empty)
 
   implicit object ModelMonoid extends Monoid[Model] {
     def zero = Model.empty
@@ -148,6 +166,7 @@ object Model {
       DocumentDivision, // unused
       VoucherDivision,
       SchemaDivision,
+      ServiceDivision,
       EntityDivision,
       PrologueDivision,
       EpilogueDivision,
@@ -216,6 +235,8 @@ object Model {
       case m: LogicalParagraph => m.lines.lines.map(x => HoconUtils.parse(x.text)).concatenate
       case _ => RAISE.notImplementedYetDefect
     }
+
+    def toHocon(p: LogicalBlock): RichConfig = _to_hocon(p)
   }
 
   // TODO change semantics more generic: refer COBOL data division
@@ -226,7 +247,7 @@ object Model {
       case m: DataDivision => copy(section + m.section)
     }
 
-    def dataset(ctx: DataSet.Builder.Context): DataSet = DataSet.create(ctx, section)
+    def dataset(ctx: DataSet.Builder.Context): DataSet = DataSet.createData(ctx, section)
   }
   object DataDivision extends DivisionFactory {
     override val name_Candidates = Vector("data", "domain")
@@ -240,7 +261,7 @@ object Model {
       case m: DataStoreDivision => copy(section + m.section)
     }
 
-    def dataset(ctx: DataSet.Builder.Context): DataSet = DataSet.create(ctx, section)
+    def dataset(ctx: DataSet.Builder.Context): DataSet = DataSet.createDataStore(ctx, section)
   }
   object DataStoreDivision extends DivisionFactory {
     override val name_Candidates = Vector("data-store")
@@ -254,7 +275,9 @@ object Model {
       case m: DataBagDivision => copy(section + m.section)
     }
 
-    def dataset(ctx: DataSet.Builder.Context): DataSet = DataSet.create(ctx, section)
+    def dataset(ctx: DataSet.Builder.Context): DataSet = DataSet.createData(ctx, section)
+
+    def getScript(ctx: DataSet.Builder.Context): Option[Script] = DataSet.getScript(ctx, section)
   }
   object DataBagDivision extends DivisionFactory {
     override val name_Candidates = Vector("data-bag")
@@ -268,7 +291,7 @@ object Model {
       case m: DataSourceDivision => copy(section + m.section)
     }
 
-    def dataset(ctx: DataSet.Builder.Context): DataSet = DataSet.create(ctx, section)
+    def dataset(ctx: DataSet.Builder.Context): DataSet = DataSet.createDataSource(ctx, section)
   }
   object DataSourceDivision extends DivisionFactory {
     override val name_Candidates = Vector("data-source")
@@ -362,6 +385,45 @@ object Model {
     protected def to_Division(p: LogicalSection): Division = SchemaDivision(p)
   }
 
+  case class ServiceDivision(section: LogicalSection) extends Division {
+    def makeModel(config: Config): ServiceModel = {
+      val doxconfig = Dox2Parser.Config.default // TODO
+      val dox = Dox2Parser.parse(doxconfig, section)
+      // println(s"ServiceDivision#makeModel $dox")
+      _make(config, dox)
+    }
+
+    import org.smartdox._
+
+    private def _make(config: Config, p: Dox): ServiceModel = {
+      // println(s"ServiceModel#_make $p")
+      p match {
+        case m: Section =>
+          if (m.keyForModel == "service") // TODO
+            _make_services(config, m)
+          else
+            ServiceModel.empty
+        case m => m.elements.foldMap(_make(config, _))
+      }
+    }
+
+    private def _make_services(config: Config, p: Section): ServiceModel =
+      p.sections.foldMap(_make_service(config, _))
+
+    private def _make_service(config: Config, p: Section): ServiceModel =
+      ServiceModel.ServiceClass.createOption(config, p).
+        map(ServiceModel.apply).
+        getOrElse(ServiceModel.empty)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: ServiceDivision => copy(section + m.section)
+    }
+  }
+  object ServiceDivision extends DivisionFactory {
+    override val name_Candidates = Vector("service")
+    protected def to_Division(p: LogicalSection): Division = ServiceDivision(p)
+  }
+
   case class EntityDivision(section: LogicalSection) extends Division {
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: EntityDivision => copy(section + m.section)
@@ -406,7 +468,7 @@ object Model {
     protected def to_Division(p: LogicalSection): Division = TestDivision(p)
   }
 
-  def apply(p: Division, ps: Division*): Model = Model(p +: ps.toVector)
+  def apply(config: Config, p: Division, ps: Division*): Model = Model(config, p +: ps.toVector)
 
   // def parse(p: String): Model = parse(Config.default, p)
 
@@ -473,14 +535,30 @@ object Model {
       case m: LogicalSection => Division.take(m)
     }
     if (divs.isEmpty)
-      Model(Script.parse(config, blocks))
+      Model(config, Script.parse(config, blocks))
     else
-      Model(divs)
+      Model(config, divs)
   }
+
+  def httpCall(config: Config, funcname: String, query: IRecord, form: IRecord): Model = {
+    val a = SAtom(funcname) :: _params(query) ::: _params(form)
+    val sexpr = SList.create(a)
+    val script = Script(sexpr)
+    Model(config, script)
+  }
+
+  private def _params(p: IRecord): List[SExpr] =
+    p.fields.flatMap(x =>
+      x.value match {
+        case SingleValue(v) => List(SKeyword(x.name), SExpr.create(v))
+        case MultipleValue(vs) => SKeyword(x.name) :: vs.map(SExpr.create).toList
+        case EmptyValue => Nil
+      }
+    ).toList
 
   def parseWitoutLocation(config: Config, p: String): Model = parse(config.withoutLocation, p)
 
-  def error(p: Throwable): Model = Model(Vector.empty, Vector(ErrorMessage(p)), Vector.empty)
+  def error(p: Throwable): Model = Model(Config.default, Vector.empty, Vector(ErrorMessage(p)), Vector.empty)
 
   def error(url: URL, p: Throwable): Model = p match {
     case m: SyntaxErrorFaultException => _error(m.complementUrl(url))
@@ -501,8 +579,8 @@ object Model {
   }
 
   private def _error(p: SyntaxErrorFaultException) =
-    Model(Vector.empty, p.errorMessages, p.warningMessages)
+    Model(Config.default, Vector.empty, p.errorMessages, p.warningMessages)
 
   private def _error(p: ParseSyntaxErrorException) =
-    Model(Vector.empty, p.errors, p.warnings)
+    Model(Config.default, Vector.empty, p.errors, p.warnings)
 }

@@ -1,5 +1,6 @@
 package org.goldenport.kaleidox
 
+import scalaz._, Scalaz._
 import org.goldenport.parser._
 import org.goldenport.sexpr.SExpr
 import org.goldenport.sexpr.SError
@@ -14,22 +15,36 @@ import org.goldenport.sexpr.script.Script.StringLiteralTokenizer
  *  version May. 17, 2019
  *  version Jul. 15, 2019
  *  version Jan. 22, 2021
- * @version Feb. 11, 2021
+ *  version Feb. 11, 2021
+ * @version Mar. 16, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Script(
-  expressions: Vector[Expression]
+  expressions: Vector[Expression] = Vector.empty
 ) extends Model.Division {
   import Model._
 
   def isEmpty = expressions.isEmpty
 
+  def toOption: Option[Script] = if (isEmpty) None else Some(this)
+
+  def +(rhs: Script): Script = Script(expressions ++ rhs.expressions)
+
   def mergeOption(p: Division): Option[Division] = Option(p) collect {
     case m: Script => Script(expressions ++ m.expressions)
   }
+
+  def listSExpr: List[SExpr] = expressions.map(_.asSExpr).toList
 }
 
 object Script extends Model.DivisionFactory {
+  val empty = Script()
+
+  implicit object ScriptMonoid extends Monoid[Script] {
+    def zero = Script.empty
+    def append(lhs: Script, rhs: => Script) = lhs + rhs
+  }
+
   override val name_Candidates = Vector("script", "procedure", "program", "main")
   protected def to_Division(p: LogicalSection): Model.Division = {
     case class Z(

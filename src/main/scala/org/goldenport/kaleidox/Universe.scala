@@ -4,11 +4,13 @@ import scalaz._, Scalaz._
 import scala.collection.immutable.Stack
 import org.goldenport.RAISE
 import org.goldenport.i18n.I18NContext
+import org.goldenport.context.Conclusion
 import org.goldenport.trace.TraceHandle
 import org.goldenport.parser.{ErrorMessage, WarningMessage}
 import org.goldenport.record.v3.{IRecord, Record}
 import org.goldenport.incident.{Incident => LibIncident}
 import org.goldenport.sexpr._
+import org.goldenport.kaleidox.model.ServiceModel
 
 /*
  * @since   Sep.  9, 2018
@@ -21,20 +23,25 @@ import org.goldenport.sexpr._
  *  version Aug. 25, 2019
  *  version Feb. 29, 2020
  *  version Jan.  9, 2021
- * @version Feb. 25, 2021
+ *  version Feb. 25, 2021
+ *  version Mar. 28, 2021
+ * @version Apr.  4, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Universe(
   config: Space,
   setup: Space,
   parameters: Space,
-  history: Vector[Blackboard],
+  history: Vector[Universe.HistorySlot],
   stack: Stack[Blackboard],
-  trace: Vector[TraceHandle],
+//  trace: Vector[Conclusion],
   muteValue: Option[SExpr], // for mute
   errors: Vector[ErrorMessage],
-  warnings: Vector[WarningMessage]
+  warnings: Vector[WarningMessage],
+  service: ServiceModel
 ) {
+  import Universe.HistorySlot
+
   def getI18NContext: Option[I18NContext] = None
 
   def init = history.headOption getOrElse Blackboard.empty
@@ -52,6 +59,8 @@ case class Universe(
 
   lazy val display = s"Universe(${stack.map(_.show)})"
   def show = display
+
+  def addSetupModel(p: Model): Universe = copy(setup = setup.addModel(p))
 
   def pop: Universe = pop(1) // this // pop(1) & push(1)
   def pop(n: Int): Universe = {
@@ -83,9 +92,8 @@ case class Universe(
   ): Universe = {
     val newbb = current.next(p, bindings, s, i)
     copy(
-      history = history :+ newbb,
+      history = history :+ _history_slot(newbb, p, t),
       stack = stack.push(newbb),
-      trace = trace :+ t,
       muteValue = None
     )
   }
@@ -98,11 +106,18 @@ case class Universe(
   ): Universe = {
     val newbb = current.next(p, s, i)
     copy(
-      history = history :+ newbb,
+      history = history :+ _history_slot(newbb, p, t),
       stack = stack.push(newbb),
-      trace = trace :+ t,
       muteValue = None
     )
+  }
+
+  private def _history_slot(bb: Blackboard, sexpr: SExpr, t: TraceHandle): HistorySlot =
+    HistorySlot(bb, _conclusion(sexpr, t))
+
+  private def _conclusion(sexpr: SExpr, t: TraceHandle): Conclusion = sexpr match {
+    case m: SError => m.conclusion.withTrace(t)
+    case m => Conclusion.Ok.withTrace(t)
   }
 
   // def next(p: SExpr, bindings: IRecord, s: SExpr): Universe = {
@@ -111,18 +126,17 @@ case class Universe(
   // }
 
   // TODO for lambda evaluation
-  def next(params: List[String], args: List[SExpr]): Universe = {
+  def next(params: List[String], args: List[SExpr], t: TraceHandle): Universe = {
     val z: List[(String, SExpr)] = params.zip(args)
     val a = Record.create(z)
-    next(a, TraceHandle.empty) // TODO
+    next(a, t) // TODO
   }
 
   def next(bindings: IRecord, t: TraceHandle): Universe = {
     val newbb = current.next(bindings)
     copy(
-      history = history :+ newbb,
+      history = history :+ _history_slot(newbb),
       stack = stack.push(newbb),
-      trace = trace :+ t,
       muteValue = None
     )
   }
@@ -130,11 +144,14 @@ case class Universe(
   def next(t: TraceHandle): Universe = {
     val newbb = current.next()
     copy(
-      history = history :+ newbb,
-      stack = stack.push(newbb),
-      trace = trace :+ t
+      history = history :+ _history_slot(newbb),
+      stack = stack.push(newbb)
     )
   }
+
+  private def _history_slot(bb: Blackboard): HistorySlot = HistorySlot(bb, Conclusion.Ok)
+
+//  private def _conclusion(p: TraceHandle): Conclusion = ???
 
   def withMuteValue(p: SExpr): Universe = copy(muteValue = Some(p))
 
@@ -163,16 +180,26 @@ case class Universe(
 }
 
 object Universe {
+  case class HistorySlot(blackboard: Blackboard, conclusion: Conclusion) {
+    def getValueSExpr = blackboard.getValueSExpr
+    def getStimulusSExpr = blackboard.getStimulusSExpr
+    def getIncident = blackboard.getIncident
+  }
+  object HistorySlot {
+    val empty = HistorySlot(Blackboard.empty, Conclusion.Ok)
+  }
+
   val empty = Universe(
     Space.empty,
     Space.empty,
     Space.empty,
-    Vector(Blackboard.empty),
+    Vector(HistorySlot.empty),
     Stack(Blackboard.empty),
-    Vector(TraceHandle.empty),
+//    Vector(Conclusion.Ok),
     None,
     Vector.empty,
-    Vector.empty
+    Vector.empty,
+    ServiceModel.empty
   )
 
   def apply(
@@ -181,17 +208,19 @@ object Universe {
     parameters: Space,
     init: Blackboard,
     errors: Vector[ErrorMessage],
-    warnings: Vector[WarningMessage]
+    warnings: Vector[WarningMessage],
+    service: ServiceModel
   ): Universe =
     Universe(
       config,
       setup,
       parameters,
-      Vector(init),
+      Vector(HistorySlot(init, Conclusion.Ok)),
       Stack(init),
-      Vector(TraceHandle.empty),
+//      Vector(Conclusion.Ok),
       None,
       errors,
-      warnings
+      warnings,
+      service
     )
 }

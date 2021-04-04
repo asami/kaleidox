@@ -10,7 +10,8 @@ import org.goldenport.sexpr._
  *  version Sep. 30, 2018
  *  version Oct. 21, 2018
  *  version Mar.  2, 2019
- * @version Jun.  9, 2019
+ *  version Jun.  9, 2019
+ * @version Mar. 29, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Blackboard(
@@ -24,7 +25,7 @@ case class Blackboard(
   def getIncident: Option[Incident] = sink.getIncident
   def bindings: IRecord = sink.bindings
 
-  def show = s"Bloackboard(${getValue})"
+  def show = s"Blackboard(${getValue})"
 
   def next(p: SExpr, updates: IRecord, s: SExpr, i: Option[Incident]) = copy(
     sink = sink.next(p, bindings.update(updates), s, i)
