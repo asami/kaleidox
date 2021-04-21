@@ -15,7 +15,8 @@ import org.goldenport.kaleidox._
 
 /*
  * @since   Mar. 13, 2021
- * @version Mar. 27, 2021
+ *  version Mar. 27, 2021
+ * @version Apr. 20, 2021
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
@@ -195,15 +196,27 @@ object ServiceModel {
         def toFunction = UnimplementedFunction
       }
 
-      case class KaleidoxMethod(in: Input, out: Output, script: List[SExpr]) extends Method {
-        def toFunction = KaleidoxFunction(in, out, script)
+      case class KaleidoxMethod(
+        service: String,
+        operation: String,
+        in: Input,
+        out: Output,
+        script: List[SExpr]
+      ) extends Method {
+        def toFunction = KaleidoxFunction(service, operation, in, out, script)
       }
 
-      case class ScriptMethod(in: Input, out: Output, script: SScript) extends Method {
-        def toFunction = ScriptFunction(in, out, script)
+      case class ScriptMethod(
+        service: String,
+        operation: String,
+        in: Input,
+        out: Output,
+        script: SScript
+      ) extends Method {
+        def toFunction = ScriptFunction(service, operation, in, out, script)
       }
 
-      case object UnimplementedFunction extends EvalFunction {
+      case object UnimplementedFunction extends ParameterEvalFunction {
         val specification = FunctionSpecification("service-unimplemented", 0)
         def eval(p: SParameters) = { // TODO
           val x = p.argument1[SExpr](specification)
@@ -211,25 +224,42 @@ object ServiceModel {
         }
       }
 
-      case class KaleidoxFunction(in: Input, out: Output, script: List[SExpr]) extends ApplyFunction {
+      case class KaleidoxFunction(
+        service: String,
+        operation: String,
+        in: Input,
+        out: Output,
+        script: List[SExpr]
+      ) extends ApplyFunction {
+        override def kindName = "Operation"
         val params = in.parameters
-        val specification = FunctionSpecification("service-kaleidox-script", params.length)
-        def apply(u: LispContext): LispContext = _eval(u, specification, in, out, script)
+        val specification = FunctionSpecification(s"service-script-kaleidox(${service}.${operation})", params.length)
+        def apply(u: LispContext): LispContext = _eval(service, operation, u, specification, in, out, script)
       }
 
-      case class ScriptFunction(in: Input, out: Output, script: SScript) extends ApplyFunction {
+      case class ScriptFunction(
+        service: String,
+        operation: String,
+        in: Input,
+        out: Output,
+        script: SScript
+      ) extends ApplyFunction {
+        override def kindName = "Operation"
         val params = in.parameters
         val specification = FunctionSpecification("service-script", params.length)
-        def apply(u: LispContext): LispContext = _eval(u, specification, in, out, List(script))
+        def apply(u: LispContext): LispContext = _eval(service, operation, u, specification, in, out, List(script))
       }
 
       private def _eval(
+        service: String,
+        operation: String,
         u: LispContext,
         spec: FunctionSpecification,
         in: Input,
         out: Output,
         script: List[SExpr]
       ): LispContext = {
+        val label = s"${service}.${operation}"
         val params = in.parameters
         val paramlist = params.parameters.map(_.name).toList
         // TODO
@@ -239,7 +269,7 @@ object ServiceModel {
         val a0 = u.parameters.argumentsUsingProperties(paramlist)
         val r = in.resolve(u, a0) match {
           case Success(a) =>
-            val l = SLambda(paramlist, script)
+            val l = SLambda(label, paramlist, script)
             val b = SCell(l, SList.create(a))
             u.eval(b)
           case Failure(e) =>
@@ -272,19 +302,19 @@ object ServiceModel {
       def createOption(p: Section): Option[ServiceClass] = {
         val name = p.nameForModel
         // p.tables
-        val xs = p.sections.flatMap(_get_operations)
+        val xs = p.sections.flatMap(_get_operations(name, _))
         ServiceClass(name, Operations(xs)).toOption
       }
 
-      private def _get_operations(p: Section): Vector[Operation] =
+      private def _get_operations(service: String, p: Section): Vector[Operation] =
         if (_is_operation(p))
-          p.sections.flatMap(_get_operation).toVector
+          p.sections.flatMap(_get_operation(service, _)).toVector
         else
           Vector.empty
 
       private def _is_operation(p: Section) = p.keyForModel == "operation"
 
-      private def _get_operation(p: Section): Option[Operation] = {
+      private def _get_operation(service: String, p: Section): Option[Operation] = {
         val name = p.nameForModel
         val sections = p.sections
         val features = p.tables.headOption
@@ -295,7 +325,7 @@ object ServiceModel {
         //   val script = SScript("arg1 + arg2") // TODO
         //   Method.ScriptMethod(in, out, script)
         // }
-        val method = sections.flatMap(_get_method(in, out, _)).headOption.getOrElse(Method.UnimplementedMethod)
+        val method = sections.flatMap(_get_method(service, name, in, out, _)).headOption.getOrElse(Method.UnimplementedMethod)
         Some(Operation(name, in, out, method))
       }
 
@@ -334,23 +364,35 @@ object ServiceModel {
       private def _to_result(p: Table): Result =
         p.toVectorMapStringVector.headOption.map(Result.create).getOrElse(Result.empty)
 
-      private def _get_method(in: Input, out: Output, p: Section): Option[Method] =
+      private def _get_method(
+        service: String,
+        operation: String,
+        in: Input,
+        out: Output,
+        p: Section
+      ): Option[Method] =
         if (_is_method(p))
-          Some(_to_method(in, out, p))
+          Some(_to_method(service, operation, in, out, p))
         else
           None
 
       private def _is_method(p: Section) = p.keyForModel == "method"
 
-      private def _to_method(in: Input, out: Output, p: Section): Method =
+      private def _to_method(
+        service: String,
+        operation: String,
+        in: Input,
+        out: Output,
+        p: Section
+      ): Method =
         p.sections match {
           case Nil =>
             val s = Script.parse(config, p.toText)
-            Method.KaleidoxMethod(in, out, s.listSExpr)
+            Method.KaleidoxMethod(service, operation, in, out, s.listSExpr)
           case x :: _ =>
             val name = x.nameForModel
             val s = SScript(name, p.toText)
-            Method.ScriptMethod(in, out, s)
+            Method.ScriptMethod(service, operation, in, out, s)
         }
     }
   }

@@ -9,13 +9,15 @@ import org.goldenport.context.ReactionStrategy
 import org.goldenport.trace._
 import org.goldenport.bag.{ChunkBag, EmptyBag, StringBag}
 import org.goldenport.record.v3.Record
+import org.goldenport.sexpr.SExpr
 import org.goldenport.kaleidox.{ExecutionContext, EvalReport}
 
 /*
  * See org.goldenport.record.http.Response, arcadia.context.Response
  *
  * @since   Mar.  2, 2021
- * @version Mar. 28, 2021
+ *  version Mar. 28, 2021
+ * @version Apr. 22, 2021
  * @author  ASAMI, Tomoharu
  */
 trait HttpResponse {
@@ -34,12 +36,12 @@ trait HttpResponse {
 }
 
 object HttpResponse {
-  private def _ok = Standard()
-  private def _json = Standard(mimeType = Strings.mimetype.application_json)
+  private def _ok = Plain()
+  private def _json = Plain(mimeType = Strings.mimetype.application_json)
   val ok: HttpResponse = _ok
   val json: HttpResponse = _json
 
-  case class Standard(
+  case class Plain(
     status: Int = 200,
     mimeType: String = Strings.mimetype.text_html,
     charset: Charset = Platform.charset.UTF8,
@@ -47,22 +49,29 @@ object HttpResponse {
     cookies: List[Cookie] = Nil,
     content: ChunkBag = EmptyBag
   ) extends HttpResponse {
-    def withContent(p: String): Standard = withContent(new StringBag(p))
-    def withContent(p: ChunkBag): Standard = copy(content = p)
-    def withCodeContent(code: Int, p: String): Standard = withCodeContent(code, new StringBag(p))
-    def withCodeContent(code: Int, p: ChunkBag): Standard = copy(status = code, content = p)
+    def withContent(p: String): Plain = withContent(new StringBag(p))
+    def withContent(p: ChunkBag): Plain = copy(content = p)
+    def withCodeContent(code: Int, p: String): Plain = withCodeContent(code, new StringBag(p))
+    def withCodeContent(code: Int, p: ChunkBag): Plain = copy(status = code, content = p)
   }
 
   def json(p: String): HttpResponse = _json.withContent(new StringBag(p))
 
-  def conclusion(ctx: ExecutionContext, report: EvalReport, p: Conclusion): HttpResponse =
-    ConclusionLogic(ctx, report, p).apply()
+  def conclusion(
+    ctx: ExecutionContext,
+    params: HttpParameters,
+    report: EvalReport,
+    p: Conclusion
+  ): HttpResponse =
+    ConclusionLogic(ctx, params, Logic.Common.create(params), report, p).apply()
 
   case class ConclusionLogic(
     context: ExecutionContext,
+    params: HttpParameters,
+    common: Logic.Common,
     report: EvalReport,
     p: Conclusion
-  ) extends LogicBase {
+  ) extends Logic {
     def apply(): HttpResponse = {
       val rec = Record.data(
         "status" -> p.code.main
@@ -93,34 +102,49 @@ object HttpResponse {
 
   }
 
-  def data(ctx: ExecutionContext, report: EvalReport, p: String): HttpResponse =
-    DataLogic(ctx, report, p).apply()
+  def data(
+    ctx: ExecutionContext,
+    params: HttpParameters,
+    report: EvalReport,
+    p: SExpr
+  ): HttpResponse =
+    DataLogic(ctx, params, Logic.Common.create(params), report, p).apply()
 
   case class DataLogic(
     context: ExecutionContext,
+    params: HttpParameters,
+    common: Logic.Common,
     report: EvalReport,
-    data: String
-  ) extends LogicBase {
+    data: SExpr
+  ) extends Logic {
     def apply(): HttpResponse = {
       val rec = Record.data(
         "status" -> 200,
-        "data" -> data
+        "data" -> data.asRecordOrJavaObject
       ) + response_common
       val content = rec.toJsonString
       _json.withCodeContent(200, content)
     }
   }
 
-  trait LogicBase extends ExecutionContext.Logic {
+  trait Logic extends ExecutionContext.Logic with Logic.Common.Holder {
     def context: ExecutionContext
+    def params: HttpParameters
+    def common: Logic.Common
     def report: EvalReport
 
     def apply(): HttpResponse
 
+    private def _if_available[T](b: Boolean)(f: => Option[T]): Option[T] =
+      if (b)
+        f
+      else
+        None
+
     protected final def response_common: Record = Record.dataOption(
       "warning" -> None,
-      "trace" -> report_trace,
-      "statictics" -> report_statictics,
+      "trace" -> _if_available(isTrace)(report_trace),
+      "metrics" -> _if_available(isMetrics)(report_metrics),
       "system_status" -> None
     )
 
@@ -131,8 +155,28 @@ object HttpResponse {
 
     private def _trace(p: Trace): Record = Record.create(p.properties)
 
-    protected final def report_statictics: Option[Record] = {
+    protected final def report_metrics: Option[Record] = {
       None
+    }
+  }
+  object Logic {
+    case class Common(
+      isTrace: Boolean,
+      isMetrics: Boolean
+    )
+    object Common {
+      trait Holder {
+        def common: Common
+
+        def isTrace: Boolean = common.isTrace
+        def isMetrics: Boolean = common.isMetrics
+      }
+
+      def create(p: HttpParameters): Common =
+        Common(
+          p.controls.isTrace,
+          p.controls.isMetrics
+        )
     }
   }
 }

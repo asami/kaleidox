@@ -5,14 +5,17 @@ import scala.util.control.NonFatal
 import java.io.File
 import java.net.{URL, URI}
 import org.smartdox.parser.Dox2Parser
-import org.goldenport.sexpr.{SExpr, SAtom, SKeyword, SList}
+import org.smartdox.{Dox, Section}
 import org.goldenport.RAISE
+import org.goldenport.Strings
+import org.goldenport.sexpr.{SExpr, SAtom, SKeyword, SList}
 import org.goldenport.exception.SyntaxErrorFaultException
 import org.goldenport.i18n.I18NElement
 import org.goldenport.parser._
 import org.goldenport.hocon.{RichConfig, HoconUtils}
 import org.goldenport.bag.BufferBag
 import org.goldenport.io.IoUtils
+import org.goldenport.parser.ParseMessage
 import org.goldenport.record.v3.{IRecord, SingleValue, MultipleValue, EmptyValue}
 import org.goldenport.kaleidox.model._
 
@@ -28,12 +31,15 @@ import org.goldenport.kaleidox.model._
  *  version Nov. 16, 2019
  *  version Jan. 10, 2021
  *  version Feb. 24, 2021
- * @version Mar. 21, 2021
+ *  version Mar. 21, 2021
+ * @version Apr. 18, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Model(
   config: Config,
   divisions: Vector[Model.Division],
+  // importedModels: Model.ImportedModels,
+  libraries: Libraries,
   errors: Vector[ErrorMessage] = Vector.empty,
   warnings: Vector[WarningMessage] = Vector.empty
 ) {
@@ -46,6 +52,8 @@ case class Model(
     case (Some(s), Some(v)) => DataSet.Builder.Context(config, s, v)
   }
 
+  def signature: Signature = NoneSignature
+
   def getPrologue(config: Config): Option[Script] = divisions.flatMap {
     case m: PrologueDivision => m.getScript(config)
     case m: DataBagDivision => m.getScript(_ctx)
@@ -55,11 +63,14 @@ case class Model(
   def getEpilogue(config: Config): Option[Script] = divisions.flatMap {
     case m: EpilogueDivision => m.getScript(config)
     case _ => None
-  }.headOption // TODO
+  }.concatenate.toOption
 
   def getScript: Option[Script] = divisions.collect {
     case m: Script => m
-  }.headOption // TODO
+  }.concatenate.toOption
+
+  // TODO skip libraries already imported.
+  def getWholeScript: Option[Script] = getScript |+| libraries.getScript // importedModels.getWholeScript
 
   def getEnvironmentProperties: Option[RichConfig] = {
     val a = divisions.collect {
@@ -118,9 +129,10 @@ case class Model(
       }
     }
     val ds = p.divisions./:(Z(divisions))(_+_).r
+    val ims = libraries + p.libraries // importedModels + p.importedModels
     val es = errors ++ p.errors
     val ws = warnings ++ p.warnings
-    Model(p.config, ds, es, ws)
+    Model(p.config, ds, ims, es, ws)
   }
 
   private def _divisions(xs: Vector[Division], p: Division) = {
@@ -143,7 +155,7 @@ case class Model(
 }
 
 object Model {
-  val empty = Model(Config.default, Vector.empty)
+  val empty = Model(Config.default, Vector.empty, Libraries.empty) // ImportedModels.empty)
 
   implicit object ModelMonoid extends Monoid[Model] {
     def zero = Model.empty
@@ -152,10 +164,14 @@ object Model {
 
   trait Division {
     def mergeOption(p: Division): Option[Division]
+
+    protected final def to_hocon(p: LogicalParagraph): RichConfig =
+      p.lines.lines.map(x => HoconUtils.parse(x.text)).concatenate
   }
   object Division {
     val elements = Vector(
       IdentificationDivision,
+      ImportDivision,
       SignatureDivision,
       EnvironmentDivision,
       DataDivision, // TODO change semantics
@@ -201,6 +217,43 @@ object Model {
     protected def to_Division(p: LogicalSection): Division = IdentificationDivision(p)
   }
 
+  case class ImportDivision(section: LogicalSection) extends Division {
+    def locators: Vector[/*ImportedModel.Locator*/Locator] = {
+      val a = section.blocks.blocks map {
+        case m: LogicalParagraph => _paragraph(m)
+        case m: LogicalSection => _section(m)
+        case m => Vector.empty
+      }
+      a.concatenate
+    }
+
+    private def _paragraph(p: LogicalParagraph): Vector[/*ImportedModel.Locator*/Locator] = {
+      p.lines.lines.flatMap(_get_in_line)
+    }
+
+    private def _get_in_line(p: LogicalLine): Option[/*ImportedModel.Locator*/Locator] =
+      _get_json(p) orElse _get_hocon(p) orElse _get_line(p)
+
+    private def _get_json(p: LogicalLine): Option[/*ImportedModel.Locator*/Locator] = None
+
+    private def _get_hocon(p: LogicalLine): Option[/*ImportedModel.Locator*/Locator] = None
+
+    private def _get_line(p: LogicalLine): Option[/*ImportedModel.Locator*/Locator] =
+      Strings.notblankp(p.text) option /*ImportedModel.Locator*/Locator.create(p.text.trim)
+
+    private def _section(p: LogicalSection): Vector[/*ImportedModel.Locator*/Locator] =
+      RAISE.notImplementedYetDefect
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: ImportDivision => copy(section + m.section)
+    }
+  }
+  object ImportDivision extends DivisionFactory {
+    override val name_Candidates = Vector("import")
+
+    protected def to_Division(p: LogicalSection): Division = ImportDivision(p)
+  }
+
   case class SignatureDivision(section: LogicalSection) extends Division {
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: SignatureDivision => copy(section + m.section)
@@ -209,7 +262,7 @@ object Model {
   object SignatureDivision extends DivisionFactory {
     override val name_Candidates = Vector("signature")
 
-    protected def to_Division(p: LogicalSection): Division = IdentificationDivision(p)
+    protected def to_Division(p: LogicalSection): Division = SignatureDivision(p)
   }
 
   case class EnvironmentDivision(
@@ -317,8 +370,6 @@ object Model {
       _make(dox)
     }
 
-    import org.smartdox._
-
     private def _make(p: Dox): VoucherModel = {
       // println(s"VoucherModel#_make $p")
       p match {
@@ -355,8 +406,6 @@ object Model {
       _make(dox)
     }
 
-    import org.smartdox._
-
     private def _make(p: Dox): SchemaModel = {
       // println(s"SchemaModel#_make $p")
       p match {
@@ -392,8 +441,6 @@ object Model {
       // println(s"ServiceDivision#makeModel $dox")
       _make(config, dox)
     }
-
-    import org.smartdox._
 
     private def _make(config: Config, p: Dox): ServiceModel = {
       // println(s"ServiceModel#_make $p")
@@ -468,77 +515,174 @@ object Model {
     protected def to_Division(p: LogicalSection): Division = TestDivision(p)
   }
 
-  def apply(config: Config, p: Division, ps: Division*): Model = Model(config, p +: ps.toVector)
+  // case class ImportedModel(locator: ImportedModel.Locator, model: Model) {
+  //   def isMatch(p: ImportedModel) = locator == p.locator // TODO
+
+  //   def isMatch(p: ImportedModel.Locator) = p == locator // TODO version
+
+  //   def getWholeScript = model.getWholeScript
+  // }
+  // object ImportedModel {
+  //   case class Locator(uri: URI) {
+  //     def isMatch(p: Locator): Boolean = p.uri == uri
+  //   }
+  //   object Locator {
+  //     def apply(p: String): Locator = Locator(new URI(p))
+  //   }
+  // }
+
+  // case class ImportedModels(
+  //   models: Vector[ImportedModel] = Vector.empty
+  // ) {
+  //   def isExists(p: ImportedModel.Locator) = models.exists(_.isMatch(p))
+
+  //   def +(rhs: ImportedModels) = {
+  //     val a = rhs.models.filterNot(_is_match)
+  //     copy(models = models ++ a)
+  //   }
+
+  //   private def _is_match(p: Model.ImportedModel) = models.exists(_.isMatch(p))
+
+  //   def getWholeScript: Option[Script] = models.flatMap(_.getWholeScript).concatenate.toOption
+  // }
+  // object ImportedModels {
+  //   val empty = ImportedModels()
+  // }
+
+  // case class ImportingModels(
+  //   models: Vector[ImportedModel] = Vector.empty,
+  //   warnings: Vector[ImportingModels.Message[WarningMessage]] = Vector.empty,
+  //   errors: Vector[ImportingModels.Message[ErrorMessage]] = Vector.empty
+  // ) {
+  //   def isExists(p: ImportedModel.Locator): Boolean =
+  //     models.exists(_.isMatch(p)) || warnings.exists(_.isMatch(p)) || errors.exists(_.isMatch(p))
+
+  //   def +(rhs: ImportingModels) = {
+  //     val a = rhs.models.filterNot(_is_match)
+  //     copy(
+  //       models = models ++ a,
+  //       warnings = warnings ++ rhs.warnings,
+  //       errors = errors ++ rhs.errors
+  //     )
+  //   }
+
+  //   def add(uri: URI, p: Model) = {
+  //     val locator = ImportedModel.Locator(uri)
+  //     copy(
+  //       models = (models :+ ImportedModel(locator, p)) ++ p.importedModels.models,
+  //       warnings = warnings ++ p.warnings.map(_to_message(locator, _)),
+  //       errors = errors ++ p.errors.map(_to_message(locator, _))
+  //     )
+  //   }
+
+  //   private def _to_message(locator: ImportedModel.Locator, p: WarningMessage) =
+  //     ImportingModels.Message(locator, p)
+
+  //   private def _to_message(locator: ImportedModel.Locator, p: ErrorMessage) =
+  //     ImportingModels.Message(locator, p)
+
+  //   private def _is_match(p: ImportedModel) = models.exists(_.isMatch(p))
+
+  //   def toImportedModels: ImportedModels = ImportedModels(models)
+
+  //   def toErrorMessages: Vector[ErrorMessage] = errors.map(_.message)
+
+  //   def toWarningMessages: Vector[WarningMessage] = warnings.map(_.message)
+  // }
+  // object ImportingModels {
+  //   // implicit object ImportedModelsMonoid extends Monoid[ImportedModels] {
+  //   //   def zero = ImportedModels.empty
+  //   //   def append(lhs: ImportedModels, rhs: => ImportedModels): ImportedModels = lhs + rhs
+  //   // }
+  //   case class Message[T <: ParseMessage](
+  //     locator: ImportedModel.Locator,
+  //     message: T
+  //   ) {
+  //     def isMatch(p: ImportedModel.Locator): Boolean = locator == p
+  //   }
+
+  //   val empty = ImportingModels()
+  // }
+
+  def apply(config: Config, p: Division, ps: Division*): Model = Model(config, p +: ps.toVector, Libraries.empty) // ImportedModels.empty)
 
   // def parse(p: String): Model = parse(Config.default, p)
 
-  def load(config: Config, p: File): Model = try {
-    val encoding = config.charset
-    val s = IoUtils.toText(p, encoding)
-    _parse(config, s)
-  } catch {
-    case NonFatal(e) => error(p, e)
-  }
+  def load(config: Config, p: File): Model = Builder(config).load(p)
+  def load(config: Config, p: String): Model = Builder(config).load(p)
+  def load(config: Config, p: URL): Model = Builder(config).load(p)
+  def load(config: Config, p: URI): Model = Builder(config).load(p)
 
-  def load(config: Config, p: String): Model = try {
-    val encoding = config.charset
-    val s = IoUtils.toText(p, encoding)
-    _parse(config, s)
-  } catch {
-    case NonFatal(e) => error(e)
-  }
+  def parse(config: Config, p: String): Model = Builder(config).parse(p)
+  def parseExpression(config: Config, p: String): Model = Builder(config).parseExpression(p)
 
-  def load(config: Config, p: URL): Model = try {
-    val encoding = config.charset
-    val s = IoUtils.toText(p, encoding)
-    _parse(config, s)
-  } catch {
-    case NonFatal(e) => error(p, e)
-  }
+  // def load(config: Config, p: File): Model = try {
+  //   val encoding = config.charset
+  //   val s = IoUtils.toText(p, encoding)
+  //   _parse(config, s)
+  // } catch {
+  //   case NonFatal(e) => error(p, e)
+  // }
 
-  def load(config: Config, p: URI): Model = try {
-    val encoding = config.charset
-    val s = IoUtils.toText(p, encoding)
-    _parse(config, s)
-  } catch {
-    case NonFatal(e) => error(p, e)
-  }
+  // def load(config: Config, p: String): Model = try {
+  //   val encoding = config.charset
+  //   val s = IoUtils.toText(p, encoding)
+  //   _parse(config, s)
+  // } catch {
+  //   case NonFatal(e) => error(e)
+  // }
 
-  def parse(config: Config, p: String): Model = try {
-    _parse(config, p)
-  } catch {
-    case NonFatal(e) => error(e)
-  }
+  // def load(config: Config, p: URL): Model = try {
+  //   val encoding = config.charset
+  //   val s = IoUtils.toText(p, encoding)
+  //   _parse(config, s)
+  // } catch {
+  //   case NonFatal(e) => error(p, e)
+  // }
 
-  private def _parse(config: Config, p: String): Model =  {
-    val bconfig = if (config.isLocation)
-      LogicalBlocks.Config.default.forLisp
-    else
-      LogicalBlocks.Config.noLocation.forLisp
-    val blocks = LogicalBlocks.parse(bconfig, p)
-    _parse(config, blocks)
-  }
+  // def load(config: Config, p: URI): Model = try {
+  //   val encoding = config.charset
+  //   val s = IoUtils.toText(p, encoding)
+  //   _parse(config, s)
+  // } catch {
+  //   case NonFatal(e) => error(p, e)
+  // }
 
-  def parseExpression(config: Config, p: String): Model = try {
-    val bconfig = if (config.isLocation)
-      LogicalBlocks.Config.expression.forLisp
-    else
-      LogicalBlocks.Config.expression.withoutLocation.forLisp
-    val blocks = LogicalBlocks.parse(bconfig, p)
-    _parse(config, blocks)
-  } catch {
-    case NonFatal(e) => error(e)
-  }
+  // def parse(config: Config, p: String): Model = try {
+  //   _parse(config, p)
+  // } catch {
+  //   case NonFatal(e) => error(e)
+  // }
 
-  private def _parse(config: Config, blocks: LogicalBlocks): Model = {
-    val divs = blocks.blocks collect {
-      case m: LogicalSection => Division.take(m)
-    }
-    if (divs.isEmpty)
-      Model(config, Script.parse(config, blocks))
-    else
-      Model(config, divs)
-  }
+  // private def _parse(config: Config, p: String): Model =  {
+  //   val bconfig = if (config.isLocation)
+  //     LogicalBlocks.Config.default.forLisp
+  //   else
+  //     LogicalBlocks.Config.noLocation.forLisp
+  //   val blocks = LogicalBlocks.parse(bconfig, p)
+  //   _parse(config, blocks)
+  // }
+
+  // def parseExpression(config: Config, p: String): Model = try {
+  //   val bconfig = if (config.isLocation)
+  //     LogicalBlocks.Config.expression.forLisp
+  //   else
+  //     LogicalBlocks.Config.expression.withoutLocation.forLisp
+  //   val blocks = LogicalBlocks.parse(bconfig, p)
+  //   _parse(config, blocks)
+  // } catch {
+  //   case NonFatal(e) => error(e)
+  // }
+
+  // private def _parse(config: Config, blocks: LogicalBlocks): Model = {
+  //   val divs = blocks.blocks collect {
+  //     case m: LogicalSection => Division.take(m)
+  //   }
+  //   if (divs.isEmpty)
+  //     Model(config, Script.parse(config, blocks))
+  //   else
+  //     Model(config, divs, ImportedModels.empty) + _import_divisions(divs)
+  // }
 
   def httpCall(config: Config, funcname: String, query: IRecord, form: IRecord): Model = {
     val a = SAtom(funcname) :: _params(query) ::: _params(form)
@@ -558,7 +702,7 @@ object Model {
 
   def parseWitoutLocation(config: Config, p: String): Model = parse(config.withoutLocation, p)
 
-  def error(p: Throwable): Model = Model(Config.default, Vector.empty, Vector(ErrorMessage(p)), Vector.empty)
+  def error(p: Throwable): Model = Model(Config.default, Vector.empty, Libraries.empty /* ImportedModels.empty*/, Vector(ErrorMessage(p)), Vector.empty)
 
   def error(url: URL, p: Throwable): Model = p match {
     case m: SyntaxErrorFaultException => _error(m.complementUrl(url))
@@ -579,8 +723,101 @@ object Model {
   }
 
   private def _error(p: SyntaxErrorFaultException) =
-    Model(Config.default, Vector.empty, p.errorMessages, p.warningMessages)
+    Model(Config.default, Vector.empty, Libraries.empty /*ImportedModels.empty*/, p.errorMessages, p.warningMessages)
 
   private def _error(p: ParseSyntaxErrorException) =
-    Model(Config.default, Vector.empty, p.errors, p.warnings)
+    Model(Config.default, Vector.empty, Libraries.empty /*ImportedModels.empty*/, p.errors, p.warnings)
+
+  class Builder(config: Config) {
+    def load(p: File): Model = try {
+      val encoding = config.charset
+      val s = IoUtils.toText(p, encoding)
+      _parse(s)
+    } catch {
+      case NonFatal(e) => error(p, e)
+    }
+
+    def load(p: String): Model = try {
+      val encoding = config.charset
+      val s = IoUtils.toText(p, encoding)
+      _parse(s)
+    } catch {
+      case NonFatal(e) => error(e)
+    }
+
+    def load(p: URL): Model = try {
+      val encoding = config.charset
+      val s = IoUtils.toText(p, encoding)
+      _parse(s)
+    } catch {
+      case NonFatal(e) => error(p, e)
+    }
+
+    def load(p: URI): Model = try {
+      val encoding = config.charset
+      val s = IoUtils.toText(p, encoding)
+      _parse(s)
+    } catch {
+      case NonFatal(e) => error(p, e)
+    }
+
+    def parse(p: String): Model = try {
+      _parse(p)
+    } catch {
+      case NonFatal(e) => error(e)
+    }
+
+    private def _parse(p: String): Model =  {
+      val bconfig = if (config.isLocation)
+        LogicalBlocks.Config.default.forLisp
+      else
+        LogicalBlocks.Config.noLocation.forLisp
+      val blocks = LogicalBlocks.parse(bconfig, p)
+      _parse(blocks)
+    }
+
+    def parseExpression(p: String): Model = try {
+      val bconfig = if (config.isLocation)
+        LogicalBlocks.Config.expression.forLisp
+      else
+        LogicalBlocks.Config.expression.withoutLocation.forLisp
+      val blocks = LogicalBlocks.parse(bconfig, p)
+      _parse(blocks)
+    } catch {
+      case NonFatal(e) => error(e)
+    }
+
+    private def _parse(blocks: LogicalBlocks): Model = {
+      val divs = blocks.blocks collect {
+        case m: LogicalSection => Division.take(m)
+      }
+      if (divs.isEmpty)
+        Model(config, Script.parse(config, blocks))
+      else
+        _import_divisions(divs)
+    }
+
+    private def _import_divisions(divs: Vector[Division]): Model = {
+      val a = divs.collect { case m: ImportDivision => m }
+      val b = _import_models(a)
+      Model(config, divs, /*b.toImportedModels*/b.toLibraries, b.toErrorMessages, b.toWarningMessages)
+    }
+
+    private def _import_models(ps: Vector[ImportDivision]): /*ImportingModels*/LibraryHangar = {
+      val init = /*ImportingModels*/LibraryHangar.empty
+      ps./:(init)((z, x) => _import_models(z, x))
+    }
+
+    private def _import_models(im: /*ImportingModels*/LibraryHangar, p: ImportDivision): /*ImportingModels*/LibraryHangar =
+      p.locators./:(im)(_import_models)
+
+    private def _import_models(im: /*ImportingModels*/LibraryHangar, p: /*ImportedModel.Locator*/Locator): /*ImportingModels*/LibraryHangar =
+      if (im.isExists(p))
+        im
+      else
+        im.add(p.uri, load(p.uri))
+  }
+  object Builder {
+    def apply(config: Config): Builder = new Builder(config)
+  }
 }

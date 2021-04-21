@@ -6,6 +6,7 @@ import org.goldenport.record.util.AnyUtils
 import org.goldenport.hocon.RichConfig
 import org.goldenport.incident.Incident
 import org.goldenport.sexpr.SExpr
+import org.goldenport.kaleidox.model.{Libraries, Library}
 
 /*
  * @since   Aug. 11, 2018
@@ -15,30 +16,30 @@ import org.goldenport.sexpr.SExpr
  *  version Apr. 18, 2019
  *  version Jun.  9, 2019
  *  version Sep. 28, 2019
- * @version Apr.  4, 2021
+ * @version Apr. 18, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Space(
   getValue: Option[Expression],
   getStimulus: Option[Expression],
   getIncident: Option[Incident],
-  bindings: IRecord // inherit
+  bindings: IRecord // , // inherit
+//   importedModels: Set[Model.ImportedModel.Locator] = Set.empty
 ) {
-  def addModel(model: Model): Space = {
-    val space0 = model.getEnvironmentProperties.
-      map(updateBindings).
-      getOrElse(this)
-    val space1 = model.getVoucherModel. // obsolated
-      map(_.setup(space0)).
-      getOrElse(space0)
-    val space2 = model.getSchemaModel.
-      map(_.setup(space1)).
-      getOrElse(space1)
-    val space3 = model.getDataSet.map(_.setup(space2)).getOrElse(space2) // obsolated
-    val space4 = model.getDataBag.map(_.setup(space3)).getOrElse(space3)
-    val space = space4
-    space
-  }
+  def addLibraries(libraries: Libraries): Space = 
+    libraries.models./:(this)(Space.build)
+
+  def addModel(model: Model): Space = Space.build(this, model)
+
+  // def addModel(model: Model): Space = {
+  //   val a = model.importedModels.models./:(this)(Space.build)
+  //   Space.build(a, model)
+  // }
+
+  // def withImportedModel(model: Model.ImportedModel): Space =
+  //   copy(importedModels = importedModels + model.locator)
+
+  // def isDefined(model: Model.ImportedModel): Boolean = importedModels.exists(_.isMatch(model.locator))
 
   def next(v: SExpr, b: IRecord, s: SExpr, i: Option[Incident]): Space = next(LispExpression(v), b, LispExpression(s), i)
 
@@ -94,5 +95,34 @@ object Space {
   private def _print_value(p: Any): String = p match {
     case m: SExpr => m.print
     case m => AnyUtils.toString(m)
+  }
+
+  def build(p: Space, model: /*Model.ImportedModel*/Library): Space =
+    // if (p.isDefined(model))
+    //   p
+    // else
+    //   _build(p, model)
+    _build(p, model)
+
+  private def _build(p: Space, model: /*Model.ImportedModel*/Library): Space = {
+    // val a = model.model.importedModels.models./:(p)(build)
+    // build(a, model.model).withImportedModel(model)
+    build(p, model.model)
+  }
+
+  def build(p: Space, model: Model): Space = {
+    val space0 = model.getEnvironmentProperties.
+      map(p.updateBindings).
+      getOrElse(p)
+    val space1 = model.getVoucherModel. // obsolated
+      map(_.setup(space0)).
+      getOrElse(space0)
+    val space2 = model.getSchemaModel.
+      map(_.setup(space1)).
+      getOrElse(space1)
+    val space3 = model.getDataSet.map(_.setup(space2)).getOrElse(space2) // obsolated
+    val space4 = model.getDataBag.map(_.setup(space3)).getOrElse(space3)
+    val space = space4
+    space
   }
 }

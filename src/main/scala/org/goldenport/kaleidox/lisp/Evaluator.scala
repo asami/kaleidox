@@ -27,7 +27,8 @@ import org.goldenport.kaleidox._
  *  version Feb. 29, 2020
  *  version Jan. 16, 2021
  *  version Feb. 25, 2021
- * @version Mar. 28, 2021
+ *  version Mar. 28, 2021
+ * @version Apr. 12, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -141,7 +142,7 @@ case class Evaluator(
 
   def normalize(p: SExpr): (Universe, SExpr) = p match {
     case m: SAtom => _binding.getFunction(m.name).map { f =>
-      val n = f.specification.numberOfMeaningfulParameters
+      val n = f.specification.numberOfRequiredArguments
       // SList.create(m :: List.tabulate(n)(_ => SList(SAtom("pop"))))
       universe.makeStackParameters(n) match {
         case \/-((u, params)) => (u, SList.create(m :: params))
@@ -195,7 +196,7 @@ case class Evaluator(
   private def _normalize_BAK(m: SList, name: String): (Universe, SExpr) =
     _binding.getFunction(name).map { f =>
       val params = Parameters(m)
-      val n = f.specification.numberOfMeaningfulParameters
+      val n = f.specification.numberOfRequiredArguments
       val nn = n - (params.arguments.length - 1)
       if (nn > 0) {
         // m.append(List.tabulate(nn)(_ => SList(SAtom("pop"))))
@@ -219,7 +220,7 @@ case class Evaluator(
   private def _get_specification(name: String) = _binding.getFunction(name).map(_.specification)
 
   protected final def normalize_parameters_function(m: SList, spec: FunctionSpecification): (Universe, SExpr) = {
-    val n = spec.numberOfMeaningfulParameters
+    val n = spec.numberOfRequiredArguments
     val a = Parameters.fromExpression(m)
     val params = spec.resolve(a)
     val resolved = m.list(0) :: params.arguments

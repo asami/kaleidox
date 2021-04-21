@@ -25,7 +25,7 @@ import org.goldenport.kaleidox.model.ServiceModel
  *  version Jan.  9, 2021
  *  version Feb. 25, 2021
  *  version Mar. 28, 2021
- * @version Apr.  4, 2021
+ * @version Apr. 13, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Universe(
@@ -77,10 +77,13 @@ case class Universe(
   }
   def peek: SExpr = stack.apply(0).getValueSExpr.getOrElse(SNil)
   def peek(n: Int): SExpr = stack.apply(n - 1).getValueSExpr.getOrElse(SNil)
+  def getStack(n: Int): Option[SExpr] = stack.apply(n - 1).getValueSExpr
   def takeHistory: SExpr = history.lastOption.flatMap(_.getValueSExpr).getOrElse(SNil)
   def takeHistory(n: Int): SExpr = history.apply(n - 1).getValueSExpr.getOrElse(SNil)
+  def getHistory(n: Int): Option[SExpr] = history.apply(n - 1).getValueSExpr
   def takeCommandHistory: SExpr = RAISE.notImplementedYetDefect
   def takeCommandHistory(n: Int): SExpr = RAISE.notImplementedYetDefect
+  def getCommandHistory(n: Int): Option[SExpr] = RAISE.notImplementedYetDefect
 
   // push and append
   def next(

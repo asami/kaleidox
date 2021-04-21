@@ -24,7 +24,8 @@ import org.goldenport.sexpr.eval.{EvalContext, LispBinding}
  *  version Dec.  7, 2019
  *  version Jan. 12, 2021
  *  version Feb. 26, 2021
- * @version Mar. 28, 2021
+ *  version Mar. 28, 2021
+ * @version Apr. 17, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Engine(
@@ -91,7 +92,7 @@ case class Engine(
 
   def execute(): Engine = model.
     map { x =>
-      val (written, result, state) = run(universe, x.getScript)
+      val (written, result, state) = run(universe, x.getWholeScript)
       copy(universe = state)
     }.getOrElse(this)
 
@@ -116,7 +117,7 @@ case class Engine(
   }
 
   def run(state: Universe, p: Model): RWSOutput = {
-    p.getScript.map(run(state, _)).getOrElse((EvalReport.create(_new_context), Vector.empty, state))
+    p.getWholeScript.map(run(state, _)).getOrElse((EvalReport.create(_new_context), Vector.empty, state))
   }
 
   def run(state: Universe, p: Option[Script]): RWSOutput =

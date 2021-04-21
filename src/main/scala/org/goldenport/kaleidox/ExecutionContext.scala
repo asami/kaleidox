@@ -43,7 +43,8 @@ import org.goldenport.sexpr.eval.{ScriptEngineContext, FeatureContext}
  *  version May. 30, 2020
  *  version Jan. 23, 2021
  *  version Feb. 25, 2021
- * @version Mar. 28, 2021
+ *  version Mar. 28, 2021
+ * @version Apr.  5, 2021
  * @author  ASAMI, Tomoharu
  */
 case class ExecutionContext(
@@ -65,6 +66,7 @@ case class ExecutionContext(
   def queryContext = sqlContext.queryContext
 
   def newContext(p: Engine) = copy(engine = Some(p), traceContext = TraceContext.create())
+  def newContextForFuture() = copy(traceContext = TraceContext.create())
 
   // FUTURE customizable
   private def _is_eager_evaluation = true

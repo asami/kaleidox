@@ -32,7 +32,7 @@ import org.goldenport.record.util.AnyUtils
  *  version Jan. 24, 2021
  *  version Feb. 25, 2021
  *  version Mar. 28, 2021
- * @version Apr.  4, 2021
+ * @version Apr.  5, 2021
  * @author  ASAMI, Tomoharu
  */
 trait CommandPart { self: Engine =>
@@ -697,8 +697,9 @@ object CommandPart {
 
     case class TraceMethod(call: OperationCall) extends KaleidoxMethod {
       def execute = {
+        val f: Universe.HistorySlot => String = _show
         val xs = universe.history
-        val s = xs.lastOption.map(_print).getOrElse("")
+        val s = xs.lastOption.map(f).getOrElse("")
         to_response(s)
       }
     }
@@ -734,6 +735,13 @@ object CommandPart {
     private def _display(p: Conclusion): String = {
       // TODO
       org.goldenport.trace.Trace.Printer.display(p.trace)
+    }
+
+    private def _show(p: Universe.HistorySlot): String = _show(p.conclusion)
+
+    private def _show(p: Conclusion): String = {
+      // TODO
+      org.goldenport.trace.Trace.Printer.show(p.trace)
     }
   }
 

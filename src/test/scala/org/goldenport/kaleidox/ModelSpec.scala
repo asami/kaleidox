@@ -12,7 +12,8 @@ import org.goldenport.kaleidox.Model._
  *  version Oct. 25, 2018
  *  version Feb.  6, 2019
  *  version Apr.  6, 2019
- * @version Oct.  2, 2019
+ *  version Oct.  2, 2019
+ * @version Apr.  5, 2021
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -53,6 +54,7 @@ ${1 + 2 + 3}
 """
       val model = Model.parseWitoutLocation(config, s)
       model should be(Model(
+        config,
         IdentificationDivision(section("Identification", "id division")),
         EnvironmentDivision.create(section("Environment", """a.b.c="abc"""")),
         DataDivision(section("Data", "data division")),

@@ -1,5 +1,6 @@
 package org.goldenport.kaleidox.lisp
 
+import org.goldenport.context.Effect
 import org.goldenport.trace.TraceContext
 import org.goldenport.record.v3.{IRecord, Record}
 import org.goldenport.incident.{Incident => LibIncident}
@@ -19,7 +20,8 @@ import org.goldenport.kaleidox._
  *  version Sep. 28, 2019
  *  version Feb. 29, 2020
  *  version Feb. 25, 2021
- * @version Mar. 28, 2021
+ *  version Mar. 28, 2021
+ * @version Apr. 13, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Context(
@@ -28,7 +30,8 @@ case class Context(
   universe: Universe,
   valueOption: Option[SExpr],
   incident: Option[LibIncident],
-  bindingsOption: Option[IRecord]
+  bindingsOption: Option[IRecord],
+  futureEffect: Option[Effect.FutureEffect] = None
 ) extends org.goldenport.sexpr.eval.LispContext {
   override def toString() = display
 
@@ -45,6 +48,8 @@ case class Context(
   lazy val display = s"Context(${value.display}, ${universe.display})"
 
   def pure(p: SExpr): Context = copy(valueOption = Some(p))
+  def createContextForFuture(effect: Effect.FutureEffect): LispContext =
+    copy(executionContext = executionContext.newContextForFuture(), futureEffect = Some(effect))
   def value: SExpr = getValue getOrElse SNil
   def getValue: Option[SExpr] = valueOption orElse universe.getValue.map(_.asSExpr)
   lazy val bindings: IRecord = bindingsOption.getOrElse(Record.empty) update universe.bindings
@@ -81,7 +86,10 @@ case class Context(
   )
   override def peek = SMute(universe.peek)
   override def peek(n: Int) = SMute(universe.peek(n))
+  override def getStack(n: Int) = universe.getStack(n)
   override def takeHistory(n: Int) = universe.takeHistory(n)
+  override def getHistory(n: Int) = universe.getHistory(n)
+  override def getCommandHistory(n: Int) = universe.getCommandHistory(n)
 
   override def getPipelineIn: Option[SExpr] = universe.getPipelineIn
 }
