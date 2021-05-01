@@ -32,7 +32,7 @@ import org.goldenport.record.util.AnyUtils
  *  version Jan. 24, 2021
  *  version Feb. 25, 2021
  *  version Mar. 28, 2021
- * @version Apr.  5, 2021
+ * @version Apr. 26, 2021
  * @author  ASAMI, Tomoharu
  */
 trait CommandPart { self: Engine =>
@@ -700,7 +700,7 @@ object CommandPart {
         val f: Universe.HistorySlot => String = _show
         val xs = universe.history
         val s = xs.lastOption.map(f).getOrElse("")
-        to_response(s)
+        to_response_lines_string(s)
       }
     }
 
@@ -727,21 +727,21 @@ object CommandPart {
 
     private def _print(p: Conclusion): String = {
       // TODO
-      org.goldenport.trace.Trace.Printer.print(p.trace)
+      org.goldenport.trace.Trace.Printer.printChildren(p.trace)
     }
 
     private def _display(p: Universe.HistorySlot): String = _display(p.conclusion)
 
     private def _display(p: Conclusion): String = {
       // TODO
-      org.goldenport.trace.Trace.Printer.display(p.trace)
+      org.goldenport.trace.Trace.Printer.displayChildren(p.trace)
     }
 
     private def _show(p: Universe.HistorySlot): String = _show(p.conclusion)
 
     private def _show(p: Conclusion): String = {
       // TODO
-      org.goldenport.trace.Trace.Printer.show(p.trace)
+      org.goldenport.trace.Trace.Printer.showChildren(p.trace)
     }
   }
 

@@ -1,5 +1,6 @@
 package org.goldenport.kaleidox
 
+import org.goldenport.extension.Showable
 import org.goldenport.sexpr.SExpr
 
 /*
@@ -10,10 +11,10 @@ import org.goldenport.sexpr.SExpr
  *  version Apr. 19, 2019
  *  version Jun. 23, 2019
  *  version Jul. 24, 2019
- * @version Apr.  3, 2021
+ * @version Apr. 25, 2021
  * @author  ASAMI, Tomoharu
  */
-sealed trait Expression {
+sealed trait Expression extends Showable {
   def asSExpr: SExpr
   def resolve: Expression
   /*
@@ -68,5 +69,6 @@ case class LispExpression(sexpr: SExpr) extends Expression {
   def full = sexpr.fullDescription.detail
   def pretty = sexpr.pretty.toVector
   def literal = sexpr.literal
+  def embed = sexpr.embed
   def marshall = sexpr.marshall
 }

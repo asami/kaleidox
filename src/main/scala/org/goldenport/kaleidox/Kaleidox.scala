@@ -36,7 +36,7 @@ import org.goldenport.util.StringUtils
  *  version Jan. 22, 2021
  *  version Feb. 25, 2021
  *  version Mar. 28, 2021
- * @version Apr.  4, 2021
+ * @version Apr. 25, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -107,8 +107,10 @@ case class Kaleidox(
 
   private def _build_universe(call: OperationCall): (Universe, Model) = {
     val confmodel = _conf_model
-    val inmodels = call.request.arguments.map(_.asString).map(Model.load(config, _))
-    val model = inmodels./:(confmodel)(_+_)
+    val inmodel = _in_model(call)
+    // val inmodels = call.request.arguments.map(_.asString).map(Model.load(config, _))
+    // val model = inmodels./:(confmodel)(_+_)
+    val model = confmodel + inmodel
     val setupspace = _space(model)
     // val (setupspace, model) = call.request.arguments match {
     //   case Nil => (Space.empty, None)
@@ -156,6 +158,19 @@ case class Kaleidox(
       workimplicit,
       work
     ).flatten.distinct.filter(_.exists)
+  }
+
+  private def _in_model(call: OperationCall): Model = {
+    val args = call.argumentsAsString
+    val libraries = call.asUrlList('library)
+    val lib = libraries.foldMap(Model.load(config, _))
+    if (args.isEmpty) {
+      lib
+    } else {
+      val s = args.mkString(" ")
+      val expr = Model.parseExpression(config, s)
+      lib + expr
+    }
   }
 
   // private def _space(model: Model) = {

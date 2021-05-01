@@ -25,7 +25,7 @@ import org.goldenport.sexpr.eval.{EvalContext, LispBinding}
  *  version Jan. 12, 2021
  *  version Feb. 26, 2021
  *  version Mar. 28, 2021
- * @version Apr. 17, 2021
+ * @version Apr. 25, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Engine(
@@ -170,26 +170,22 @@ case class Engine(
     }
   }
 
+  private def _execute_command(ctx: ExecutionContext, u: Universe, p: SMetaCommand): UnitOfWorkFM[RWSOutput] =
+    execute_command(ctx, u, p)
+
   private def _eval_lisp(reader: ExecutionContext, state: Universe, p: SExpr): UnitOfWorkFM[RWSOutput] = {
     val evaluator = lisp.Evaluator(reader, state)
     // val sexpr = evaluator.normalize(_normalize(p))
-    val sexpr = _normalize(p)
+    val sexpr = p // _normalize(p)
     // println(s"Engine#_eval_lisp: $p => $sexpr")
-    val newstate = if (true)
-      evaluator.eval(sexpr) // TODO UnitOfWorkFM
-    else
-      evaluator.evalLazy(sexpr) // TODO UnitOfWorkFM
-    // println(s"Engine#_eval_lisp: $p => $newstate")
+    val newstate = evaluator.evalScript(sexpr)
     val b = newstate.getValue.toVector
     uow_lift((EvalReport.create(reader), b, newstate))
   }
 
-  private def _normalize(p: SExpr): SExpr = context.promotion(p).
-    map(x => SList(SAtom(x), p)).
-    getOrElse(p)
-
-  private def _execute_command(ctx: ExecutionContext, u: Universe, p: SMetaCommand): UnitOfWorkFM[RWSOutput] =
-    execute_command(ctx, u, p)
+  // private def _normalize(p: SExpr): SExpr = context.promotion(p).
+  //   map(x => SList(SAtom(x), p)).
+  //   getOrElse(p)
 }
 
 object Engine {

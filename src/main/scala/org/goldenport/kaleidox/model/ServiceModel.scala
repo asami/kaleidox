@@ -4,11 +4,12 @@ import scalaz._, Scalaz._
 import org.smartdox._
 import org.goldenport.RAISE
 import org.goldenport.context._
+import org.goldenport.i18n.I18NString
 import org.goldenport.record.v2.{Schema, DataType, Multiplicity}
-import org.goldenport.record.v3.{Column}
+import org.goldenport.record.v3.{Column, ValueDomain}
 import org.goldenport.collection.VectorMap
 import org.goldenport.values.PathName
-import org.goldenport.sexpr.{SExpr, SScript}
+import org.goldenport.sexpr.{SExpr, SScript, SNil}
 import org.goldenport.sexpr.eval.LispFunction
 import org.goldenport.sexpr.eval.LispContext
 import org.goldenport.kaleidox._
@@ -16,7 +17,7 @@ import org.goldenport.kaleidox._
 /*
  * @since   Mar. 13, 2021
  *  version Mar. 27, 2021
- * @version Apr. 20, 2021
+ * @version Apr. 29, 2021
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
@@ -153,7 +154,10 @@ object ServiceModel {
       def datatype = column.datatype
 
       def resolve(p: SExpr): ValidationNel[ArgumentFault, SExpr] =
-        column.resolve(p.asObject).map(SExpr.create)
+        column.resolve(p.asObject) match {
+          case Success(s) => Success(SExpr.create(s))
+          case Failure(e) => Failure(NonEmptyList(InvalidArgumentFault(e.map(_.message).list.mkString(";"))))
+        }
     }
     object Parameter {
       def create(p: Map[String, String]): Parameter = {
@@ -168,20 +172,38 @@ object ServiceModel {
 
     case class Output(
       result: Result
-    )
+    ) {
+      def resolve(u: LispContext, p: SExpr): ValidationNel[ResultFault, SExpr] = result.resolve(u, p)
+    }
 
-    sealed trait Result
+    sealed trait Result {
+      def resolve(u: LispContext, p: SExpr): ValidationNel[ResultFault, SExpr]
+
+    }
     object Result {
       val empty = VoidResult
 
-      case object VoidResult extends Result
-      case class DataResult(description: Description, datatype: DataType, multiplicity: Multiplicity) extends Result with Description.Holder {
+      case object VoidResult extends Result {
+        def resolve(u: LispContext, p: SExpr): ValidationNel[ResultFault, SExpr] = Success(SNil)
       }
+
+      case class DataResult(
+        description: Description,
+        domain: ValueDomain
+      ) extends Result with Description.Holder {
+        def resolve(u: LispContext, p: SExpr): ValidationNel[ResultFault, SExpr] =
+          domain.resolve(p.asObject) match {
+            case Success(s) => Success(SExpr.create(s))
+            case Failure(e) =>
+              Failure(NonEmptyList(ValueDomainResultFault(I18NString.mkI18NString(e.map(_.message.toI18NString), ";"))))
+          }
+      }
+
       def create(p: Map[String, String]): DataResult = {
         val datatype = take_datatype(p)
         val multiplicity = take_multiplicity(p)
         val desc = take_description(p)
-        DataResult(Description(desc), datatype, multiplicity)
+        DataResult(Description(desc), ValueDomain(datatype, multiplicity))
       }
     }
 
@@ -267,7 +289,7 @@ object ServiceModel {
         // see org.goldenport.sexpr.eval.LispEvaluator.getSpecification
         // see org.goldenport.sexpr.eval.Evaluator.get_specification
         val a0 = u.parameters.argumentsUsingProperties(paramlist)
-        val r = in.resolve(u, a0) match {
+        val r0 = in.resolve(u, a0) match {
           case Success(a) =>
             val l = SLambda(label, paramlist, script)
             val b = SCell(l, SList.create(a))
@@ -275,6 +297,13 @@ object ServiceModel {
           case Failure(e) =>
             u.trace.fault(e.list)
             val c = Conclusion.argumentFault(e.list)
+            SError(c)
+        }
+        val r = out.resolve(u, r0) match {
+          case Success(a) => a
+          case Failure(e) => 
+            u.trace.fault(e.list)
+            val c = Conclusion.resultFault(e.list)
             SError(c)
         }
         u.toResult(r)

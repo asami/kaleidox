@@ -28,7 +28,7 @@ import org.goldenport.kaleidox._
  *  version Jan. 16, 2021
  *  version Feb. 25, 2021
  *  version Mar. 28, 2021
- * @version Apr. 12, 2021
+ * @version Apr. 25, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -122,8 +122,30 @@ case class Evaluator(
     }
   }
 
+  def evalScript(p: SExpr): Universe = {
+    context.traceContext.execute("Script", p) {
+      val sexpr = _normalize(p)
+      val r = if (true)
+        eval(sexpr)
+      else
+        evalLazy(sexpr)
+      context.traceContext.result(r, r.getValue.getOrElse("VOID"))
+    }
+  }
+
+  private def _normalize(p: SExpr): SExpr = context.promotion(p).
+    map(x => SList(SAtom(x), p)).
+    getOrElse(p)
+
+  // private def _show(ps: Vector[Expression]): String = ps match {
+  //   case Vector() => ""
+  //   case Vector(x) => x.show
+  //   case xs: Vector[Expression] => xs.map(_.embed).mkString("[", " ", "]")
+  // }
+
+  // private def _show(p: Expression) = p.show
+
   def eval(p: SExpr): Universe = {
-    // TODO trace
     val (u, s) = normalize(p)
     val c = evaluator(u).apply(s)
     val r = c.pushOrMute(p).universe
@@ -132,7 +154,6 @@ case class Evaluator(
   }
 
   def evalLazy(p: SExpr): Universe = {
-    // TODO trace
     val (u, s) = normalize(p)
     val c = evaluator(u).applyLazy(s)
     val r = c.push(p).universe
