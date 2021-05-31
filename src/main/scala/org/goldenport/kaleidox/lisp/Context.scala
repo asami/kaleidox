@@ -21,7 +21,8 @@ import org.goldenport.kaleidox._
  *  version Feb. 29, 2020
  *  version Feb. 25, 2021
  *  version Mar. 28, 2021
- * @version Apr. 13, 2021
+ *  version Apr. 13, 2021
+ * @version May. 21, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Context(
@@ -45,6 +46,7 @@ case class Context(
   def numericalOperations = executionContext.numericalOperations
   def feature = executionContext.feature
   def traceContext = executionContext.traceContext
+  def statemachineSpace = executionContext.statemachineSpace
   lazy val display = s"Context(${value.display}, ${universe.display})"
 
   def pure(p: SExpr): Context = copy(valueOption = Some(p))

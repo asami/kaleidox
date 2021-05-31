@@ -9,6 +9,7 @@ import org.goldenport.console.MessageSequence
 import org.goldenport.record.unitofwork._, UnitOfWork._
 import org.goldenport.record.unitofwork.interpreter.UnitOfWorkInterpreter
 import org.goldenport.record.v2.unitofwork.UnitOfWorkHelper
+import org.goldenport.record.v2.Schema
 import org.goldenport.sexpr._
 import org.goldenport.sexpr.eval.{EvalContext, LispBinding}
 
@@ -25,7 +26,8 @@ import org.goldenport.sexpr.eval.{EvalContext, LispBinding}
  *  version Jan. 12, 2021
  *  version Feb. 26, 2021
  *  version Mar. 28, 2021
- * @version Apr. 25, 2021
+ *  version Apr. 25, 2021
+ * @version May. 14, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Engine(
@@ -68,19 +70,27 @@ case class Engine(
   }
 
   private def _setup_store(p: Model): Unit = {
-    p.getVoucherModel.foreach { vm =>
-      vm.classes.foreach {
-        case (name, x) => context.feature.store.define(Symbol(name), x.schema)
-      }
-    }
-    p.getSchemaModel.foreach { model =>
-      model.classes.foreach {
-        case (name, x) => context.feature.store.define(Symbol(name), x.schema)
-      }
-    }
+    // p.getVoucherModel.foreach { vm =>
+    //   vm.classes.foreach {
+    //     case (name, x) => context.feature.store.define(Symbol(name), x.schema)
+    //   }
+    // }
+    // p.getSchemaModel.foreach { model =>
+    //   model.classes.foreach {
+    //     case (name, x) => context.feature.store.define(Symbol(name), x.schema)
+    //   }
+    // }
     p.getDataStore.foreach { model =>
-      model.slots.foreach {
-        case (name, x) => context.feature.store.setup(name, x.data)
+      val schemas = p.getSchemaModel
+      model.classes.foreach {
+        case (name, x) =>
+          val schema: Schema = x.schema match {
+            case Right(r) => schemas.flatMap(_.getSchema(r)) getOrElse {
+              RAISE.notImplementedYetDefect
+            }
+            case Left(l) => l
+          }
+          context.feature.store.define(Symbol(name), x.table, schema)
       }
     }
   }

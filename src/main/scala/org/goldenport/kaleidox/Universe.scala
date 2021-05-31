@@ -11,6 +11,8 @@ import org.goldenport.record.v3.{IRecord, Record}
 import org.goldenport.incident.{Incident => LibIncident}
 import org.goldenport.sexpr._
 import org.goldenport.kaleidox.model.ServiceModel
+import org.goldenport.kaleidox.model.EventModel
+import org.goldenport.kaleidox.model.StateMachineModel
 
 /*
  * @since   Sep.  9, 2018
@@ -25,7 +27,8 @@ import org.goldenport.kaleidox.model.ServiceModel
  *  version Jan.  9, 2021
  *  version Feb. 25, 2021
  *  version Mar. 28, 2021
- * @version Apr. 13, 2021
+ *  version Apr. 13, 2021
+ * @version May. 10, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Universe(
@@ -38,11 +41,15 @@ case class Universe(
   muteValue: Option[SExpr], // for mute
   errors: Vector[ErrorMessage],
   warnings: Vector[WarningMessage],
-  service: ServiceModel
+  model: Model
 ) {
   import Universe.HistorySlot
 
   def getI18NContext: Option[I18NContext] = None
+
+  def service: ServiceModel = model.getServiceModel.orZero
+  def event: EventModel = model.getEventModel.orZero
+  def stateMachine: StateMachineModel = model.getStateMachineModel.orZero
 
   def init = history.headOption getOrElse Blackboard.empty
   def current = stack.headOption getOrElse Blackboard.empty
@@ -202,7 +209,7 @@ object Universe {
     None,
     Vector.empty,
     Vector.empty,
-    ServiceModel.empty
+    Model.empty
   )
 
   def apply(
@@ -210,9 +217,7 @@ object Universe {
     setup: Space,
     parameters: Space,
     init: Blackboard,
-    errors: Vector[ErrorMessage],
-    warnings: Vector[WarningMessage],
-    service: ServiceModel
+    model: Model
   ): Universe =
     Universe(
       config,
@@ -222,8 +227,8 @@ object Universe {
       Stack(init),
 //      Vector(Conclusion.Ok),
       None,
-      errors,
-      warnings,
-      service
+      model.errors,
+      model.warnings,
+      model
     )
 }

@@ -14,6 +14,7 @@ import org.goldenport.parser.LogicalLines
 import org.goldenport.parser.ParseMessage
 import org.goldenport.parser.{ErrorMessage, WarningMessage}
 import org.goldenport.console.{ConsoleManager, MessageSequence, Message}
+import org.goldenport.statemachine.StateMachineSpace
 import org.goldenport.kaleidox.interpreter.Interpreter
 import org.goldenport.kaleidox.http.HttpHandle
 import org.goldenport.util.StringUtils
@@ -36,7 +37,8 @@ import org.goldenport.util.StringUtils
  *  version Jan. 22, 2021
  *  version Feb. 25, 2021
  *  version Mar. 28, 2021
- * @version Apr. 25, 2021
+ *  version Apr. 25, 2021
+ * @version May. 21, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -81,6 +83,7 @@ case class Kaleidox(
     val i18nconfig = _i18n_context(model, config)
     val logconfig = _log_config(model, config)
     val tracecontext = TraceContext.create()
+    val statemachinespace = StateMachineSpace.create(model.takeStateMachineClasses)
     val sqlcontext = config.sqlContext.
       addProperties(universe.setup.bindings).
       addProperties(universe.parameters.bindings)
@@ -91,6 +94,7 @@ case class Kaleidox(
       i18nconfig,
       logconfig,
       tracecontext,
+      statemachinespace,
       config.serviceLogic,
       config.storeLogic,
       config.scriptContext,
@@ -134,9 +138,7 @@ case class Kaleidox(
       setupspace,
       parameterspace,
       blackboard,
-      model.errors,
-      model.warnings,
-      model.getServiceModel.orZero
+      model
     )
     (universe, model)
   }

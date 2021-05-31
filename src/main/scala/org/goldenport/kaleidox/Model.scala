@@ -11,12 +11,14 @@ import org.goldenport.Strings
 import org.goldenport.sexpr.{SExpr, SAtom, SKeyword, SList}
 import org.goldenport.exception.SyntaxErrorFaultException
 import org.goldenport.i18n.I18NElement
+import org.goldenport.collection.TreeMap
 import org.goldenport.parser._
 import org.goldenport.hocon.{RichConfig, HoconUtils}
 import org.goldenport.bag.BufferBag
 import org.goldenport.io.IoUtils
 import org.goldenport.parser.ParseMessage
 import org.goldenport.record.v3.{IRecord, SingleValue, MultipleValue, EmptyValue}
+import org.goldenport.statemachine.StateMachineClass
 import org.goldenport.kaleidox.model._
 
 /*
@@ -32,7 +34,8 @@ import org.goldenport.kaleidox.model._
  *  version Jan. 10, 2021
  *  version Feb. 24, 2021
  *  version Mar. 21, 2021
- * @version Apr. 18, 2021
+ *  version Apr. 18, 2021
+ * @version May. 22, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -86,19 +89,30 @@ case class Model(
     a.headOption // TODO concat
   }
 
-  lazy val getSchemaModel: Option[SchemaModel] = {
-    val a = divisions.collect {
+  lazy val getSchemaModel: Option[SchemaModel] =
+    divisions.collect {
       case m: SchemaDivision => m.makeModel
-    }
-    a.headOption // TODO concat
-  }
+    }.concatenate.toOption
 
-  lazy val getServiceModel: Option[ServiceModel] = {
-    val a = divisions.collect {
+  lazy val getServiceModel: Option[ServiceModel] =
+    divisions.collect {
       case m: ServiceDivision => m.makeModel(config)
-    }
-    a.headOption // TODO concat
-  }
+    }.concatenate.toOption
+
+  lazy val getEventModel: Option[EventModel] =
+    divisions.collect {
+      case m: EventDivision => m.makeModel(config)
+    }.concatenate.toOption
+
+  def eventModel: EventModel = getEventModel.orZero
+
+  lazy val getStateMachineModel: Option[StateMachineModel] =
+    divisions.collect {
+      case m: StateMachineDivision => m.makeModel(config)
+    }.concatenate.toOption
+
+  def takeStateMachineClasses: TreeMap[StateMachineClass] =
+    getStateMachineModel.orZero.classes
 
   def getDataSet: Option[DataSet] = {
     val a = divisions.collect {
@@ -107,11 +121,11 @@ case class Model(
     a.headOption // TODO concat
   }
 
-  def getDataStore: Option[DataSet] = {
+  def getDataStore: Option[DataStoreModel] = {
     val a = divisions.collect {
-      case m: DataStoreDivision => m.dataset(_ctx)
+      case m: DataStoreDivision => m.makeModel(config)
     }
-    a.headOption // TODO concat
+    a.concatenate.toOption
   }
 
   def getDataBag: Option[DataSet] = {
@@ -183,6 +197,8 @@ object Model {
       VoucherDivision,
       SchemaDivision,
       ServiceDivision,
+      EventDivision,
+      StateMachineDivision,
       EntityDivision,
       PrologueDivision,
       EpilogueDivision,
@@ -310,11 +326,34 @@ object Model {
   case class DataStoreDivision(
     section: LogicalSection
   ) extends Division {
+    def makeModel(config: Config): DataStoreModel = {
+      val doxconfig = Dox2Parser.Config.default // TODO
+      val dox = Dox2Parser.parse(doxconfig, section)
+      // println(s"DataStoreDivision#makeModel $dox")
+      _make(config, dox)
+    }
+
+    private def _make(config: Config, p: Dox): DataStoreModel = {
+      // println(s"DataStoreModel#_make $p")
+      p match {
+        case m: Section =>
+          if (m.keyForModel == "data-store") // TODO
+            _make_datastores(config, m)
+          else
+            DataStoreModel.empty
+        case m => m.elements.foldMap(_make(config, _))
+      }
+    }
+
+    private def _make_datastores(config: Config, p: Section): DataStoreModel =
+      p.sections.foldMap(_make_datastore(config, _))
+
+    private def _make_datastore(config: Config, p: Section): DataStoreModel =
+      DataStoreModel.create(config, p)
+
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: DataStoreDivision => copy(section + m.section)
     }
-
-    def dataset(ctx: DataSet.Builder.Context): DataSet = DataSet.createDataStore(ctx, section)
   }
   object DataStoreDivision extends DivisionFactory {
     override val name_Candidates = Vector("data-store")
@@ -479,6 +518,55 @@ object Model {
   object EntityDivision extends DivisionFactory {
     override val name_Candidates = Vector("entity")
     protected def to_Division(p: LogicalSection): Division = EntityDivision(p)
+  }
+
+  case class EventDivision(section: LogicalSection) extends Division {
+    def makeModel(config: Config): EventModel = EventModel.create(config, section)
+
+    // def makeModel(config: Config): EventModel = {
+    //   val doxconfig = Dox2Parser.Config.default // TODO
+    //   val dox = Dox2Parser.parse(doxconfig, section)
+    //   // println(s"EventDivision#makeModel $dox")
+    //   _make(config, dox)
+    // }
+
+    // private def _make(config: Config, p: Dox): EventModel = {
+    //   // println(s"EventModel#_make $p")
+    //   p match {
+    //     case m: Section =>
+    //       if (m.keyForModel == "event") // TODO
+    //         _make_events(config, m)
+    //       else
+    //         EventModel.empty
+    //     case m => m.elements.foldMap(_make(config, _))
+    //   }
+    // }
+
+    // private def _make_events(config: Config, p: LogicalSection): EventModel =
+    //   p.sections.foldMap(_make_event(config, _))
+
+    // private def _make_event(config: Config, p: LogicalSection): EventModel =
+    //   EventModel.create(config, p)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: EventDivision => copy(section + m.section)
+    }
+  }
+  object EventDivision extends DivisionFactory {
+    override val name_Candidates = Vector("event")
+    protected def to_Division(p: LogicalSection): Division = EventDivision(p)
+  }
+
+  case class StateMachineDivision(section: LogicalSection) extends Division {
+    def makeModel(config: Config): StateMachineModel = StateMachineModel.create(config, section)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: StateMachineDivision => copy(section + m.section)
+    }
+  }
+  object StateMachineDivision extends DivisionFactory {
+    override val name_Candidates = Vector("statemachine")
+    protected def to_Division(p: LogicalSection): Division = StateMachineDivision(p)
   }
 
   case class PrologueDivision(section: LogicalSection) extends Division {

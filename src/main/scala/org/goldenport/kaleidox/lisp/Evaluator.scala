@@ -28,7 +28,8 @@ import org.goldenport.kaleidox._
  *  version Jan. 16, 2021
  *  version Feb. 25, 2021
  *  version Mar. 28, 2021
- * @version Apr. 25, 2021
+ *  version Apr. 25, 2021
+ * @version May. 10, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -276,6 +277,8 @@ object Evaluator {
   class Binding(val universe: Universe) extends LispBinding[Context] {
     override protected def get_Atom(name: String): Option[SExpr] =
       universe.bindings.get(name).map(SExpr.create)
+
+    override protected def extension_Functions = KaleidoxFunction.functions
 
     override protected def get_Function(p: Context): Option[LispFunction] =
       p.value match {

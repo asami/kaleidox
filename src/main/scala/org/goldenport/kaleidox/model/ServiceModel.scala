@@ -17,12 +17,16 @@ import org.goldenport.kaleidox._
 /*
  * @since   Mar. 13, 2021
  *  version Mar. 27, 2021
- * @version Apr. 29, 2021
+ *  version Apr. 29, 2021
+ * @version May. 27, 2021
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
   classes: VectorMap[String, ServiceModel.ServiceClass] = VectorMap.empty
 ) {
+  def isEmpty: Boolean = classes.isEmpty
+  def toOption: Option[ServiceModel] = if (isEmpty) None else Some(this)
+
   def +(rhs: ServiceModel): ServiceModel = copy(classes = classes ++ rhs.classes)
 
   def getFunction(name: String): Option[LispFunction] = {
@@ -109,7 +113,7 @@ object ServiceModel {
           private def _toomuch = {
             val toomuchs = _using_params diff parameters
             val paramnames = toomuchs.map(_.name)
-            Failure(NonEmptyList.nel(TooMuchArgumentFault(paramnames), _faults))
+            Failure(NonEmptyList.nel(TooManyArgumentFault(paramnames), _faults))
           }
 
           private def _using_params: Vector[Parameter] = results.flatMap(_.parameter)

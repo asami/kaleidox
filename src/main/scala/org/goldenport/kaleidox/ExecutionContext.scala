@@ -11,6 +11,7 @@ import org.goldenport.i18n.I18NContext
 import org.goldenport.log.LogConfig
 import org.goldenport.trace.TraceContext
 import org.goldenport.io.ResourceManager
+import org.goldenport.statemachine.StateMachineSpace
 import org.goldenport.record.unitofwork.interpreter.{UnitOfWorkLogic, StoreOperationLogic}
 import org.goldenport.record.v3.sql.SqlContext
 import org.goldenport.sexpr._
@@ -44,7 +45,8 @@ import org.goldenport.sexpr.eval.{ScriptEngineContext, FeatureContext}
  *  version Jan. 23, 2021
  *  version Feb. 25, 2021
  *  version Mar. 28, 2021
- * @version Apr.  5, 2021
+ *  version Apr.  5, 2021
+ * @version May. 21, 2021
  * @author  ASAMI, Tomoharu
  */
 case class ExecutionContext(
@@ -53,6 +55,7 @@ case class ExecutionContext(
   i18nContext: I18NContext,
   logConfig: LogConfig,
   traceContext: TraceContext,
+  statemachineSpace: StateMachineSpace,
   serviceLogic: UnitOfWorkLogic,
   storeLogic: StoreOperationLogic,
   scriptContext: ScriptEngineContext,
@@ -101,6 +104,7 @@ object ExecutionContext {
     p.i18nContext,
     p.logConfig,
     TraceContext.create(),
+    StateMachineSpace.create(),
     p.serviceLogic,
     p.storeLogic,
     p.scriptContext,
