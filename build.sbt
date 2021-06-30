@@ -2,7 +2,7 @@ organization := "org.goldenport"
 
 name := "kaleidox"
 
-version := "0.2.0"
+version := "0.3.0"
 
 scalaVersion := "2.10.3"
 // crossScalaVersions := Seq("2.10.39.2", "2.9.1")
@@ -27,18 +27,18 @@ resolvers += "Asami Maven Repository" at "http://www.asamioffice.com/maven"
 resolvers += "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository"
 
 // override goldenport-record
-libraryDependencies += "org.goldenport" %% "goldenport-scala-lib" % "1.3.0"
+libraryDependencies += "org.goldenport" %% "goldenport-scala-lib" % "1.3.1"
 
 // override goldenport-sexpr
-libraryDependencies += "org.goldenport" %% "goldenport-record" % "1.3.38"
+libraryDependencies += "org.goldenport" %% "goldenport-record" % "1.3.40"
 
-libraryDependencies += "org.goldenport" %% "goldenport-sexpr" % "2.0.18"
+libraryDependencies += "org.goldenport" %% "goldenport-sexpr" % "2.0.19"
 
 // libraryDependencies += "org.goldenport" %% "goldenport-statemachine" % "0.0.1"
 
-libraryDependencies += "org.smartdox" %% "smartdox" % "1.3.5"
+libraryDependencies += "org.smartdox" %% "smartdox" % "1.3.6"
 
-// libraryDependencies += "org.simplemodeling" %% "simplemodeler" % "1.0.0"
+libraryDependencies += "org.simplemodeling" %% "simplemodeler" % "1.0.1"
 
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
 
