@@ -8,7 +8,8 @@ import org.goldenport.kaleidox._
 
 /*
  * @since   May.  5, 2021
- * @version May. 23, 2021
+ *  version May. 23, 2021
+ * @version Jun. 26, 2021
  * @author  ASAMI, Tomoharu
  */
 case class EventModel(
@@ -20,6 +21,8 @@ case class EventModel(
   def +(rhs: EventModel): EventModel = copy(rule = rule + rhs.rule)
 
   def createOption(name: String): Option[Event] = rule.createOption(name)
+
+  def createCallOption(name: String, to: String): Option[Event] = rule.createCallOption(name, to)
 }
 
 object EventModel {
@@ -42,11 +45,12 @@ object EventModel {
     protected def to_Model(p: Option[EventRule]): EventModel = p.map(EventModel.apply).orZero
 
     protected def class_Name(p: EventClazz): String = p.name
+
     protected def to_Model(p: TreeMap[EventClazz]): EventModel = EventModel(EventRule(p))
 
     protected def parse_Flat(p: String): Option[EventRule] = EventRule.parse(p).toOption
 
-    protected def parse_Subsection(name: String,p: String): Option[EventClazz] = ???
+    protected def parse_Subsection(name: String, p: String): Option[EventClazz] = ???
 
     //   createClassOption(p).
     //     map(EventModel.apply).

@@ -10,7 +10,8 @@ import org.goldenport.kaleidox._
 /*
  * @since   Feb. 18, 2021
  *  version Feb. 25, 2021
- * @version May. 14, 2021
+ *  version May. 14, 2021
+ * @version Jun. 25, 2021
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -21,8 +22,8 @@ case class SchemaModel(
   def isEmpty: Boolean = classes.isEmpty
   def toOption: Option[SchemaModel] = if (isEmpty) None else Some(this)
 
-  def get(name: String): Option[SchemaClass] = classes.get(name)
-  def getSchema(name: String): Option[Schema] = get(name).map(_.schema)
+  def getSchemaClass(name: String): Option[SchemaClass] = classes.get(name)
+  def getSchema(name: String): Option[Schema] = getSchemaClass(name).map(_.schema)
 
   def +(rhs: SchemaModel): SchemaModel = copy(classes ++ rhs.classes)
 

@@ -18,7 +18,8 @@ import org.goldenport.kaleidox._
  * @since   Mar. 13, 2021
  *  version Mar. 27, 2021
  *  version Apr. 29, 2021
- * @version May. 27, 2021
+.map(_.message).list.mkString(";")))) *  version May. 27, 2021
+.map(_.message).list.mkString(";")))) * @version Jun. 20, 2021
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
@@ -160,7 +161,7 @@ object ServiceModel {
       def resolve(p: SExpr): ValidationNel[ArgumentFault, SExpr] =
         column.resolve(p.asObject) match {
           case Success(s) => Success(SExpr.create(s))
-          case Failure(e) => Failure(NonEmptyList(InvalidArgumentFault(e.map(_.message).list.mkString(";"))))
+          case Failure(e) => Failure(NonEmptyList(InvalidArgumentFault(column.name, e)))
         }
     }
     object Parameter {

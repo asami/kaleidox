@@ -15,13 +15,14 @@ import VoucherModel._
  *  version Oct.  5, 2019
  *  version Dec.  7, 2019
  *  version Jan.  9, 2021
- * @version Feb. 23, 2021
+ *  version Feb. 23, 2021
+ * @version Jun. 25, 2021
  * @author  ASAMI, Tomoharu
  */
 case class VoucherModel(
   classes: VectorMap[String, VoucherClass]
 ) extends ISchemaModel {
-  def get(name: String): Option[VoucherClass] = classes.get(name)
+  def getSchemaClass(name: String): Option[VoucherClass] = classes.get(name)
 
   def +(rhs: VoucherModel): VoucherModel = copy(classes ++ rhs.classes)
 

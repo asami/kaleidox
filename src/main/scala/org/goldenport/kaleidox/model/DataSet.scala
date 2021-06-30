@@ -24,7 +24,8 @@ import VoucherModel._
  *  version Jul. 16, 2019
  *  version Dec. 29, 2019
  *  version Feb. 28, 2021
- * @version Mar.  8, 2021
+ *  version Mar.  8, 2021
+ * @version Jun. 25, 2021
  * @author  ASAMI, Tomoharu
  */
 case class DataSet(
@@ -336,7 +337,7 @@ object DataSet {
   }
   object Builder {
     case class Context(models: List[ISchemaModel] = Nil, config: Config) {
-      def getSchemaClass(name: String): Option[ISchemaClass] = models.toStream.flatMap(_.get(name)).headOption
+      def getSchemaClass(name: String): Option[ISchemaClass] = models.toStream.flatMap(_.getSchemaClass(name)).headOption
 
       def +(rhs: Context): Context = copy(models = models ++ rhs.models)
     }

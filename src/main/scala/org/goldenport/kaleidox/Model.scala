@@ -35,7 +35,8 @@ import org.goldenport.kaleidox.model._
  *  version Feb. 24, 2021
  *  version Mar. 21, 2021
  *  version Apr. 18, 2021
- * @version May. 22, 2021
+ *  version May. 22, 2021
+ * @version Jun. 27, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -94,6 +95,21 @@ case class Model(
       case m: SchemaDivision => m.makeModel
     }.concatenate.toOption
 
+  lazy val getValueModel: Option[ValueModel] =
+    divisions.collect {
+      case m: ValueDivision => m.makeModel
+    }.concatenate.toOption
+
+  lazy val getSlipModel: Option[SlipModel] =
+    divisions.collect {
+      case m: SlipDivision => m.makeModel
+    }.concatenate.toOption
+
+  lazy val getEntityModel: Option[EntityModel] =
+    divisions.collect {
+      case m: EntityDivision => m.makeModel
+    }.concatenate.toOption
+
   lazy val getServiceModel: Option[ServiceModel] =
     divisions.collect {
       case m: ServiceDivision => m.makeModel(config)
@@ -110,6 +126,8 @@ case class Model(
     divisions.collect {
       case m: StateMachineDivision => m.makeModel(config)
     }.concatenate.toOption
+
+  def stateMachineModel: StateMachineModel = getStateMachineModel.orZero
 
   def takeStateMachineClasses: TreeMap[StateMachineClass] =
     getStateMachineModel.orZero.classes
@@ -133,6 +151,13 @@ case class Model(
       case m: DataBagDivision => m.dataset(_ctx)
     }
     a.headOption // TODO concat
+  }
+
+  def getXslModel: Option[XslModel] = {
+    val a = divisions.collect {
+      case m: XslDivision => m.makeModel(config)
+    }
+    a.concatenate.toOption
   }
 
   def +(p: Model): Model = {
@@ -192,10 +217,13 @@ object Model {
       DataStoreDivision,
       DataBagDivision,
       DataSourceDivision,
+      XslDivision,
       Script,
       DocumentDivision, // unused
-      VoucherDivision,
+      VoucherDivision, // unused
       SchemaDivision,
+      ValueDivision,
+      SlipDivision,
       ServiceDivision,
       EventDivision,
       StateMachineDivision,
@@ -390,6 +418,22 @@ object Model {
     protected def to_Division(p: LogicalSection): Division = DataSourceDivision(p)
   }
 
+  case class XslDivision(
+    section: LogicalSection
+  ) extends Division {
+    def makeModel(config: Config): XslModel = XslModel.create(config, section)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: XslDivision => copy(section + m.section)
+    }
+
+    // def dataset(ctx: DataSet.Builder.Context): DataSet = DataSet.createXsl(ctx, section)
+  }
+  object XslDivision extends DivisionFactory {
+    override val name_Candidates = Vector("xsl")
+    protected def to_Division(p: LogicalSection): Division = XslDivision(p)
+  }
+
   // TODO literal document (not value object)
   case class DocumentDivision(section: LogicalSection) extends Division {
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
@@ -510,7 +554,96 @@ object Model {
     protected def to_Division(p: LogicalSection): Division = ServiceDivision(p)
   }
 
+  case class ValueDivision(section: LogicalSection) extends Division {
+    def makeModel: ValueModel = {
+      val doxconfig = Dox2Parser.Config.default // TODO
+      val dox = Dox2Parser.parse(doxconfig, section)
+      // println(s"ValueDivision#makeModel $dox")
+      _make(dox)
+    }
+
+    private def _make(p: Dox): ValueModel = {
+      // println(s"ValueModel#_make $p")
+      p match {
+        case m: Section =>
+          if (m.keyForModel == "value") // TODO
+            _make_values(m)
+          else
+            ValueModel.empty
+        case m => m.elements.foldMap(_make)
+      }
+    }
+
+    private def _make_values(p: Section): ValueModel = p.sections.foldMap(_make_value)
+
+    private def _make_value(p: Section): ValueModel = ValueModel.create(p)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: ValueDivision => copy(section + m.section)
+    }
+  }
+  object ValueDivision extends DivisionFactory {
+    override val name_Candidates = Vector("value")
+    protected def to_Division(p: LogicalSection): Division = ValueDivision(p)
+  }
+
+  case class SlipDivision(section: LogicalSection) extends Division {
+    def makeModel: SlipModel = {
+      val doxconfig = Dox2Parser.Config.default // TODO
+      val dox = Dox2Parser.parse(doxconfig, section)
+      // println(s"SlipDivision#makeModel $dox")
+      _make(dox)
+    }
+
+    private def _make(p: Dox): SlipModel = {
+      // println(s"SlipModel#_make $p")
+      p match {
+        case m: Section =>
+          if (m.keyForModel == "slip") // TODO
+            _make_slips(m)
+          else
+            SlipModel.empty
+        case m => m.elements.foldMap(_make)
+      }
+    }
+
+    private def _make_slips(p: Section): SlipModel = p.sections.foldMap(_make_slip)
+
+    private def _make_slip(p: Section): SlipModel = SlipModel.create(p)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: SlipDivision => copy(section + m.section)
+    }
+  }
+  object SlipDivision extends DivisionFactory {
+    override val name_Candidates = Vector("slip")
+    protected def to_Division(p: LogicalSection): Division = SlipDivision(p)
+  }
+
   case class EntityDivision(section: LogicalSection) extends Division {
+    def makeModel: EntityModel = {
+      val doxconfig = Dox2Parser.Config.default // TODO
+      val dox = Dox2Parser.parse(doxconfig, section)
+      // println(s"EntityDivision#makeModel $dox")
+      _make(dox)
+    }
+
+    private def _make(p: Dox): EntityModel = {
+      // println(s"EntityModel#_make $p")
+      p match {
+        case m: Section =>
+          if (m.keyForModel == "entity") // TODO
+            _make_entities(m)
+          else
+            EntityModel.empty
+        case m => m.elements.foldMap(_make)
+      }
+    }
+
+    private def _make_entities(p: Section): EntityModel = p.sections.foldMap(_make_entity)
+
+    private def _make_entity(p: Section): EntityModel = EntityModel.create(p)
+
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: EntityDivision => copy(section + m.section)
     }

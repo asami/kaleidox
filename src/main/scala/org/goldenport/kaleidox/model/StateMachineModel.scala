@@ -9,7 +9,8 @@ import org.goldenport.kaleidox._
 
 /*
  * @since   May.  4, 2021
- * @version May. 23, 2021
+ *  version May. 23, 2021
+ * @version Jun. 27, 2021
  * @author  ASAMI, Tomoharu
  */
 case class StateMachineModel(
@@ -19,6 +20,8 @@ case class StateMachineModel(
   def toOption: Option[StateMachineModel] = if (isEmpty) None else Some(this)
 
   def +(rhs: StateMachineModel): StateMachineModel = copy(classes = classes + rhs.classes)
+
+  def getClass(name: String): Option[StateMachineClass] = classes.get(name)
 }
 
 object StateMachineModel {

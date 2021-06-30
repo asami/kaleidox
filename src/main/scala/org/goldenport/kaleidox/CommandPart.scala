@@ -32,7 +32,8 @@ import org.goldenport.record.util.AnyUtils
  *  version Jan. 24, 2021
  *  version Feb. 25, 2021
  *  version Mar. 28, 2021
- * @version Apr. 26, 2021
+ *  version Apr. 26, 2021
+ * @version Jun. 28, 2021
  * @author  ASAMI, Tomoharu
  */
 trait CommandPart { self: Engine =>
@@ -345,6 +346,7 @@ object CommandPart {
           case m: SXml => _xml(m)
           case m: SHtml => _html(m)
           case m: SJson => _json(m)
+          case m: SImage => _image(m)
           case m: SError => _error(m)
           case m: SBlob => _blob(m)
           case m: SClob => _clob(m)
@@ -403,6 +405,13 @@ object CommandPart {
 
       private def _json(p: SJson): String = {
         _to_html_program(p, "json")
+      }
+
+      private def _image(p: SImage): String = {
+        val s = p.pretty
+        val img = BinaryImg("sm", p.binary)
+//        val fig = Figure(s, "program" -> lang)
+        _to_html(img)
       }
 
       private def _error(p: SError): String = {
@@ -912,7 +921,8 @@ object CommandPart {
     def name = "save"
     def defaultOperation = Some(SaveClass)
     def operations = Operations(
-      SaveClass
+      SaveClass,
+      SavePrettyClass
     )
 
     case object SaveClass extends OperationClass {
@@ -928,7 +938,30 @@ object CommandPart {
 
     case class SaveMethod(call: OperationCall) extends KaleidoxMethod {
       def execute = {
-        RAISE.notImplementedYetDefect
+        val url = call.request.arg1Url
+        universe.history.lastOption.
+          map(x => to_response_file(url, x.getValueSExpr.getOrElse(SNil).marshall)).
+          getOrElse(VoidResponse)
+      }
+    }
+
+    case object SavePrettyClass extends OperationClass {
+      val specification = spec.Operation.default("pretty")
+
+      def operation(req: Request): Operation = Save
+    }
+
+    case object SavePretty extends Operation {
+      def apply(env: Environment, req: Request): Response =
+        SavePrettyMethod(OperationCall(env, SavePrettyClass.specification, req, Response())).run
+    }
+
+    case class SavePrettyMethod(call: OperationCall) extends KaleidoxMethod {
+      def execute = {
+        val url = call.request.arg1Url
+        universe.history.lastOption.
+          map(x => to_response_file(url, x.getValueSExpr.getOrElse(SNil).marshall)).
+          getOrElse(VoidResponse)
       }
     }
   }
