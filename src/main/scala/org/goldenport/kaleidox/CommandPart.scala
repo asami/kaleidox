@@ -33,7 +33,8 @@ import org.goldenport.record.util.AnyUtils
  *  version Feb. 25, 2021
  *  version Mar. 28, 2021
  *  version Apr. 26, 2021
- * @version Jun. 28, 2021
+ *  version Jun. 28, 2021
+ * @version Jul.  3, 2021
  * @author  ASAMI, Tomoharu
  */
 trait CommandPart { self: Engine =>
@@ -408,10 +409,14 @@ object CommandPart {
       }
 
       private def _image(p: SImage): String = {
-        val s = p.pretty
-        val img = BinaryImg("sm", p.binary)
+//        val s = p.pretty
 //        val fig = Figure(s, "program" -> lang)
-        _to_html(img)
+        val name = "image"
+        val mime = p.mime
+        val img = BinaryImg(name, mime, p.binary)
+        val r = _to_html(img)
+//        println(r)
+        r
       }
 
       private def _error(p: SError): String = {

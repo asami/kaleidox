@@ -8,7 +8,7 @@ import org.goldenport.cli.Environment
 
 /*
  * @since   Jun. 27, 2021
- * @version Jun. 27, 2021
+ * @version Jul. 12, 2021
  * @author  ASAMI, Tomoharu
  */
 class StateMachineDiagramGenerator(
@@ -22,7 +22,7 @@ class StateMachineDiagramGenerator(
   }
 
   def generate(p: MStateMachine): SImage = {
-    val binary = _generator.makeStateMachineDiagramPng(p)
-    SImage.png(binary)
+    val binary = _generator.makeStateMachineDiagramSvg(p)
+    SImage.svg(binary)
   }
 }
