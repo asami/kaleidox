@@ -38,7 +38,8 @@ import org.goldenport.util.StringUtils
  *  version Feb. 25, 2021
  *  version Mar. 28, 2021
  *  version Apr. 25, 2021
- * @version May. 21, 2021
+ *  version May. 21, 2021
+ * @version Sep. 25, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -83,7 +84,7 @@ case class Kaleidox(
     val i18nconfig = _i18n_context(model, config)
     val logconfig = _log_config(model, config)
     val tracecontext = TraceContext.create()
-    val statemachinespace = StateMachineSpace.create(model.takeStateMachineClasses)
+    val statemachinespace = config.stateMachineSpace.addClasses(model.takeStateMachineClasses)
     val sqlcontext = config.sqlContext.
       addProperties(universe.setup.bindings).
       addProperties(universe.parameters.bindings)

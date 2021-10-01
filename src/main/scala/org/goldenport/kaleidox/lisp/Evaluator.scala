@@ -29,7 +29,8 @@ import org.goldenport.kaleidox._
  *  version Feb. 25, 2021
  *  version Mar. 28, 2021
  *  version Apr. 25, 2021
- * @version May. 10, 2021
+ *  version May. 10, 2021
+ * @version Sep. 20, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -43,6 +44,7 @@ case class Evaluator(
     def config = context.config
     def i18nContext = config.i18nContext
     def queryContext = context.queryContext
+    def featureContext = context.feature
 
     init_binding(_binding)
     override def create_Eval_Context(x: SExpr) = Context(
@@ -61,6 +63,7 @@ case class Evaluator(
     def config = context.config
     def i18nContext = u.getI18NContext getOrElse config.i18nContext
     def queryContext = context.queryContext
+    def featureContext = context.feature
 
     init_binding(new Evaluator.Binding(u))
 

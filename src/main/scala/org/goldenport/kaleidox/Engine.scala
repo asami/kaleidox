@@ -27,7 +27,9 @@ import org.goldenport.sexpr.eval.{EvalContext, LispBinding}
  *  version Feb. 26, 2021
  *  version Mar. 28, 2021
  *  version Apr. 25, 2021
- * @version May. 14, 2021
+ *  version May. 14, 2021
+ *  version Aug. 29, 2021
+ * @version Sep. 20, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Engine(
@@ -64,8 +66,10 @@ case class Engine(
     this
   }
 
+  // See Space#build
   def setup(p: Model): Engine = {
     _setup_store(p)
+    _setup_entity(p)
     _setup_model_prologue(p)
   }
 
@@ -94,6 +98,13 @@ case class Engine(
       }
     }
   }
+
+  private def _setup_entity(p: Model): Unit =
+    p.getEntityModel.foreach { model =>
+      model.classes.foreach {
+        case (name, x) => context.feature.entity.defineCollection(Symbol(name), x)
+      }
+    }
 
   private def _setup_model_prologue(p: Model): Engine = {
     val (written, result, state) = run(universe, p.getPrologue(context.config))

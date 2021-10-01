@@ -11,7 +11,9 @@ import org.goldenport.matrix.INumericalOperations
 import org.goldenport.record.unitofwork.interpreter._
 import org.goldenport.record.v3.sql.SqlContext
 import org.goldenport.record.query.QueryExpression
+import org.goldenport.statemachine.StateMachineSpace
 import org.goldenport.util.DateTimeUtils
+import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
 
 /*
  * @since   Aug. 20, 2018
@@ -28,7 +30,8 @@ import org.goldenport.util.DateTimeUtils
  *  version Nov.  9, 2019
  *  version Feb. 26, 2020
  *  version Mar. 30, 2020
- * @version Feb. 20, 2021
+ *  version Feb. 20, 2021
+ * @version Sep. 24, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Config(
@@ -47,7 +50,9 @@ case class Config(
     else
       SqlContext.createConnectionPool(properties, createQueryContext())
   lazy val resourceManager = new ResourceManager()
-  lazy val feature = FeatureContext.create(properties, cliConfig.i18n, sqlContext)
+  lazy val stateMachineSpace = StateMachineSpace.create()
+  lazy val entityFactory = new KaleidoxEntityFactory(stateMachineSpace)
+  lazy val feature = FeatureContext.create(properties, cliConfig.i18n, sqlContext, entityFactory)
   def properties = cliConfig.properties
   def i18nContext = cliConfig.i18n
   def createQueryContext() = QueryExpression.Context(

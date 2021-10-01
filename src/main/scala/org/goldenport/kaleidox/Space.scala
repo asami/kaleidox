@@ -16,7 +16,8 @@ import org.goldenport.kaleidox.model.{Libraries, Library}
  *  version Apr. 18, 2019
  *  version Jun.  9, 2019
  *  version Sep. 28, 2019
- * @version Apr. 18, 2021
+ *  version Apr. 18, 2021
+ * @version Aug.  8, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Space(
@@ -110,6 +111,7 @@ object Space {
     build(p, model.model)
   }
 
+  // See Engine#setup
   def build(p: Space, model: Model): Space = {
     val space0 = model.getEnvironmentProperties.
       map(p.updateBindings).

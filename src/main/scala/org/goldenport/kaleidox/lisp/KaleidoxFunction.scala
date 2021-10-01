@@ -2,6 +2,7 @@ package org.goldenport.kaleidox.lisp
 
 import scalaz._, Scalaz._
 import org.simplemodeling.model._
+import org.goldenport.RAISE
 import org.goldenport.event._
 import org.goldenport.statemachine._
 import org.goldenport.sexpr._
@@ -14,7 +15,9 @@ import org.goldenport.kaleidox.model.diagram._
  * @since   May.  5, 2021
  *  version May. 22, 2021
  *  version Jun. 30, 2021
- * @version Jul. 11, 2021
+ *  version Jul. 11, 2021
+ *  version Aug.  2, 2021
+ * @version Sep. 26, 2021
  * @author  ASAMI, Tomoharu
  */
 object KaleidoxFunction {
@@ -137,6 +140,14 @@ object KaleidoxFunction {
 
         private def _get_substate(name: String) = 
           states.values.toStream.flatMap(_.getSubStateRecursive(name)).headOption
+          
+        def historyStates(name: String): Vector[MState] =
+          states.values.flatMap(s =>
+            if (s.transitions.exists(t => t.postState.name == name))
+              Some(s.createHistoryState)
+            else
+              None
+          ).toVector
       }
       object StateHanger {
         def create(ps: Seq[(String, MState)]): StateHanger = new StateHanger(VectorMap(ps))
@@ -156,6 +167,7 @@ object KaleidoxFunction {
         p: StateMachineClass
       ): VectorMap[String, MState] = {
         def initState = MState.initState(sm)
+        // def historyState = MState.historyState(sm)
 
         def _state_(p: StateClass): MState = {
           val s = MState.create(sm, p.name)
@@ -185,13 +197,14 @@ object KaleidoxFunction {
               def _name_transition_(p: NameTransitionTo) =
                 (statemap.get(s.name), statemap.get(p.name)) match {
                   case (Some(from), Some(to)) => MTransition(sm, event, g, from, to, action)
-                  case (Some(from), None) => ???
+                  case (Some(from), None) => RAISE.noReachDefect
                   case (None, Some(to)) => MTransition(sm, event, g, initState, to, action)
-                  case (None, None) => ???
+                  case (None, None) => RAISE.noReachDefect
                 }
 
               def _history_transition_(p: HistoryTransitionTo) = {
-                MTransition(sm, event, g, ???, ???, ???)
+                val historystate = statemap.historyStates(s.name).head // TODO
+                MTransition(sm, event, g, statemap.get(s.name).get, historystate, action)
               }
 
               t.to match {
@@ -206,7 +219,7 @@ object KaleidoxFunction {
               }
             }
 
-            val ts = s.transitions.transitions.flatMap(_transition_)
+            val ts = s.transitions.call.flatMap(_transition_) ++ s.transitions.global.flatMap(_transition_)
             statemap.get(s.name).foreach(_.transitions = ts.toList)
           }
 
@@ -219,13 +232,13 @@ object KaleidoxFunction {
               def _name_transition_(p: NameTransitionTo) =
                 (statemap.get(smr.name getOrElse ""), statemap.get(p.name)) match {
                   case (Some(from), Some(to)) => MTransition(sm, event, g, from, to, action)
-                  case (Some(from), None) => ???
+                  case (Some(from), None) => RAISE.noReachDefect
                   case (None, Some(to)) => MTransition(sm, event, g, initState, to, action)
-                  case (None, None) => ???
+                  case (None, None) => RAISE.noReachDefect
                 }
 
               def _history_transition_(p: HistoryTransitionTo) = {
-                MTransition(sm, event, g, ???, ???, ???)
+                RAISE.notImplementedYetDefect
               }
 
               t.to match {
@@ -242,12 +255,12 @@ object KaleidoxFunction {
 
             smr.states.foreach(_build_state)
             smr.statemachines.foreach(_build_statemachine_)
-            val ts = smr.transitions.transitions.flatMap(_transition_)
+            val ts = smr.transitions.call.flatMap(_transition_) ++ smr.transitions.global.flatMap(_transition_)
             statemap.get(smr.name getOrElse "").foreach(_.transitions = ts.toList)
           }
 
-          p.states.foreach(_build_state)
           p.statemachines.foreach(_build_statemachine_)
+          p.states.foreach(_build_state)
         }
 
         def _guard_(g: SmGuard): Option[MGuard] = None // MGuard(sm)
@@ -290,7 +303,7 @@ object KaleidoxFunction {
           }
 
           private def _init_state_name(p: StateClass) =
-            p.transitions.transitions.map(_.to).collect {
+            (p.transitions.call.map(_.to) ++ p.transitions.global.map(_.to)).collect {
               case NameTransitionTo(to) => to
             }.headOption
         }

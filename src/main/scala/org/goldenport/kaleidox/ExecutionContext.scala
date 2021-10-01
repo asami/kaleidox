@@ -46,7 +46,8 @@ import org.goldenport.sexpr.eval.{ScriptEngineContext, FeatureContext}
  *  version Feb. 25, 2021
  *  version Mar. 28, 2021
  *  version Apr.  5, 2021
- * @version May. 21, 2021
+ *  version May. 21, 2021
+ * @version Sep. 24, 2021
  * @author  ASAMI, Tomoharu
  */
 case class ExecutionContext(
@@ -104,7 +105,7 @@ object ExecutionContext {
     p.i18nContext,
     p.logConfig,
     TraceContext.create(),
-    StateMachineSpace.create(),
+    p.stateMachineSpace,
     p.serviceLogic,
     p.storeLogic,
     p.scriptContext,

@@ -36,7 +36,9 @@ import org.goldenport.kaleidox.model._
  *  version Mar. 21, 2021
  *  version Apr. 18, 2021
  *  version May. 22, 2021
- * @version Jun. 27, 2021
+ *  version Jun. 27, 2021
+ *  version Aug.  8, 2021
+ * @version Sep. 17, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -202,6 +204,12 @@ object Model {
   }
 
   trait Division {
+    override def toString() = try {
+      super.toString()
+    } catch {
+      case NonFatal(e) => s"${getClass.getSimpleName}(${e})"
+    }
+
     def mergeOption(p: Division): Option[Division]
 
     protected final def to_hocon(p: LogicalParagraph): RichConfig =
@@ -621,28 +629,30 @@ object Model {
   }
 
   case class EntityDivision(section: LogicalSection) extends Division {
-    def makeModel: EntityModel = {
-      val doxconfig = Dox2Parser.Config.default // TODO
-      val dox = Dox2Parser.parse(doxconfig, section)
-      // println(s"EntityDivision#makeModel $dox")
-      _make(dox)
-    }
+    def makeModel: EntityModel = section.sections.foldMap(EntityModel.create)
 
-    private def _make(p: Dox): EntityModel = {
-      // println(s"EntityModel#_make $p")
-      p match {
-        case m: Section =>
-          if (m.keyForModel == "entity") // TODO
-            _make_entities(m)
-          else
-            EntityModel.empty
-        case m => m.elements.foldMap(_make)
-      }
-    }
+    // def makeModel: EntityModel = {
+    //   val doxconfig = Dox2Parser.Config.default // TODO
+    //   val dox = Dox2Parser.parse(doxconfig, section)
+    //   // println(s"EntityDivision#makeModel $dox")
+    //   _make(dox)
+    // }
 
-    private def _make_entities(p: Section): EntityModel = p.sections.foldMap(_make_entity)
+    // private def _make(p: Dox): EntityModel = {
+    //   // println(s"EntityModel#_make $p")
+    //   p match {
+    //     case m: Section =>
+    //       if (m.keyForModel == "entity") // TODO
+    //         _make_entities(m)
+    //       else
+    //         EntityModel.empty
+    //     case m => m.elements.foldMap(_make)
+    //   }
+    // }
 
-    private def _make_entity(p: Section): EntityModel = EntityModel.create(p)
+    // private def _make_entities(p: Section): EntityModel = p.sections.foldMap(_make_entity)
+
+    // private def _make_entity(p: Section): EntityModel = EntityModel.create(p)
 
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: EntityDivision => copy(section + m.section)

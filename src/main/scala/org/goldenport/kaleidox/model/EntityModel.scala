@@ -2,16 +2,20 @@ package org.goldenport.kaleidox.model
 
 import scalaz._, Scalaz._
 import org.smartdox.{Dox, Section}
+import org.goldenport.parser._
 import org.goldenport.record.v2.{Schema, Column, SqlSchema}
 import org.goldenport.record.v3.Record
 import org.goldenport.sexpr.SSchema
+import org.goldenport.sexpr.eval.entity.{EntityClass => IEntityClass}
 import org.goldenport.collection.VectorMap
+import org.goldenport.statemachine.StateMachineClass
 import org.goldenport.kaleidox._
 import org.goldenport.kaleidox.model.SchemaModel.SchemaClass
 
 /*
  * @since   Jun. 25, 2021
- * @version Jun. 26, 2021
+ *  version Jun. 26, 2021
+ * @version Sep. 24, 2021
  * @author  ASAMI, Tomoharu
  */
 case class EntityModel(
@@ -47,14 +51,23 @@ object EntityModel {
 
   case class EntityClass(
     schemaClass: SchemaClass
-  ) {
+  ) extends IEntityClass {
     def name = schemaClass.name
     def schema = schemaClass.schema
+    def stateMachines: Vector[StateMachineClass] = schemaClass.stateMachines
   }
   object EntityClass {
   }
 
   def apply(p: EntityClass): EntityModel = EntityModel(VectorMap(p.name -> p))
+
+  def create(p: LogicalSection): EntityModel = createOption(p) getOrElse empty
+
+  def createOption(p: LogicalSection): Option[EntityModel] = {
+    SchemaClass.createOption(p).map(_to_model)
+    // TODO association
+    // TODO statemachine
+  }
 
   def create(p: Section): EntityModel = createOption(p) getOrElse empty
 
