@@ -5,11 +5,18 @@ import org.smartdox.parser.Dox2Parser
 import org.smartdox.Section
 import org.goldenport.record.v2.{Schema, Column, SqlSchema}
 import org.goldenport.record.v2.XStateMachine
+import org.goldenport.record.v2.Constraint
+import org.goldenport.record.v3.IRecord
 import org.goldenport.record.v3.Record
+import org.goldenport.record.v3.Field
+import org.goldenport.record.v3.ValueDomain
+import org.goldenport.context.Consequence
 import org.goldenport.parser._
 import org.goldenport.sexpr.SSchema
+import org.goldenport.sexpr.eval.entity.EntityId
 import org.goldenport.collection.VectorMap
 import org.goldenport.statemachine.StateMachineClass
+import org.goldenport.statemachine.{StateMachine => StateMachineInstance}
 import org.goldenport.kaleidox._
 
 /*
@@ -18,7 +25,9 @@ import org.goldenport.kaleidox._
  *  version May. 14, 2021
  *  version Jun. 25, 2021
  *  version Aug. 29, 2021
- * @version Sep. 25, 2021
+ *  version Sep. 25, 2021
+ *  version Oct. 31, 2021
+ * @version Nov.  1, 2021
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -70,15 +79,88 @@ object SchemaModel {
     slots: Vector[Slot]
   ) extends ISchemaClass {
     lazy val schema: Schema = {
-      val tablename = features.tableName
       val columns = slots.map(_.toColumn)
-      tablename match {
+      tableName match {
         case Some(s) => Schema(columns, sql = SqlSchema(Nil, Some(s)))
         case None => Schema(columns)
       }
     }
+    lazy val id: Id = slots.collect {
+      case m: Id => m
+    }.head
+    lazy val attributes: Vector[Attribute] = slots.collect {
+      case m: Attribute => m
+    }
+    lazy val attributeMap = attributes.map(x => x.name -> x).toMap
     lazy val stateMachines: Vector[StateMachineClass] = slots.collect {
       case m: StateMachine => m.statemachine
+    }
+    lazy val stateMachineMap = stateMachines.map(x => x.name -> x).toMap
+    val tableName = features.tableName
+
+    def attributeRecordForCreate(p: IRecord): Consequence[Record] = {
+      case class Z(xs: Consequence[Vector[Field]] = Consequence(Vector.empty)) {
+        def r = xs.map(Record(_))
+
+        def +(rhs: Attribute) =
+          p.get(rhs.name) match {
+            case Some(s) => _add(rhs.verifyField(rhs.name, s))
+            case None =>
+              if (rhs.isRequired)
+                _add(Consequence.missingPropertyFault[Field](rhs.name))
+              else
+                this
+          }
+
+        private def _add(p: Consequence[Field]) = copy(xs = (xs |@| p)(_ :+ _))
+      }
+      attributes./:(Z())(_+_).r
+      // case class Z(xs: Vector[Consequence[Field]] = Vector.empty) {
+      //   def r = 
+
+      //   def +(rhs: Field) = attributeMap.get(rhs.name) match {
+      //     case Some(s) => 
+      //     case None => this // XXX more gidid
+      //   }
+      // }
+      // p.fields./:(Z())(_+_).r
+    }
+
+    def idForReconstitute(p: IRecord): Consequence[EntityId] =
+      Consequence.successOrMissingPropertyFault("id", p.get(id.name).map(id.reconstitute(name, _)))
+
+    def attributeRecordForReconstitute(p: IRecord): Consequence[Record] =
+      attributeRecordForCreate(p)
+
+    def stateMachineRecordForReconstitute(p: IRecord): Consequence[VectorMap[Symbol, StateMachineInstance]] = {
+      val a = stateMachineMap.toVector.map {
+        case (k, sm) => for {
+          v <- Consequence.successOrMissingPropertyFault(k, p.get(k))
+          x <- sm.reconstitute(v)
+        } yield Symbol(k) -> x
+      }
+      a.sequence.map(_.foldLeft(VectorMap.empty[Symbol, StateMachineInstance]) { (z, x) =>
+        z + (x)
+      })
+    }
+
+    def unmarshallProperties(p: IRecord): Consequence[IRecord] = {
+      case class Z(xs: Consequence[Vector[Field]] = Consequence.success(Vector.empty)) {
+        def r = xs.map(x => Record(x))
+
+        def +(rhs: Field) =
+          slots.find(_.name == rhs.name) match {
+            case Some(s) => rhs.getValue.
+                map(x => _add(s.unmarshall(x).map(Field.create(rhs.key, _)))).
+                getOrElse(_add(rhs))
+            case None => _add(rhs)
+          }
+
+        private def _add(p: Consequence[Field]) = copy(xs = (xs |@| p)(_ :+ _))
+
+        private def _add(p: Field) = copy(xs = xs.map(_ :+ p))
+      }
+      p.fields./:(Z())(_+_).r
     }
   }
   object SchemaClass {
@@ -155,7 +237,7 @@ object SchemaModel {
           private def _table(m: Table) =
             if (_is_property_table(m))
               copy(propertyTables = propertyTables :+ m)
-            else if (_is_property_table(m))
+            else if (_is_feature_table(m))
               copy(featureTables = featureTables :+ m)
             else if (_is_anon_table(m))
               copy(anonTables = anonTables :+ m)
@@ -314,9 +396,9 @@ object SchemaModel {
         rs.flatMap(_slot)
       }
 
-      private def _to_attrs(ps: Seq[Table]): Seq[Attribute] = {
+      private def _to_attrs(ps: Seq[Table]): Seq[Slot] = { // Attribute | Id
         val rs = ps.toVector.foldMap(SimpleModelerUtils.toRecords)
-        rs.map(_attribute)
+        rs.map(_attribute_or_id)
       }
 
       private def _to_assocs(ps: Seq[Table]): Seq[Association] = {
@@ -343,12 +425,18 @@ object SchemaModel {
 
       private def _slot(p: Record): Option[Slot] =
         _get_kind(p).collect {
-          case m if _is_attribute(m) => _attribute(p)
+          case m if _is_attribute(m) =>
+            if (_is_id(p))
+              _id(p)
+            else
+              _attribute(p)
           case m if _is_association(m) => _association(p)
         }
 
       private def _get_kind(p: Record): Option[String] =
         kindName.toStream.flatMap(x => p.getString(x)).headOption
+
+      private def _is_id(p: Record) = _name(p).equalsIgnoreCase("id") // TODO
 
       private def _is_attribute(p: String) = attributeName.exists(_.equalsIgnoreCase(p))
 
@@ -356,11 +444,30 @@ object SchemaModel {
 
       private def _is_statemachine(p: String) = statemachineName.exists(_.equalsIgnoreCase(p))
 
+      private def _attribute_or_id(p: Record) =
+        if (_name(p).equalsIgnoreCase("id")) // TODO
+          _id(p)
+        else
+          _attribute(p)
+
+      private def _id(p: Record) = Id(
+        _name(p),
+        _label(p),
+        ValueDomain(
+          _datatype(p),
+          _multiplicity(p),
+          _constraints(p)
+        )
+      )
+
       private def _attribute(p: Record) = Attribute(
         _name(p),
-        _datatype(p),
-        _multiplicity(p),
-        _label(p)
+        _label(p),
+        ValueDomain(
+          _datatype(p),
+          _multiplicity(p),
+          _constraints(p)
+        )
       )
 
       private def _association(p: Record) = Association(
@@ -384,6 +491,8 @@ object SchemaModel {
 
       private def _multiplicity(p: Record): Multiplicity = p.getStringCaseInsensitive(multiplicityName).
         flatMap(Multiplicity.get).getOrElse(MOne)
+
+      private def _constraints(p: Record): List[Constraint] = Nil // TODO
     }
 
     private def _to_features(p: Table): Option[Features] = {
@@ -410,21 +519,52 @@ object SchemaModel {
   }
 
   trait Slot {
+    def name: String
+    def label: Option[I18NString]
     def toColumn: Column
+    def unmarshall(p: Any): Consequence[Any]
+  }
+
+  case class Id(
+    name: String,
+    label: Option[I18NString],
+    domain: ValueDomain
+  ) extends Slot {
+    def toColumn = Column(
+      name,
+      domain.datatype,
+      domain.multiplicity,
+      i18nLabel = label
+    )
+
+    def reconstitute(classname: String, p: Any): EntityId = p match {
+      case m: String => EntityId(classname, m)
+      case m: Long => EntityId(classname, m)
+      case m => EntityId(classname, m.toString)
+    }
+
+    def unmarshall(p: Any): Consequence[Any] = Consequence(EntityId.create(p.toString))
   }
 
   case class Attribute(
     name: String,
-    datatype: DataType,
-    multiplicity: Multiplicity,
-    label: Option[I18NString]
+    label: Option[I18NString],
+    domain: ValueDomain
   ) extends Slot {
+    def isRequired = domain.isRequired
+
+    def verify(p: Any): Consequence[Any] = domain.verify(p)
+    def verifyField(p: Field): Consequence[Field] = domain.verifyField(p)
+    def verifyField(key: String, p: Any): Consequence[Field] = domain.verifyField(key, p)
+
     def toColumn = Column(
       name,
-      datatype,
-      multiplicity,
+      domain.datatype,
+      domain.multiplicity,
       i18nLabel = label
     )
+
+    def unmarshall(p: Any): Consequence[Any] = verify(p)
   }
 
   case class Association(
@@ -439,6 +579,8 @@ object SchemaModel {
       multiplicity,
       i18nLabel = label
     )
+
+    def unmarshall(p: Any): Consequence[Any] = Consequence.success(p) // TODO
   }
 
   case class StateMachine(
@@ -446,7 +588,7 @@ object SchemaModel {
     label: Option[I18NString]
   ) extends Slot {
     def name = statemachine.name
-    def datatype = XStateMachine()
+    def datatype = XStateMachine(Some(statemachine))
     def multiplicity = MOne
 
     def toColumn = Column(
@@ -455,5 +597,7 @@ object SchemaModel {
       multiplicity,
       i18nLabel = label
     )
+
+    def unmarshall(p: Any): Consequence[StateMachineInstance] = statemachine.reconstitute(p)
   }
 }

@@ -7,6 +7,7 @@ import org.goldenport.event._
 import org.goldenport.statemachine._
 import org.goldenport.sexpr._
 import org.goldenport.sexpr.eval._
+import org.goldenport.sexpr.eval.entity.EntityId
 import LispFunction.CursorResult
 import org.goldenport.kaleidox.model.sexpr._
 import org.goldenport.kaleidox.model.diagram._
@@ -17,7 +18,9 @@ import org.goldenport.kaleidox.model.diagram._
  *  version Jun. 30, 2021
  *  version Jul. 11, 2021
  *  version Aug.  2, 2021
- * @version Sep. 26, 2021
+ *  version Sep. 26, 2021
+ *  version Oct. 31, 2021
+ * @version Nov.  1, 2021
  * @author  ASAMI, Tomoharu
  */
 object KaleidoxFunction {
@@ -27,8 +30,23 @@ object KaleidoxFunction {
     def eval(c: Context): CursorResult
 
     protected final def issue_event(c: Context)(p: Event) = {
+      val eid = p match {
+        case m: CallEvent => m.to.entity.map(x => EntityId(x, m.to.id))
+        case _ => None
+      }
+      val entity = eid.flatMap(x =>
+        c.feature.entity.get(x) match {
+          case SEntity(y) => Some(y)
+          case _ => None
+        }
+      )
       c.statemachineSpace.issueEvent(p)
-      SEvent(p)
+      entity.map(c.feature.entity.update).flatMap {
+        case m: SError => Some(m)
+        case _ => None
+      }.getOrElse(
+        SEvent(p)
+      )
     }
   }
 
@@ -59,16 +77,18 @@ object KaleidoxFunction {
     case object Call extends KaleidoxEvalFunction {
       val specification = FunctionSpecification("event-call",
         param_argument("name"),
-        param_argument("to")
+        param_argument("to"),
+        param_argument_option("entity")
       )
 
       def eval(c: Context): CursorResult = for {
         name <- c.param.takeString('name)
         to <- c.param.takeString('to)
-      } yield (name |@| to)(_call(c))
+        entity <- c.param.getString('entity)
+      } yield (name |@| to |@| entity)(_call(c))
 
-      private def _call(c: Context)(name: String, to: ObjectId): SExpr = {
-        c.universe.model.eventModel.createCallOption(name, to).
+      private def _call(c: Context)(name: String, to: String, entity: Option[String]): SExpr = {
+        c.universe.model.eventModel.createCallOption(name, ObjectId(to, entity)).
           map(issue_event(c)).
           getOrElse(SError.notFound("Event", name))
       }
@@ -91,7 +111,7 @@ object KaleidoxFunction {
 
       private def _statemachine_new(c: Context)(
         name: String,
-        resourceid: Option[ObjectId]
+        resourceid: Option[String]
       ): SExpr = {
         _spawn(c, name, resourceid).
           map(_statemachine_new).
@@ -101,10 +121,10 @@ object KaleidoxFunction {
       private def _spawn(
         c: Context,
         name: String,
-        resourceid: Option[ObjectId]
+        resourceid: Option[String]
       ) =
         resourceid.
-          map(c.statemachineSpace.spawnOption(name, _)).
+          map(x => c.statemachineSpace.spawnOption(name, ObjectId(x))).
           getOrElse(c.statemachineSpace.spawnOption(name))
 
       private def _statemachine_new(p: StateMachine) = SStateMachine(p)
@@ -124,7 +144,7 @@ object KaleidoxFunction {
 
       private def _statemachine_diagram(c: Context)(
         name: String,
-        resourceid: Option[ObjectId]
+        resourceid: Option[String]
       ): SExpr = {
         _make_sm(c, name).
           map(_make_diagram(c, _)).

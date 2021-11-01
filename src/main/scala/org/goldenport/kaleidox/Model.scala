@@ -20,6 +20,7 @@ import org.goldenport.parser.ParseMessage
 import org.goldenport.record.v3.{IRecord, SingleValue, MultipleValue, EmptyValue}
 import org.goldenport.statemachine.StateMachineClass
 import org.goldenport.kaleidox.model._
+import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
 
 /*
  * @since   Sep. 24, 2018
@@ -38,7 +39,8 @@ import org.goldenport.kaleidox.model._
  *  version May. 22, 2021
  *  version Jun. 27, 2021
  *  version Aug.  8, 2021
- * @version Sep. 17, 2021
+ *  version Sep. 17, 2021
+ * @version Oct. 23, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -50,6 +52,8 @@ case class Model(
   warnings: Vector[WarningMessage] = Vector.empty
 ) {
   import Model._
+
+  def entityFactory = config.entityFactory
 
   private lazy val _ctx = (getSchemaModel, getVoucherModel) match {
     case (None, None) => DataSet.Builder.Context(config)
@@ -107,10 +111,12 @@ case class Model(
       case m: SlipDivision => m.makeModel
     }.concatenate.toOption
 
-  lazy val getEntityModel: Option[EntityModel] =
-    divisions.collect {
-      case m: EntityDivision => m.makeModel
-    }.concatenate.toOption
+  lazy val getEntityModel: Option[EntityModel] = {
+    val a = divisions.collect {
+      case m: EntityDivision => m.makeModel(entityFactory)
+    }
+    a.headOption.map(h => a.tail.foldLeft(h)((z, x) => z + x))
+  }
 
   lazy val getServiceModel: Option[ServiceModel] =
     divisions.collect {
@@ -629,7 +635,8 @@ object Model {
   }
 
   case class EntityDivision(section: LogicalSection) extends Division {
-    def makeModel: EntityModel = section.sections.foldMap(EntityModel.create)
+    def makeModel(f: KaleidoxEntityFactory): EntityModel = 
+      section.sections.foldLeft(EntityModel.empty(f))((z, x) => z + EntityModel.create(f, x))
 
     // def makeModel: EntityModel = {
     //   val doxconfig = Dox2Parser.Config.default // TODO

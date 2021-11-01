@@ -9,7 +9,8 @@ import org.goldenport.kaleidox._
 /*
  * @since   May.  5, 2021
  *  version May. 23, 2021
- * @version Jun. 26, 2021
+ *  version Jun. 26, 2021
+ * @version Oct. 31, 2021
  * @author  ASAMI, Tomoharu
  */
 case class EventModel(
@@ -22,7 +23,7 @@ case class EventModel(
 
   def createOption(name: String): Option[Event] = rule.createOption(name)
 
-  def createCallOption(name: String, to: String): Option[Event] = rule.createCallOption(name, to)
+  def createCallOption(name: String, to: ObjectId): Option[Event] = rule.createCallOption(name, to)
 }
 
 object EventModel {

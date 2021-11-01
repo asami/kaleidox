@@ -2,6 +2,8 @@ package org.goldenport.kaleidox
 
 import javax.script._
 import java.io.File
+import org.goldenport.hocon.RichConfig
+import org.goldenport.hocon.RichConfig.Implicits._
 import org.goldenport.cli.{Environment, Config => CliConfig}
 import org.goldenport.io.ResourceManager
 import org.goldenport.sexpr.eval.{LispConfig, ScriptEngineContext, FeatureContext}
@@ -10,6 +12,7 @@ import org.goldenport.log.LogLevel
 import org.goldenport.matrix.INumericalOperations
 import org.goldenport.record.unitofwork.interpreter._
 import org.goldenport.record.v3.sql.SqlContext
+import org.goldenport.record.store.StoreFactory
 import org.goldenport.record.query.QueryExpression
 import org.goldenport.statemachine.StateMachineSpace
 import org.goldenport.util.DateTimeUtils
@@ -31,7 +34,8 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Feb. 26, 2020
  *  version Mar. 30, 2020
  *  version Feb. 20, 2021
- * @version Sep. 24, 2021
+ *  version Sep. 24, 2021
+ * @version Oct.  4, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Config(
@@ -42,17 +46,22 @@ case class Config(
   isLocation: Boolean = true
 ) extends LispConfig {
   lazy val scriptContext = ScriptEngineContext.default
+  lazy val queryContext = createQueryContext()
   lazy val sqlContext =
-    if (true) // TODO configurable
-      SqlContext.createEachTime(properties, createQueryContext())
+    if (_is_memory(properties))
+      SqlContext.createMemory(properties, queryContext)
+    else if (true) // TODO configurable
+      SqlContext.createEachTime(properties, queryContext)
     else if (false)
-      SqlContext.createAutoCommit(properties, createQueryContext())
+      SqlContext.createAutoCommit(properties, queryContext)
     else
-      SqlContext.createConnectionPool(properties, createQueryContext())
+      SqlContext.createConnectionPool(properties, queryContext)
   lazy val resourceManager = new ResourceManager()
   lazy val stateMachineSpace = StateMachineSpace.create()
-  lazy val entityFactory = new KaleidoxEntityFactory(stateMachineSpace)
+  lazy val storeFactory = new StoreFactory(cliConfig.makeConfig("store"), sqlContext)
+  lazy val entityFactory = new KaleidoxEntityFactory(i18nContext, storeFactory, stateMachineSpace)
   lazy val feature = FeatureContext.create(properties, cliConfig.i18n, sqlContext, entityFactory)
+
   def properties = cliConfig.properties
   def i18nContext = cliConfig.i18n
   def createQueryContext() = QueryExpression.Context(
@@ -70,6 +79,8 @@ case class Config(
   def withServiceLogic(p: UnitOfWorkLogic) = copy(serviceLogic = p)
   def withStoreLogic(p: StoreOperationLogic) = copy(storeLogic = p)
   def withoutLocation = copy(isLocation = false)
+
+  private def _is_memory(p: RichConfig): Boolean = p.getConfigOption("db").isEmpty
 }
 
 object Config {
