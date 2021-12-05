@@ -15,6 +15,7 @@ import org.goldenport.parser._
 import org.goldenport.sexpr.SSchema
 import org.goldenport.sexpr.eval.entity.EntityId
 import org.goldenport.collection.VectorMap
+import org.goldenport.event.ObjectId
 import org.goldenport.statemachine.StateMachineClass
 import org.goldenport.statemachine.{StateMachine => StateMachineInstance}
 import org.goldenport.kaleidox._
@@ -27,7 +28,7 @@ import org.goldenport.kaleidox._
  *  version Aug. 29, 2021
  *  version Sep. 25, 2021
  *  version Oct. 31, 2021
- * @version Nov.  1, 2021
+ * @version Nov. 20, 2021
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -132,11 +133,11 @@ object SchemaModel {
     def attributeRecordForReconstitute(p: IRecord): Consequence[Record] =
       attributeRecordForCreate(p)
 
-    def stateMachineRecordForReconstitute(p: IRecord): Consequence[VectorMap[Symbol, StateMachineInstance]] = {
+    def stateMachineRecordForReconstitute(p: IRecord, id: EntityId): Consequence[VectorMap[Symbol, StateMachineInstance]] = {
       val a = stateMachineMap.toVector.map {
         case (k, sm) => for {
           v <- Consequence.successOrMissingPropertyFault(k, p.get(k))
-          x <- sm.reconstitute(v)
+          x <- sm.reconstitute(v, ObjectId(id.objectId.string))
         } yield Symbol(k) -> x
       }
       a.sequence.map(_.foldLeft(VectorMap.empty[Symbol, StateMachineInstance]) { (z, x) =>

@@ -30,7 +30,8 @@ import org.goldenport.kaleidox._
  *  version Mar. 28, 2021
  *  version Apr. 25, 2021
  *  version May. 10, 2021
- * @version Sep. 20, 2021
+ *  version Sep. 20, 2021
+ * @version Nov. 29, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -49,6 +50,7 @@ case class Evaluator(
     init_binding(_binding)
     override def create_Eval_Context(x: SExpr) = Context(
       this.apply,
+      Evaluator.this,
       context,
       universe,
       Some(x),
@@ -69,8 +71,8 @@ case class Evaluator(
 
     override def create_Eval_Context(x: SExpr) = Context(
       this.apply,
+      Evaluator.this,
       context,
-      
       u,
       Some(x),
       None,
@@ -165,17 +167,19 @@ case class Evaluator(
     r
   }
 
-  def normalize(p: SExpr): (Universe, SExpr) = p match {
+  def normalize(p: SExpr): (Universe, SExpr) = _normalize(universe, p)
+
+  private def _normalize(pu: Universe, p: SExpr): (Universe, SExpr) = p match {
     case m: SAtom => _binding.getFunction(m.name).map { f =>
       val n = f.specification.numberOfRequiredArguments
       // SList.create(m :: List.tabulate(n)(_ => SList(SAtom("pop"))))
-      universe.makeStackParameters(n) match {
+      pu.makeStackParameters(n) match {
         case \/-((u, params)) => (u, SList.create(m :: params))
-        case -\/(e) => (universe, e)
+        case -\/(e) => (pu, e)
       }
     }.getOrElse {
       val expr = resolve_aliase(m.name) getOrElse SList(SAtom("eval-or-invoke"), m)
-      (universe, expr)
+      (pu, expr)
     }
     case m: SCell => m.car match {
       case SAtom(name) => name match {
@@ -184,7 +188,7 @@ case class Evaluator(
       }
       case mm => _normalize(context.promotion(mm), m)
     }
-    case m => (universe, m)
+    case m => (pu, m)
   }
 
   protected final def resolve_aliase(name: String): Option[SExpr] =
@@ -274,6 +278,21 @@ case class Evaluator(
   }
 
   def functionParser = _evaluator.functionParser
+
+  def applyScript(p: String): Universe = {
+    val s = Script.parse(context.config, p)
+    case class Z(zu: Universe) {
+      def r = zu
+
+      def +(rhs: SExpr) = {
+        val (u, s) = _normalize(zu, rhs)
+        val c = evaluator(u).apply(s)
+        val r = c.pushOrMute(rhs).universe
+        copy(zu = r)
+      }
+    }
+    s.listSExpr./:(Z(universe))(_+_).r
+  }
 }
 
 object Evaluator {

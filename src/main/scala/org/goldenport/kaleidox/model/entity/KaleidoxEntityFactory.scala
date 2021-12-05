@@ -5,13 +5,17 @@ import org.goldenport.i18n.I18NContext
 import org.goldenport.record.store._
 import org.goldenport.event.ObjectId
 import org.goldenport.statemachine._
+import org.goldenport.statemachine.{ExecutionContext => StateMachineContext}
 import org.goldenport.sexpr.eval.entity._
+import org.goldenport.kaleidox.lisp.Context
+import org.goldenport.kaleidox.model.EntityModel.{EntityClass => KaleidoxEntityClass}
 import org.goldenport.kaleidox.model.EntityModel.{EntityClass => KaleidoxEntityClass}
 
 /*
  * @since   Sep. 20, 2021
  *  version Sep. 24, 2021
- * @version Oct. 31, 2021
+ *  version Oct. 31, 2021
+ * @version Nov. 29, 2021
  * @author  ASAMI, Tomoharu
  */
 class KaleidoxEntityFactory(
@@ -38,7 +42,11 @@ class KaleidoxEntityFactory(
       case m => RAISE.notImplementedYetDefect
     }
 
-  def spawn(smc: StateMachineClass, id: EntityId): StateMachine = {
+  def spawn(
+    smc: StateMachineClass,
+    id: EntityId
+  )(implicit ctx: Context): StateMachine = {
+    implicit val sc = StateMachineContext.create(ctx.traceContext, smc.logic, ctx)
     val r = smc.spawn(ObjectId(id.string))
     stateMachineSpace.register(r)
     r

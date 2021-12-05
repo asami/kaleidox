@@ -18,7 +18,7 @@ import org.goldenport.kaleidox.model.EntityModel
  * @since   Sep. 22, 2021
  *  version Sep. 24, 2021
  *  version Oct. 31, 2021
- * @version Nov.  1, 2021
+ * @version Nov. 28, 2021
  * @author  ASAMI, Tomoharu
  */
 class KaleidoxEntity(
@@ -72,5 +72,16 @@ object KaleidoxEntity {
     }
     case class Update(record: IRecord) extends Journal {
     }
+  }
+
+  def create(
+    klass: EntityModel.EntityClass,
+    id: EntityId,
+    attributes: Record,
+    statemachines: VectorMap[Symbol, StateMachine]
+  ): KaleidoxEntity = {
+    // val sms = statemachines.mapValues(_.setObjectId(id.objectId))
+    val sms = statemachines
+    new KaleidoxEntity(klass, id, attributes, sms)
   }
 }

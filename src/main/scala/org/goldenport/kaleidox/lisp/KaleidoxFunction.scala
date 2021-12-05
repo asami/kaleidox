@@ -5,6 +5,7 @@ import org.simplemodeling.model._
 import org.goldenport.RAISE
 import org.goldenport.event._
 import org.goldenport.statemachine._
+import org.goldenport.statemachine.{ExecutionContext => StateMachineContext}
 import org.goldenport.sexpr._
 import org.goldenport.sexpr.eval._
 import org.goldenport.sexpr.eval.entity.EntityId
@@ -20,7 +21,7 @@ import org.goldenport.kaleidox.model.diagram._
  *  version Aug.  2, 2021
  *  version Sep. 26, 2021
  *  version Oct. 31, 2021
- * @version Nov.  1, 2021
+ * @version Nov. 29, 2021
  * @author  ASAMI, Tomoharu
  */
 object KaleidoxFunction {
@@ -30,17 +31,22 @@ object KaleidoxFunction {
     def eval(c: Context): CursorResult
 
     protected final def issue_event(c: Context)(p: Event) = {
+      implicit val lc = c
       val eid = p match {
         case m: CallEvent => m.to.entity.map(x => EntityId(x, m.to.id))
         case _ => None
       }
       val entity = eid.flatMap(x =>
         c.feature.entity.get(x) match {
-          case SEntity(y) => Some(y)
+          case SEntity(y) =>
+            for ((_, sm) <- y.statemachines)
+              c.statemachineSpace.register(sm)
+            Some(y)
           case _ => None
         }
       )
-      c.statemachineSpace.issueEvent(p)
+      val parcel = Parcel(StateMachineContext.createPreparation(c.traceContext, c), p)
+      c.statemachineSpace.issueEvent(parcel)
       entity.map(c.feature.entity.update).flatMap {
         case m: SError => Some(m)
         case _ => None
@@ -122,10 +128,12 @@ object KaleidoxFunction {
         c: Context,
         name: String,
         resourceid: Option[String]
-      ) =
+      ) = {
+        implicit val sc = StateMachineContext.createPreparation(c.traceContext, c)
         resourceid.
           map(x => c.statemachineSpace.spawnOption(name, ObjectId(x))).
           getOrElse(c.statemachineSpace.spawnOption(name))
+      }
 
       private def _statemachine_new(p: StateMachine) = SStateMachine(p)
     }

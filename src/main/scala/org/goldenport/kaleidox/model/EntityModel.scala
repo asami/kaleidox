@@ -6,7 +6,9 @@ import org.goldenport.parser._
 import org.goldenport.record.v2.{Schema, Column, SqlSchema}
 import org.goldenport.record.v3.IRecord
 import org.goldenport.record.v3.Record
+import org.goldenport.record.store.Query
 import org.goldenport.sexpr.SSchema
+import org.goldenport.sexpr.eval.LispContext
 import org.goldenport.sexpr.eval.entity.{EntityClass => IEntityClass}
 import org.goldenport.sexpr.eval.entity.Entity
 import org.goldenport.sexpr.eval.entity.EntityId
@@ -14,6 +16,7 @@ import org.goldenport.context.Consequence
 import org.goldenport.collection.VectorMap
 import org.goldenport.statemachine.StateMachineClass
 import org.goldenport.kaleidox._
+import org.goldenport.kaleidox.lisp.Context
 import org.goldenport.kaleidox.model.SchemaModel.SchemaClass
 import org.goldenport.kaleidox.model.entity.KaleidoxEntity
 import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
@@ -22,7 +25,8 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  * @since   Jun. 25, 2021
  *  version Jun. 26, 2021
  *  version Sep. 24, 2021
- * @version Oct. 31, 2021
+ *  version Oct. 31, 2021
+ * @version Nov. 28, 2021
  * @author  ASAMI, Tomoharu
  */
 case class EntityModel(
@@ -66,26 +70,31 @@ object EntityModel {
     def schema = schemaClass.schema
     def stateMachines: Vector[StateMachineClass] = schemaClass.stateMachines
 
-    def create(p: IRecord): Consequence[Entity] = for {
-      attrs <- schemaClass.attributeRecordForCreate(p)
-    } yield {
-      val id = EntityId.generate(name)
-      val sms = VectorMap(stateMachines.map(factory.spawn(_, id)).
-        map(x => Symbol(x.name) -> x))
-      val entity = new KaleidoxEntity(this, id, attrs, sms)
-      entity
+    def create(p: IRecord)(implicit ctx: LispContext): Consequence[Entity] = {
+//      implicit val sc = ctx.statemachineContext
+      implicit val c = ctx.asInstanceOf[Context]
+      for {
+        attrs <- schemaClass.attributeRecordForCreate(p)
+      } yield {
+        val id = EntityId.generate(name)
+        val sms = VectorMap(stateMachines.map(factory.spawn(_, id)).
+          map(x => Symbol(x.name) -> x))
+        KaleidoxEntity.create(this, id, attrs, sms)
+      }
     }
 
     def reconstitute(p: IRecord): Consequence[Entity] = for {
       id <- schemaClass.idForReconstitute(p)
       attrs <- schemaClass.attributeRecordForReconstitute(p)
-      sms <- schemaClass.stateMachineRecordForReconstitute(p)
+      sms <- schemaClass.stateMachineRecordForReconstitute(p, id)
     } yield {
-      new KaleidoxEntity(this, id, attrs, sms)
+      KaleidoxEntity.create(this, id, attrs, sms)
     }
 
     def unmarshallProperties(p: IRecord): Consequence[IRecord] =
       schemaClass.unmarshallProperties(p)
+
+    def persistentQuery(p: Query): Query = ???
   }
   object EntityClass {
   }

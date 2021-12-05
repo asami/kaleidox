@@ -4,9 +4,11 @@ import org.goldenport.context.Effect
 import org.goldenport.trace.TraceContext
 import org.goldenport.record.v3.{IRecord, Record}
 import org.goldenport.incident.{Incident => LibIncident}
+import org.goldenport.statemachine.{ExecutionContext => StateMachineContext}
 import org.goldenport.sexpr._
 import org.goldenport.sexpr.eval._
 import org.goldenport.kaleidox._
+import org.goldenport.kaleidox.model.KaleidoxStateMachineLogic
 
 /*
  * @since   Aug. 19, 2018
@@ -22,11 +24,13 @@ import org.goldenport.kaleidox._
  *  version Feb. 25, 2021
  *  version Mar. 28, 2021
  *  version Apr. 13, 2021
- * @version May. 21, 2021
+ *  version May. 21, 2021
+ * @version Nov. 29, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Context(
   evaluator: LispContext => LispContext,
+  kaleidoxEvaluator: Evaluator,
   executionContext: ExecutionContext,
   universe: Universe,
   valueOption: Option[SExpr],
@@ -46,6 +50,11 @@ case class Context(
   def numericalOperations = executionContext.numericalOperations
   def feature = executionContext.feature
   def traceContext = executionContext.traceContext
+  // lazy val statemachineContext: StateMachineContext = StateMachineContext.create(
+  //   executionContext.traceContext,
+  //   KaleidoxStateMachineLogic.Factory.create,
+  //   this
+  // )
   def statemachineSpace = executionContext.statemachineSpace
   lazy val display = s"Context(${value.display}, ${universe.display})"
 
