@@ -17,6 +17,8 @@ import org.goldenport.record.query.QueryExpression
 import org.goldenport.statemachine.StateMachineSpace
 import org.goldenport.util.DateTimeUtils
 import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
+import org.goldenport.kaleidox.extension.ExtensionContext
+import org.goldenport.kaleidox.extension.modeler.Modeler
 
 /*
  * @since   Aug. 20, 2018
@@ -35,7 +37,8 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Mar. 30, 2020
  *  version Feb. 20, 2021
  *  version Sep. 24, 2021
- * @version Oct.  4, 2021
+ *  version Oct.  4, 2021
+ * @version Dec. 19, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Config(
@@ -43,8 +46,11 @@ case class Config(
   scriptConfig: SConfig,
   serviceLogic: UnitOfWorkLogic,
   storeLogic: StoreOperationLogic,
-  isLocation: Boolean = true
+  isLocation: Boolean = true,
+  variations: Config.Variations = Config.Variations.default,
+  extension: ExtensionContext = ExtensionContext.default
 ) extends LispConfig {
+  import Config._
   lazy val scriptContext = ScriptEngineContext.default
   lazy val queryContext = createQueryContext()
   lazy val sqlContext =
@@ -75,16 +81,32 @@ case class Config(
   def workDirectory = cliConfig.workDirectory
   def logLevel: LogLevel = logConfig.level getOrElse LogLevel.Info
   def numericalOperations: INumericalOperations = cliConfig.numericalOperations
+  def prompt = cliConfig.properties.
+    getStringOption(PROP_PROMPT).getOrElse(variations.prompt)
   def withLogLevel(p: LogLevel) = copy(cliConfig.withLogLevel(p))
   def withServiceLogic(p: UnitOfWorkLogic) = copy(serviceLogic = p)
   def withStoreLogic(p: StoreOperationLogic) = copy(storeLogic = p)
   def withoutLocation = copy(isLocation = false)
+
+  def setPrompt(p: String) = copy(variations = variations.setPrompt(p))
+  def setModeler(p: Modeler) = copy(extension = extension.setModeler(p))
 
   private def _is_memory(p: RichConfig): Boolean = p.getConfigOption("db").isEmpty
 }
 
 object Config {
   import Script._
+
+  final val PROP_PROMPT = "prompt"
+
+  case class Variations(
+    prompt: String = "kaleidox> "
+  ) {
+    def setPrompt(p: String) = copy(prompt = p)
+  }
+  object Variations {
+    val default = Variations()
+  }
 
   val defaultServiceLogic = new StandardUnitOfWorkLogic()
   val defaultStoreLogic = new StandardStoreOperationLogic()

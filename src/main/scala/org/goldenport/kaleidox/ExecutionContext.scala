@@ -16,6 +16,8 @@ import org.goldenport.record.unitofwork.interpreter.{UnitOfWorkLogic, StoreOpera
 import org.goldenport.record.v3.sql.SqlContext
 import org.goldenport.sexpr._
 import org.goldenport.sexpr.eval.{ScriptEngineContext, FeatureContext}
+import org.goldenport.kaleidox.extension.ExtensionContext
+import org.goldenport.kaleidox.extension.modeler.Modeler
 
 /*
  * org.goldenport.Config
@@ -47,7 +49,8 @@ import org.goldenport.sexpr.eval.{ScriptEngineContext, FeatureContext}
  *  version Mar. 28, 2021
  *  version Apr.  5, 2021
  *  version May. 21, 2021
- * @version Sep. 24, 2021
+ *  version Sep. 24, 2021
+ * @version Dec. 18, 2021
  * @author  ASAMI, Tomoharu
  */
 case class ExecutionContext(
@@ -63,11 +66,15 @@ case class ExecutionContext(
   sqlContext: SqlContext,
   resourceManager: ResourceManager,
   feature: FeatureContext,
+  extension: ExtensionContext,
   engine: Option[Engine] = None
 ) extends EnvironmentExecutionContextBase { // ConfigHelper with ForwardRecorder {
   def numericalOperations = config.numericalOperations
   def newline = config.newline
+  def prompt = config.prompt
   def queryContext = sqlContext.queryContext
+
+  def setModeler(p: Modeler) = copy(extension = extension.setModeler(p))
 
   def newContext(p: Engine) = copy(engine = Some(p), traceContext = TraceContext.create())
   def newContextForFuture() = copy(traceContext = TraceContext.create())
@@ -111,6 +118,7 @@ object ExecutionContext {
     p.scriptContext,
     p.sqlContext,
     p.resourceManager,
-    p.feature
+    p.feature,
+    p.extension
   )
 }

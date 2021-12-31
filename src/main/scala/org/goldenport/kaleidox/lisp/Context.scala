@@ -9,6 +9,7 @@ import org.goldenport.sexpr._
 import org.goldenport.sexpr.eval._
 import org.goldenport.kaleidox._
 import org.goldenport.kaleidox.model.KaleidoxStateMachineLogic
+import org.goldenport.kaleidox.extension.modeler.Modeler
 
 /*
  * @since   Aug. 19, 2018
@@ -25,7 +26,8 @@ import org.goldenport.kaleidox.model.KaleidoxStateMachineLogic
  *  version Mar. 28, 2021
  *  version Apr. 13, 2021
  *  version May. 21, 2021
- * @version Nov. 29, 2021
+ *  version Nov. 29, 2021
+ * @version Dec. 18, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Context(
@@ -49,6 +51,7 @@ case class Context(
   def resourceManager = executionContext.resourceManager
   def numericalOperations = executionContext.numericalOperations
   def feature = executionContext.feature
+  def extension = executionContext.extension
   def traceContext = executionContext.traceContext
   // lazy val statemachineContext: StateMachineContext = StateMachineContext.create(
   //   executionContext.traceContext,
@@ -57,6 +60,10 @@ case class Context(
   // )
   def statemachineSpace = executionContext.statemachineSpace
   lazy val display = s"Context(${value.display}, ${universe.display})"
+
+  def setModeler(p: Modeler) = copy(
+    executionContext = executionContext.setModeler(p)
+  )
 
   def pure(p: SExpr): Context = copy(valueOption = Some(p))
   def createContextForFuture(effect: Effect.FutureEffect): LispContext =

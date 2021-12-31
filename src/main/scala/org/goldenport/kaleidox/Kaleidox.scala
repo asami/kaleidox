@@ -39,7 +39,8 @@ import org.goldenport.util.StringUtils
  *  version Mar. 28, 2021
  *  version Apr. 25, 2021
  *  version May. 21, 2021
- * @version Sep. 25, 2021
+ *  version Sep. 25, 2021
+ * @version Dec. 18, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -101,7 +102,8 @@ case class Kaleidox(
       config.scriptContext,
       sqlcontext,
       resourcemanager,
-      config.feature
+      config.feature,
+      config.extension
     )
     val interpreter = Interpreter.create(context)
     val engine0 = Engine(context, universe, interpreter)
@@ -246,9 +248,10 @@ object Kaleidox {
     val environment = engine.context.environment
     val newline = engine.context.newline
     val consoleOutputLineLength = 100
+    val prompt = engine.context.prompt
 
     def apply(p: ReplEvent): (IState, MessageSequence) = {
-      val prompt = "kaleidox> "
+//      val prompt = "kaleidox> "
       p match {
         case ReplStart =>
           val msgs = _errors_warnings_messages(universe)

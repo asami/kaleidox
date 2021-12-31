@@ -28,7 +28,8 @@ import org.goldenport.kaleidox._
  *  version Aug. 29, 2021
  *  version Sep. 25, 2021
  *  version Oct. 31, 2021
- * @version Nov. 20, 2021
+ *  version Nov. 20, 2021
+ * @version Dec. 31, 2021
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -98,6 +99,12 @@ object SchemaModel {
     }
     lazy val stateMachineMap = stateMachines.map(x => x.name -> x).toMap
     val tableName = features.tableName
+
+    def withName(p: String) = copy(name = p)
+    def withTableName(p: String) = copy(features = features.withTableName(p))
+      def addParentName(p: String) = copy(features = features.addParentName(p))
+
+    def add(p: SchemaClass) = copy(features = features.add(p.features), slots = slots ++ p.slots)
 
     def attributeRecordForCreate(p: IRecord): Consequence[Record] = {
       case class Z(xs: Consequence[Vector[Field]] = Consequence(Vector.empty)) {
@@ -180,13 +187,22 @@ object SchemaModel {
     val tableName = Vector("テーブル", "表", "table")
 
     case class Features(
-      tableName: Option[String] = None
+      tableName: Option[String] = None,
+      parentsName: List[String] = Nil
     ) {
       def isEmpty = tableName.isEmpty
       def toOption: Option[Features] = if (isEmpty) None else Some(this)
 
+      def withTableName(p: String) = copy(tableName = Some(p))
+      def addParentName(p: String) = copy(parentsName = parentsName :+ p)
+
+      def add(p: Features) = copy(
+        tableName = p.tableName orElse tableName
+      )
+
       def +(rhs: Features): Features = Features(
-        rhs.tableName orElse tableName
+        rhs.tableName orElse tableName,
+        parentsName ::: rhs.parentsName
       )
     }
     object Features {
@@ -231,8 +247,8 @@ object SchemaModel {
             case StartBlock => this
             case EndBlock => this
             case m: LogicalSection => _section(m)
-            case m: LogicalParagraph => RAISE.notImplementedYetDefect // TODO features by property
-            case m: LogicalVerbatim => RAISE.notImplementedYetDefect // TODO features by property
+            case m: LogicalParagraph => this // TODO features by property
+            case m: LogicalVerbatim => this // TODO features by property
           }
 
           private def _table(m: Table) =

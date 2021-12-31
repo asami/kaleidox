@@ -40,7 +40,8 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Jun. 27, 2021
  *  version Aug.  8, 2021
  *  version Sep. 17, 2021
- * @version Oct. 23, 2021
+ *  version Oct. 23, 2021
+ * @version Dec. 31, 2021
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -113,7 +114,7 @@ case class Model(
 
   lazy val getEntityModel: Option[EntityModel] = {
     val a = divisions.collect {
-      case m: EntityDivision => m.makeModel(entityFactory)
+      case m: EntityDivision => m.makeModel(getSchemaModel, entityFactory)
     }
     a.headOption.map(h => a.tail.foldLeft(h)((z, x) => z + x))
   }
@@ -635,8 +636,10 @@ object Model {
   }
 
   case class EntityDivision(section: LogicalSection) extends Division {
-    def makeModel(f: KaleidoxEntityFactory): EntityModel = 
-      section.sections.foldLeft(EntityModel.empty(f))((z, x) => z + EntityModel.create(f, x))
+    def makeModel(s: Option[SchemaModel], f: KaleidoxEntityFactory): EntityModel = {
+      val a = section.sections.foldLeft(EntityModel.empty(f))((z, x) => z + EntityModel.create(s, f, x))
+      a.resolve()
+    }
 
     // def makeModel: EntityModel = {
     //   val doxconfig = Dox2Parser.Config.default // TODO
