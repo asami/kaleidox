@@ -8,13 +8,18 @@ import org.goldenport.kaleidox._
 /*
  * @since   Mar. 19, 2021
  *  version Mar. 28, 2021
- * @version Apr. 22, 2021
+ *  version Apr. 22, 2021
+ * @version Jan. 24, 2022
  * @author  ASAMI, Tomoharu
  */
 class HttpHandle(engine: Engine) {
   val universe = engine.universe
   val context = engine.context
   val config = context.config
+
+  def execute(req: HttpRequest, pres: HttpResponse, contextpath: String): HttpResponse = {
+    ???
+  }
 
   def execute(req: HttpRequest, pres: HttpResponse): HttpResponse = {
     val funcname = req.pathname.components.mkString(".")

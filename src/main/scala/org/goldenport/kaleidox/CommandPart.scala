@@ -1,12 +1,15 @@
 package org.goldenport.kaleidox
 
+import java.net.URL
 import org.goldenport.RAISE
 import org.goldenport.Strings
 import org.goldenport.log.LogContext
 import org.goldenport.context.Conclusion
+import org.goldenport.context.Consequence
 import org.goldenport.console.Message
 import org.goldenport.console.MessageSequence
 import org.goldenport.collection.NonEmptyVector
+import org.goldenport.bag.EmptyBag
 import org.goldenport.record.v3.ITable
 import org.goldenport.record.unitofwork._, UnitOfWork._
 import org.goldenport.cli
@@ -34,7 +37,9 @@ import org.goldenport.record.util.AnyUtils
  *  version Mar. 28, 2021
  *  version Apr. 26, 2021
  *  version Jun. 28, 2021
- * @version Jul.  3, 2021
+ *  version Jul.  3, 2021
+ *  version Jan. 31, 2022
+ * @version Feb.  1, 2022
  * @author  ASAMI, Tomoharu
  */
 trait CommandPart { self: Engine =>
@@ -94,6 +99,21 @@ object CommandPart {
     lazy val kaleidoxEnvironment: KaleidoxEnvironment = toAppEnvironment[KaleidoxEnvironment]
     def config = kaleidoxEnvironment.context.config
     def universe = kaleidoxEnvironment.universe
+
+    protected final def to_response_file(url: URL, p: Option[SExpr]): Response =
+      p.map(to_response_file(url, _)).getOrElse(to_response_file(url, EmptyBag))
+
+    protected final def to_response_file(url: URL, p: SExpr): Response =
+      to_response_file(url, p.toChunkBag)
+
+    protected final def to_response_file(url: Option[URL], p: SExpr): Response =
+      url.map(to_response_file(_, p.toChunkBag)).getOrElse(to_response_file(p.toChunkBag))
+
+    protected final def to_response_file(url: Option[URL], p: Option[SExpr]): Response =
+      url match {
+        case Some(s) => to_response_file(s, p)
+        case None => to_response_file(p.map(_.toChunkBag).getOrElse(EmptyBag))
+      }
   }
 
   case object ExitClass extends OperationClass {
@@ -412,7 +432,7 @@ object CommandPart {
 //        val s = p.pretty
 //        val fig = Figure(s, "program" -> lang)
         val name = "image"
-        val mime = p.mime
+        val mime = p.mimetype
         val img = BinaryImg(name, mime, p.binary)
         val r = _to_html(img)
 //        println(r)
@@ -942,11 +962,22 @@ object CommandPart {
     }
 
     case class SaveMethod(call: OperationCall) extends KaleidoxMethod {
+      // def execute = {
+      //   val url = call.request.arg1Url
+      //   universe.history.lastOption.
+      //     map(x => to_response_file(url, x.getValueSExpr.getOrElse(SNil).marshall)).
+      //     getOrElse(VoidResponse)
+      // }
       def execute = {
-        val url = call.request.arg1Url
-        universe.history.lastOption.
-          map(x => to_response_file(url, x.getValueSExpr.getOrElse(SNil).marshall)).
-          getOrElse(VoidResponse)
+        val r: Consequence[Response] = for {
+          url <- call.request.consequenceArg1UrlOption
+          res <- Consequence(
+            universe.history.lastOption.
+              map(x => to_response_file(url, x.getValueSExpr)).
+              getOrElse(VoidResponse)
+          )
+        } yield res
+        to_response(r)
       }
     }
 
@@ -965,7 +996,7 @@ object CommandPart {
       def execute = {
         val url = call.request.arg1Url
         universe.history.lastOption.
-          map(x => to_response_file(url, x.getValueSExpr.getOrElse(SNil).marshall)).
+          map(x => to_response_file(url, x.getValueSExpr)).
           getOrElse(VoidResponse)
       }
     }

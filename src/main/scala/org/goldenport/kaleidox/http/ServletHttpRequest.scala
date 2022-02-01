@@ -15,7 +15,8 @@ import org.goldenport.values.PathName
 /*
  * @since   Mar.  2, 2021
  *  version Mar. 21, 2021
- * @version Apr. 22, 2021
+ *  version Apr. 22, 2021
+ * @version Jan. 23, 2022
  * @author  ASAMI, Tomoharu
  */
 case class ServletHttpRequest(request: HttpServletRequest) extends HttpRequest {
@@ -37,7 +38,7 @@ case class ServletHttpRequest(request: HttpServletRequest) extends HttpRequest {
 
   val queryWhole: IRecord = {
     val parser = RecordParser(_parser_config)
-    parser.httpQuery(request.getQueryString).take
+    parser.httpQuery(Option(request.getQueryString)).take
   }
   val formWhole: IRecord =
     if (request.getContentType == Strings.mimetype.multipart_form_data) {
