@@ -2,7 +2,7 @@ organization := "org.goldenport"
 
 name := "kaleidox"
 
-version := "0.4.0"
+version := "0.4.1"
 
 scalaVersion := "2.10.3"
 // crossScalaVersions := Seq("2.10.39.2", "2.9.1")
@@ -20,23 +20,25 @@ resolvers += "GitHab releases 2019" at "https://raw.github.com/asami/maven-repos
 
 resolvers += "GitHab releases 2020" at "https://raw.github.com/asami/maven-repository/2020/releases"
 
-resolvers += "GitHab releases" at "https://raw.github.com/asami/maven-repository/2021/releases"
+resolvers += "GitHab releases 2021" at "https://raw.github.com/asami/maven-repository/2021/releases"
+
+resolvers += "GitHab releases" at "https://raw.github.com/asami/maven-repository/2022/releases"
 
 resolvers += "Asami Maven Repository" at "http://www.asamioffice.com/maven"
 
 resolvers += "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository"
 
 // override goldenport-record
-libraryDependencies += "org.goldenport" %% "goldenport-scala-lib" % "1.3.9"
+libraryDependencies += "org.goldenport" %% "goldenport-scala-lib" % "1.3.12"
 
 // override goldenport-sexpr
-libraryDependencies += "org.goldenport" %% "goldenport-record" % "1.3.45"
+libraryDependencies += "org.goldenport" %% "goldenport-record" % "1.3.48"
 
-libraryDependencies += "org.goldenport" %% "goldenport-sexpr" % "2.0.24"
+libraryDependencies += "org.goldenport" %% "goldenport-sexpr" % "2.0.25"
 
 // libraryDependencies += "org.goldenport" %% "goldenport-statemachine" % "0.0.1"
 
-libraryDependencies += "org.smartdox" %% "smartdox" % "1.3.8"
+libraryDependencies += "org.smartdox" %% "smartdox" % "1.3.9"
 
 // libraryDependencies += "org.simplemodeling" %% "simplemodeler" % "1.0.3"
 
