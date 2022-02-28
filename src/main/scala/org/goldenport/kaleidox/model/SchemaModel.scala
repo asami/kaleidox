@@ -29,7 +29,8 @@ import org.goldenport.kaleidox._
  *  version Sep. 25, 2021
  *  version Oct. 31, 2021
  *  version Nov. 20, 2021
- * @version Dec. 31, 2021
+ *  version Dec. 31, 2021
+ * @version Feb. 24, 2022
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -560,7 +561,7 @@ object SchemaModel {
       case m => EntityId(classname, m.toString)
     }
 
-    def unmarshall(p: Any): Consequence[Any] = Consequence(EntityId.create(p.toString))
+    def unmarshall(p: Any): Consequence[Any] = Consequence(p.toString) // TODO domain
   }
 
   case class Attribute(
