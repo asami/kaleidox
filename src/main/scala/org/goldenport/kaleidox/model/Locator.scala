@@ -5,14 +5,13 @@ import org.goldenport.extension.Showable
 
 /*
  * @since   Apr. 18, 2021
- * @version Apr. 18, 2021
+ * @version Mar. 19, 2022
  * @author  ASAMI, Tomoharu
  */
 sealed trait Locator extends Showable {
   def print = toString
   def display = print
   def show = display
-  def embed = show
 
   def uri: URI
 }

@@ -17,7 +17,8 @@ import org.goldenport.kaleidox.{ExecutionContext, EvalReport}
  *
  * @since   Mar.  2, 2021
  *  version Mar. 28, 2021
- * @version Apr. 22, 2021
+ *  version Apr. 22, 2021
+ * @version Mar. 19, 2022
  * @author  ASAMI, Tomoharu
  */
 trait HttpResponse {
@@ -74,7 +75,7 @@ object HttpResponse {
   ) extends Logic {
     def apply(): HttpResponse = {
       val rec = Record.data(
-        "status" -> p.code.main
+        "status" -> p.code.code
       ) + Record.dataOption(
         "detail" -> p.code.detail.map(_.code),
         "app_status" -> p.code.application,
@@ -82,7 +83,7 @@ object HttpResponse {
         "error" -> _error
       ) + response_common
       val content = rec.toJsonString
-      _json.withCodeContent(p.code.main, content)
+      _json.withCodeContent(p.code.code, content)
     }
 
     private def _reaction: Option[String] = p.strategy.reaction match {

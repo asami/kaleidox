@@ -6,7 +6,7 @@ import org.goldenport.kaleidox._
 
 /*
  * @since   Apr. 18, 2021
- * @version Apr. 18, 2021
+ * @version Mar. 19, 2022
  * @author  ASAMI, Tomoharu
  */
 case class Libraries(
@@ -15,7 +15,6 @@ case class Libraries(
   def print = toString
   def display = print
   def show = display
-  def embed = show
 
   def isExists(p: Locator) = libraries.exists(_.isMatch(p))
   def isExists(p: Signature) = libraries.exists(_.isMatch(p))

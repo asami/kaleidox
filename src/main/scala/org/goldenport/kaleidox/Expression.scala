@@ -11,7 +11,8 @@ import org.goldenport.sexpr.SExpr
  *  version Apr. 19, 2019
  *  version Jun. 23, 2019
  *  version Jul. 24, 2019
- * @version Apr. 25, 2021
+ *  version Apr. 25, 2021
+ * @version Mar. 19, 2022
  * @author  ASAMI, Tomoharu
  */
 sealed trait Expression extends Showable {
@@ -69,6 +70,6 @@ case class LispExpression(sexpr: SExpr) extends Expression {
   def full = sexpr.fullDescription.detail
   def pretty = sexpr.pretty.toVector
   def literal = sexpr.literal
-  def embed = sexpr.embed
+  override def embed = sexpr.embed
   def marshall = sexpr.marshall
 }
