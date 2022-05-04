@@ -10,6 +10,7 @@ import org.goldenport.parser.{ErrorMessage, WarningMessage}
 import org.goldenport.record.v3.{IRecord, Record}
 import org.goldenport.incident.{Incident => LibIncident}
 import org.goldenport.sexpr._
+import org.goldenport.sexpr.eval.IncidentSequence
 import org.goldenport.kaleidox.model.ServiceModel
 import org.goldenport.kaleidox.model.EventModel
 import org.goldenport.kaleidox.model.StateMachineModel
@@ -28,7 +29,8 @@ import org.goldenport.kaleidox.model.StateMachineModel
  *  version Feb. 25, 2021
  *  version Mar. 28, 2021
  *  version Apr. 13, 2021
- * @version May. 10, 2021
+ *  version May. 10, 2021
+ * @version Apr. 24, 2022
  * @author  ASAMI, Tomoharu
  */
 case class Universe(
@@ -97,7 +99,7 @@ case class Universe(
     p: SExpr,
     bindings: IRecord,
     s: SExpr,
-    i: Option[LibIncident],
+    i: IncidentSequence,
     t: TraceHandle
   ): Universe = {
     val newbb = current.next(p, bindings, s, i)
@@ -108,10 +110,26 @@ case class Universe(
     )
   }
 
+  // push and append
+  // def next(
+  //   p: SExpr,
+  //   bindings: IRecord,
+  //   s: SExpr,
+  //   i: Vector[LibIncident],
+  //   t: TraceHandle
+  // ): Universe = {
+  //   val newbb = current.next(p, bindings, s, i)
+  //   copy(
+  //     history = history :+ _history_slot(newbb, p, t),
+  //     stack = stack.push(newbb),
+  //     muteValue = None
+  //   )
+  // }
+
   def next(
     p: SExpr,
     s: SExpr,
-    i: Option[LibIncident],
+    i: IncidentSequence,
     t: TraceHandle
   ): Universe = {
     val newbb = current.next(p, s, i)
@@ -121,6 +139,20 @@ case class Universe(
       muteValue = None
     )
   }
+
+  // def next(
+  //   p: SExpr,
+  //   s: SExpr,
+  //   i: Vector[LibIncident],
+  //   t: TraceHandle
+  // ): Universe = {
+  //   val newbb = current.next(p, s, i)
+  //   copy(
+  //     history = history :+ _history_slot(newbb, p, t),
+  //     stack = stack.push(newbb),
+  //     muteValue = None
+  //   )
+  // }
 
   private def _history_slot(bb: Blackboard, sexpr: SExpr, t: TraceHandle): HistorySlot =
     HistorySlot(bb, _conclusion(sexpr, t))

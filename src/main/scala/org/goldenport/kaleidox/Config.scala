@@ -38,7 +38,8 @@ import org.goldenport.kaleidox.extension.modeler.Modeler
  *  version Feb. 20, 2021
  *  version Sep. 24, 2021
  *  version Oct.  4, 2021
- * @version Dec. 19, 2021
+ *  version Dec. 19, 2021
+ * @version Apr.  4, 2022
  * @author  ASAMI, Tomoharu
  */
 case class Config(
@@ -69,6 +70,7 @@ case class Config(
   lazy val feature = FeatureContext.create(properties, cliConfig.i18n, sqlContext, entityFactory)
 
   def properties = cliConfig.properties
+  def dateTimeContext = cliConfig.dateTimeContext
   def i18nContext = cliConfig.i18n
   def createQueryContext() = QueryExpression.Context(
     DateTimeUtils.toDateTime(System.currentTimeMillis, i18nContext.datetimezone)

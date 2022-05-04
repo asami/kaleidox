@@ -39,7 +39,8 @@ import org.goldenport.record.util.AnyUtils
  *  version Jun. 28, 2021
  *  version Jul.  3, 2021
  *  version Jan. 31, 2022
- * @version Feb.  1, 2022
+ *  version Feb.  1, 2022
+ * @version Apr. 24, 2022
  * @author  ASAMI, Tomoharu
  */
 trait CommandPart { self: Engine =>
@@ -701,10 +702,7 @@ object CommandPart {
 
   case class IncidentHistoryMethod(call: OperationCall) extends KaleidoxMethod {
     def execute = {
-      val xs = universe.history.map(_.getIncident).map {
-        case Some(s) => s.print
-        case None => "N/A"
-      }
+      val xs = universe.history.map(_.getIncident).map(_.print)
       val s = build_lines_string_with_number(xs)
       to_response(s)
     }

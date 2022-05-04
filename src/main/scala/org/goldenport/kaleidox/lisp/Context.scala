@@ -27,7 +27,8 @@ import org.goldenport.kaleidox.extension.modeler.Modeler
  *  version Apr. 13, 2021
  *  version May. 21, 2021
  *  version Nov. 29, 2021
- * @version Dec. 18, 2021
+ *  version Dec. 18, 2021
+ * @version Apr. 24, 2022
  * @author  ASAMI, Tomoharu
  */
 case class Context(
@@ -36,13 +37,14 @@ case class Context(
   executionContext: ExecutionContext,
   universe: Universe,
   valueOption: Option[SExpr],
-  incident: Option[LibIncident],
+  incident: IncidentSequence,
   bindingsOption: Option[IRecord],
   futureEffect: Option[Effect.FutureEffect] = None
 ) extends org.goldenport.sexpr.eval.LispContext {
   override def toString() = display
 
   def config = executionContext.config
+  def dateTimeContext = executionContext.dateTimeContext
   def i18nContext = executionContext.i18nContext
   def serviceLogic = executionContext.serviceLogic
   def storeLogic = executionContext.storeLogic
@@ -66,17 +68,25 @@ case class Context(
   )
 
   def pure(p: SExpr): Context = copy(valueOption = Some(p))
+  def pure(p: SExpr, i: IncidentSequence): Context = copy(valueOption = Some(p), incident = incident + i)
   def createContextForFuture(effect: Effect.FutureEffect): LispContext =
     copy(executionContext = executionContext.newContextForFuture(), futureEffect = Some(effect))
   def value: SExpr = getValue getOrElse SNil
   def getValue: Option[SExpr] = valueOption orElse universe.getValue.map(_.asSExpr)
   lazy val bindings: IRecord = bindingsOption.getOrElse(Record.empty) update universe.bindings
 
-  def toResult(p: SExpr, i: Option[LibIncident], bindings: IRecord) = copy(
+  // def toResult(p: SExpr, i: Option[LibIncident], bindings: IRecord) = copy(
+  //   valueOption = Some(p),
+  //   incident = incident + IncidentSequence(i),
+  //   bindingsOption = Some(bindings)
+  // )
+
+  def toResult(p: SExpr, bindings: IRecord, i: IncidentSequence) = copy(
     valueOption = Some(p),
-    incident = i,
+    incident = incident + i,
     bindingsOption = Some(bindings)
   )
+
   def addBindings(bindings: IRecord) = copy(bindingsOption = Some(bindings))
 
   def withUniverse(u: Universe) = copy(universe = u)

@@ -8,6 +8,7 @@ import org.goldenport.sexpr._
 import org.goldenport.sexpr.eval.{LispBinding, Parameters, LispContext}
 import org.goldenport.sexpr.eval.LispFunction
 import org.goldenport.sexpr.eval.FunctionSpecification
+import org.goldenport.sexpr.eval.IncidentSequence
 import org.goldenport.util.StringUtils
 import org.goldenport.kaleidox._
 
@@ -31,7 +32,8 @@ import org.goldenport.kaleidox._
  *  version Apr. 25, 2021
  *  version May. 10, 2021
  *  version Sep. 20, 2021
- * @version Nov. 29, 2021
+ *  version Nov. 29, 2021
+ * @version Apr. 24, 2022
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -43,6 +45,7 @@ case class Evaluator(
   private val _binding = new Evaluator.Binding(universe)
   private val _evaluator = new org.goldenport.sexpr.eval.LispEvaluator[Context] {
     def config = context.config
+    def dateTimeContext = config.dateTimeContext
     def i18nContext = config.i18nContext
     def queryContext = context.queryContext
     def featureContext = context.feature
@@ -54,7 +57,7 @@ case class Evaluator(
       context,
       universe,
       Some(x),
-      None,
+      IncidentSequence.empty,
       None
     )
 
@@ -63,6 +66,7 @@ case class Evaluator(
 
   def evaluator(u: Universe) = new org.goldenport.sexpr.eval.LispEvaluator[Context] {
     def config = context.config
+    def dateTimeContext = context.dateTimeContext
     def i18nContext = u.getI18NContext getOrElse config.i18nContext
     def queryContext = context.queryContext
     def featureContext = context.feature
@@ -75,7 +79,7 @@ case class Evaluator(
       context,
       u,
       Some(x),
-      None,
+      IncidentSequence.empty,
       None
     )
 
@@ -114,9 +118,9 @@ case class Evaluator(
         case x :: Nil => SExpr.create(x.asSExpr)
         case xs => SList.create(xs.map(x => SExpr.create(x.asSExpr)))
       }
-      val incident = None // TODO
+      val incident = IncidentSequence.empty
       val bindings = c.bindings
-      c.toResult(value, incident, bindings)
+      c.toResult(value, bindings, incident)
     }
 
     override protected def resolve_Parameters(c: LispContext, l: SLambda, args: List[SExpr]): (LispContext, List[SExpr]) = {

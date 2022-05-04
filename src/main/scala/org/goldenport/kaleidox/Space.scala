@@ -6,6 +6,7 @@ import org.goldenport.record.util.AnyUtils
 import org.goldenport.hocon.RichConfig
 import org.goldenport.incident.Incident
 import org.goldenport.sexpr.SExpr
+import org.goldenport.sexpr.eval.IncidentSequence
 import org.goldenport.kaleidox.model.{Libraries, Library}
 
 /*
@@ -17,13 +18,14 @@ import org.goldenport.kaleidox.model.{Libraries, Library}
  *  version Jun.  9, 2019
  *  version Sep. 28, 2019
  *  version Apr. 18, 2021
- * @version Aug.  8, 2021
+ *  version Aug.  8, 2021
+ * @version Apr. 24, 2022
  * @author  ASAMI, Tomoharu
  */
 case class Space(
   getValue: Option[Expression],
   getStimulus: Option[Expression],
-  getIncident: Option[Incident],
+  getIncident: IncidentSequence,
   bindings: IRecord // , // inherit
 //   importedModels: Set[Model.ImportedModel.Locator] = Set.empty
 ) {
@@ -42,32 +44,43 @@ case class Space(
 
   // def isDefined(model: Model.ImportedModel): Boolean = importedModels.exists(_.isMatch(model.locator))
 
-  def next(v: SExpr, b: IRecord, s: SExpr, i: Option[Incident]): Space = next(LispExpression(v), b, LispExpression(s), i)
+  def next(v: SExpr, b: IRecord, s: SExpr, i: IncidentSequence): Space = next(LispExpression(v), b, LispExpression(s), i)
 
-  def next(v: SExpr, s: SExpr, i: Option[Incident]): Space = next(LispExpression(v), bindings, LispExpression(s), i)
+  // def next(v: SExpr, b: IRecord, s: SExpr, i: Vector[Incident]): Space = next(LispExpression(v), b, LispExpression(s), i)
+
+  def next(v: SExpr, s: SExpr, i: IncidentSequence): Space = next(LispExpression(v), bindings, LispExpression(s), i)
+
+  // def next(v: SExpr, s: SExpr, i: Vector[Incident]): Space = next(LispExpression(v), bindings, LispExpression(s), i)
 
   def next(b: IRecord, s: SExpr): Space = Space(
     None,
     Some(LispExpression(s)),
-    None,
+    IncidentSequence.empty,
     bindings.update(b)
   )
 
   def next(b: IRecord): Space = Space(
     None,
     None,
-    None,
+    IncidentSequence.empty,
     bindings.update(b)
   )
 
-  def next(): Space = copy(None, None, None)
+  def next(): Space = copy(None, None, IncidentSequence.empty)
 
-  def next(p: Expression, b: IRecord, s: Expression, i: Option[Incident]): Space = Space(
+  def next(p: Expression, b: IRecord, s: Expression, i: IncidentSequence): Space = Space(
     Some(p),
     Some(s),
     i,
     bindings.update(b)
   )
+
+  // def next(p: Expression, b: IRecord, s: Expression, i: Seq[Incident]): Space = Space(
+  //   Some(p),
+  //   Some(s),
+  //   IncidentSequence(i),
+  //   bindings.update(b)
+  // )
 
   def getBinding(p: String): Option[SExpr] = bindings.get(p).map(SExpr.create)
 
@@ -79,11 +92,11 @@ case class Space(
 }
 
 object Space {
-  val empty = Space(None, None, None, Record.empty)
+  val empty = Space(None, None, IncidentSequence.empty, Record.empty)
 
-  def create(p: RichConfig): Space = Space(None, None, None, HoconRecord(p))
+  def create(p: RichConfig): Space = Space(None, None, IncidentSequence.empty, HoconRecord(p))
   def create(ps: Seq[RichConfig]): Space = RAISE.notImplementedYetDefect
-  def create(p: IRecord): Space = Space(None, None, None, p)
+  def create(p: IRecord): Space = Space(None, None, IncidentSequence.empty, p)
 
   def show(p: IRecord): List[String] = p.fields.sortBy(_.key.name).map(x => s"${x.key.name}: ${_print(x.value)}").toList
 

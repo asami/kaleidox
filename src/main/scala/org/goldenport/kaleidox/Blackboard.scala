@@ -4,6 +4,7 @@ import scala.collection.immutable.Stack
 import org.goldenport.record.v3.IRecord
 import org.goldenport.incident.Incident
 import org.goldenport.sexpr._
+import org.goldenport.sexpr.eval.IncidentSequence
 
 /*
  * @since   Aug. 20, 2018
@@ -11,7 +12,8 @@ import org.goldenport.sexpr._
  *  version Oct. 21, 2018
  *  version Mar.  2, 2019
  *  version Jun.  9, 2019
- * @version Mar. 29, 2021
+ *  version Mar. 29, 2021
+ * @version Apr. 24, 2022
  * @author  ASAMI, Tomoharu
  */
 case class Blackboard(
@@ -22,18 +24,26 @@ case class Blackboard(
   def getValueSExpr: Option[SExpr] = getValue.map(_.asSExpr)
   def getStimulus: Option[Expression] = sink.getStimulus
   def getStimulusSExpr: Option[SExpr] = getStimulus.map(_.asSExpr)
-  def getIncident: Option[Incident] = sink.getIncident
+  def getIncident: IncidentSequence = sink.getIncident
   def bindings: IRecord = sink.bindings
 
   def show = s"Blackboard(${getValue})"
 
-  def next(p: SExpr, updates: IRecord, s: SExpr, i: Option[Incident]) = copy(
+  def next(p: SExpr, updates: IRecord, s: SExpr, i: IncidentSequence) = copy(
     sink = sink.next(p, bindings.update(updates), s, i)
   )
 
-  def next(p: SExpr, s: SExpr, i: Option[Incident]) = copy(
+  // def next(p: SExpr, updates: IRecord, s: SExpr, i: Vector[Incident]) = copy(
+  //   sink = sink.next(p, bindings.update(updates), s, i)
+  // )
+
+  def next(p: SExpr, s: SExpr, i: IncidentSequence) = copy(
     sink = sink.next(p, s, i)
   )
+
+  // def next(p: SExpr, s: SExpr, i: Vector[Incident]) = copy(
+  //   sink = sink.next(p, s, i)
+  // )
 
   def next(updates: IRecord, s: SExpr) = copy(
     sink = sink.next(bindings.update(updates), s)
