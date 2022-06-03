@@ -33,7 +33,8 @@ import org.goldenport.kaleidox._
  *  version May. 10, 2021
  *  version Sep. 20, 2021
  *  version Nov. 29, 2021
- * @version Apr. 24, 2022
+ *  version Apr. 24, 2022
+ * @version May.  5, 2022
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -256,7 +257,7 @@ case class Evaluator(
     val n = spec.numberOfRequiredArguments
     val a = Parameters.fromExpression(m)
     val params = spec.resolve(a)
-    val resolved = m.list(0) :: params.arguments
+    val resolved = m.list(0) :: params.restore
     val nn = n - params.arguments.length
     if (nn > 0) {
       universe.makeStackParameters(nn) match {

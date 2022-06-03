@@ -50,7 +50,8 @@ import org.goldenport.kaleidox.extension.modeler.Modeler
  *  version Apr.  5, 2021
  *  version May. 21, 2021
  *  version Sep. 24, 2021
- * @version Dec. 18, 2021
+ *  version Dec. 18, 2021
+ * @version May.  8, 2022
  * @author  ASAMI, Tomoharu
  */
 case class ExecutionContext(
@@ -81,16 +82,22 @@ case class ExecutionContext(
 
   // FUTURE customizable
   private def _is_eager_evaluation = true
+  private def _is_auto_load_html = true // false
 
   def promotion(p: SExpr): Option[String] =
     if (_is_eager_evaluation) {
-      Option(p) collect {
-        case m: SUrl => m.getSuffix.map {
+      Option(p) flatMap {
+        // case m: SUrl => m.getSuffix.map {
+        //   case "xsl" => "xslt"
+        //   case _ => "fetch"
+        // }.getOrElse("fetch")
+        case m: SUrl => m.getSuffix.collect {
           case "xsl" => "xslt"
-          case _ => "fetch"
-        }.getOrElse("fetch")
-        case m: SXPath => "path-get"
-        case m: SXsl => "xslt"
+          case _ if _is_auto_load_html => "fetch"
+        }
+        case m: SXPath => Some("path-get")
+        case m: SXsl => Some("xslt")
+        case _ => None
       }
     } else {
       None
