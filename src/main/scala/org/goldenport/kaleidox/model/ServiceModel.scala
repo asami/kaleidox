@@ -18,8 +18,9 @@ import org.goldenport.kaleidox._
  * @since   Mar. 13, 2021
  *  version Mar. 27, 2021
  *  version Apr. 29, 2021
-.map(_.message).list.mkString(";")))) *  version May. 27, 2021
-.map(_.message).list.mkString(";")))) * @version Jun. 20, 2021
+ *  version May. 27, 2021
+ *  version Jun. 20, 2021
+ * @version Oct.  1, 2022
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
@@ -114,7 +115,7 @@ object ServiceModel {
           private def _toomuch = {
             val toomuchs = _using_params diff parameters
             val paramnames = toomuchs.map(_.name)
-            Failure(NonEmptyList.nel(TooManyArgumentFault(paramnames), _faults))
+            Failure(NonEmptyList.nel(TooManyArgumentsFault(paramnames), _faults))
           }
 
           private def _using_params: Vector[Parameter] = results.flatMap(_.parameter)

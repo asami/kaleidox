@@ -9,7 +9,8 @@ import org.goldenport.kaleidox._
  * @since   Mar. 19, 2021
  *  version Mar. 28, 2021
  *  version Apr. 22, 2021
- * @version Jan. 24, 2022
+ *  version Jan. 24, 2022
+ * @version Aug. 29, 2022
  * @author  ASAMI, Tomoharu
  */
 class HttpHandle(engine: Engine) {
@@ -18,11 +19,16 @@ class HttpHandle(engine: Engine) {
   val config = context.config
 
   def execute(req: HttpRequest, pres: HttpResponse, contextpath: String): HttpResponse = {
-    ???
+    val funcname = req.pathname.components.tail.mkString(".")
+    _execute(req, pres, funcname)
   }
 
   def execute(req: HttpRequest, pres: HttpResponse): HttpResponse = {
     val funcname = req.pathname.components.mkString(".")
+    _execute(req, pres, funcname)
+  }
+
+  private def _execute(req: HttpRequest, pres: HttpResponse, funcname: String): HttpResponse = {
     val model: Model = Model.httpCall(config, funcname, req.query, req.form)
     val params = HttpParameters.create(req)
     val (report, r, newuniverse) = engine.run(universe, model)
