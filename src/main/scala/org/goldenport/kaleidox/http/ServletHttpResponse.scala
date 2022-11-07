@@ -8,7 +8,8 @@ import org.goldenport.bag.ChunkBag
 
 /*
  * @since   Mar.  2, 2021
- * @version Mar. 24, 2021
+ *  version Mar. 24, 2021
+ * @version Oct. 30, 2022
  * @author  ASAMI, Tomoharu
  */
 case class ServletHttpResponse(response: HttpServletResponse) extends HttpResponse {
@@ -18,6 +19,7 @@ case class ServletHttpResponse(response: HttpServletResponse) extends HttpRespon
   def content: ChunkBag = RAISE.notImplementedYetDefect
   def headers: Seq[Header] = RAISE.notImplementedYetDefect
   def cookies: Seq[Cookie] = RAISE.notImplementedYetDefect
+  def getValue = None
 }
 
 object ServletHttpResponse {

@@ -10,7 +10,8 @@ import org.goldenport.kaleidox._
  *  version Mar. 28, 2021
  *  version Apr. 22, 2021
  *  version Jan. 24, 2022
- * @version Aug. 29, 2022
+ *  version Aug. 29, 2022
+ * @version Nov.  7, 2022
  * @author  ASAMI, Tomoharu
  */
 class HttpHandle(engine: Engine) {
@@ -51,5 +52,16 @@ class HttpHandle(engine: Engine) {
 
   private def _resp(params: HttpParameters, report: EvalReport, ps: Seq[Expression]) = {
     RAISE.unsupportedOperationFault
+  }
+
+  def eval(req: HttpRequest): (EvalReport, Vector[Expression], Universe) = {
+    val funcname = req.pathname.components.mkString(".")
+    _eval(req, funcname)
+  }
+
+  private def _eval(req: HttpRequest, funcname: String) = {
+    val model: Model = Model.httpCall(config, funcname, req.query, req.form)
+    val params = HttpParameters.create(req)
+    engine.run(universe, model)
   }
 }

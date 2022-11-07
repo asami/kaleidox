@@ -18,7 +18,8 @@ import org.goldenport.kaleidox.{ExecutionContext, EvalReport}
  * @since   Mar.  2, 2021
  *  version Mar. 28, 2021
  *  version Apr. 22, 2021
- * @version Mar. 19, 2022
+ *  version Mar. 19, 2022
+ * @version Oct. 30, 2022
  * @author  ASAMI, Tomoharu
  */
 trait HttpResponse {
@@ -34,6 +35,7 @@ trait HttpResponse {
     writeContent(p)
     p.close()
   }
+  def getValue: Option[SExpr]
 }
 
 object HttpResponse {
@@ -48,12 +50,15 @@ object HttpResponse {
     charset: Charset = Platform.charset.UTF8,
     headers: List[Header] = Nil,
     cookies: List[Cookie] = Nil,
-    content: ChunkBag = EmptyBag
+    content: ChunkBag = EmptyBag, // TODO lazy for performance in cozy.
+    value: Option[SExpr] = None
   ) extends HttpResponse {
+    def getValue = value
     def withContent(p: String): Plain = withContent(new StringBag(p))
     def withContent(p: ChunkBag): Plain = copy(content = p)
     def withCodeContent(code: Int, p: String): Plain = withCodeContent(code, new StringBag(p))
     def withCodeContent(code: Int, p: ChunkBag): Plain = copy(status = code, content = p)
+    def withValue(p: SExpr) = copy(value = Some(p))
   }
 
   def json(p: String): HttpResponse = _json.withContent(new StringBag(p))
@@ -75,15 +80,15 @@ object HttpResponse {
   ) extends Logic {
     def apply(): HttpResponse = {
       val rec = Record.data(
-        "status" -> p.code.code
+        "status" -> p.code
       ) + Record.dataOption(
-        "detail" -> p.code.detail.map(_.code),
-        "app_status" -> p.code.application,
+        "detail" -> p.status.detail.map(_.code),
+        "app_status" -> p.status.application,
         "reaction" -> _reaction,
         "error" -> _error
       ) + response_common
       val content = rec.toJsonString
-      _json.withCodeContent(p.code.code, content)
+      _json.withCodeContent(p.code, content)
     }
 
     private def _reaction: Option[String] = p.strategy.reaction match {
@@ -124,7 +129,7 @@ object HttpResponse {
         "data" -> data.asRecordOrJavaObject
       ) + response_common
       val content = rec.toJsonString
-      _json.withCodeContent(200, content)
+      _json.withCodeContent(200, content).withValue(data)
     }
   }
 
