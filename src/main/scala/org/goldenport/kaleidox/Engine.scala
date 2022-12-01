@@ -29,7 +29,8 @@ import org.goldenport.sexpr.eval.{EvalContext, LispBinding}
  *  version Apr. 25, 2021
  *  version May. 14, 2021
  *  version Aug. 29, 2021
- * @version Sep. 20, 2021
+ *  version Sep. 20, 2021
+ * @version Nov. 28, 2022
  * @author  ASAMI, Tomoharu
  */
 case class Engine(
@@ -137,7 +138,11 @@ case class Engine(
     result.map(_.resolve)
   }
 
-  def run(state: Universe, p: Model): RWSOutput = {
+  def run(pstate: Universe, p: Model): RWSOutput = {
+    val state = p.getEnvironmentProperties match {
+      case Some(s) => pstate.next(s, context.traceContext.toHandle)
+      case None => pstate
+    }
     p.getWholeScript.map(run(state, _)).getOrElse((EvalReport.create(_new_context), Vector.empty, state))
   }
 

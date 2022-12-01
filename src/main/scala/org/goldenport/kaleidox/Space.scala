@@ -19,7 +19,8 @@ import org.goldenport.kaleidox.model.{Libraries, Library}
  *  version Sep. 28, 2019
  *  version Apr. 18, 2021
  *  version Aug.  8, 2021
- * @version Apr. 24, 2022
+ *  version Apr. 24, 2022
+ * @version Nov. 27, 2022
  * @author  ASAMI, Tomoharu
  */
 case class Space(
@@ -85,6 +86,8 @@ case class Space(
   def getBinding(p: String): Option[SExpr] = bindings.get(p).map(SExpr.create)
 
   def updateBindings(p: RichConfig): Space = copy(bindings = bindings + HoconRecord(p))
+
+  def updateBindings(p: IRecord): Space = updateBindings(p.toRecord)
 
   def updateBindings(p: Record): Space = copy(bindings = bindings + p)
 

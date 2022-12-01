@@ -17,7 +17,10 @@ import org.goldenport.hocon.{RichConfig, HoconUtils}
 import org.goldenport.bag.BufferBag
 import org.goldenport.io.IoUtils
 import org.goldenport.parser.ParseMessage
+import org.goldenport.record.v2.{Schema, Column}
 import org.goldenport.record.v3.{IRecord, SingleValue, MultipleValue, EmptyValue}
+import org.goldenport.record.v3.{Record, Field}
+import org.goldenport.record.util.{HoconUtils => RHoconUtils}
 import org.goldenport.statemachine.StateMachineClass
 import org.goldenport.kaleidox.model._
 import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
@@ -41,7 +44,8 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Aug.  8, 2021
  *  version Sep. 17, 2021
  *  version Oct. 23, 2021
- * @version Dec. 31, 2021
+ *  version Dec. 31, 2021
+ * @version Nov. 28, 2022
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -83,11 +87,11 @@ case class Model(
   // TODO skip libraries already imported.
   def getWholeScript: Option[Script] = getScript |+| libraries.getScript // importedModels.getWholeScript
 
-  def getEnvironmentProperties: Option[RichConfig] = {
+  def getEnvironmentProperties: Option[IRecord] = {
     val a = divisions.collect {
       case m: EnvironmentDivision => m
     }
-    a.headOption.map(x => a.tail./:(x.properties)((z, x) => z.withFallback(x.properties))) // TODO concat
+    a.headOption.map(x => a.tail./:(x.properties)((z, x) => z.update(x.properties))) // TODO concat
   }
 
   lazy val getVoucherModel: Option[VoucherModel] = {
@@ -326,7 +330,7 @@ object Model {
 
   case class EnvironmentDivision(
     text: LogicalSection,
-    properties: RichConfig
+    properties: IRecord
   ) extends Division {
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: EnvironmentDivision => copy(text + m.text, properties + m.properties)
@@ -339,7 +343,7 @@ object Model {
 
     def create(p: LogicalSection): EnvironmentDivision = {
       val hocon = p.blocks.blocks.map(_to_hocon).concatenate
-      EnvironmentDivision(p, hocon)
+      EnvironmentDivision(p, RHoconUtils.toRecord(hocon.config))
     }
 
     private def _to_hocon(p: LogicalBlock): RichConfig = p match {
@@ -347,6 +351,11 @@ object Model {
       case m: LogicalParagraph => m.lines.lines.map(x => HoconUtils.parse(x.text)).concatenate
       case _ => RAISE.notImplementedYetDefect
     }
+
+    def create(p: IRecord): EnvironmentDivision = EnvironmentDivision(
+      LogicalSection.empty,
+      p
+    )
 
     def toHocon(p: LogicalBlock): RichConfig = _to_hocon(p)
   }
@@ -925,8 +934,16 @@ object Model {
   //     Model(config, divs, ImportedModels.empty) + _import_divisions(divs)
   // }
 
+  // TODO schema for direct service
   def httpCall(config: Config, funcname: String, query: IRecord, form: IRecord): Model = {
     val a = SAtom(funcname) :: _params(query) ::: _params(form)
+    val sexpr = SList.create(a)
+    val script = Script(sexpr)
+    Model(config, script)
+  }
+
+  def httpCall(config: Config, schema: Schema, funcname: String, query: IRecord, form: IRecord): Model = {
+    val a = SAtom(funcname) :: _params(_normalize(schema, query)) ::: _params(_normalize(schema, form))
     val sexpr = SList.create(a)
     val script = Script(sexpr)
     Model(config, script)
@@ -940,6 +957,33 @@ object Model {
         case EmptyValue => Nil
       }
     ).toList
+
+  def httpEval(config: Config, schema: Schema, pscript: String, query: IRecord, form: IRecord): Model = {
+    val env = Model.EnvironmentDivision.create(_normalize(schema, query + form))
+    val script = Script.parse(config, pscript)
+    // val a = SAtom(funcname) :: _params(query) ::: _params(form)
+    // val sexpr = SList.create(a)
+    // val script = Script(sexpr)
+    // Model(config, script)
+    Model(config, env, script)
+  }
+
+  private def _normalize(schema: Schema, p: IRecord): IRecord = {
+    case class Z(xs: Vector[Field] = Vector.empty) {
+      def r = Record(xs)
+
+      def +(rhs: Column) = p.getField(rhs.name) match {
+        case Some(s) =>
+          val v = s.value.mapContent(_to_instance(rhs))
+          val f = s.withValue(v)
+          copy(xs = xs :+ f)
+        case None => this
+      }
+    }
+    schema.columns./:(Z())(_+_).r
+  }
+
+  private def _to_instance(c: Column)(d: Any): Any = c.datatype.toInstance(d)
 
   def parseWitoutLocation(config: Config, p: String): Model = parse(config.withoutLocation, p)
 

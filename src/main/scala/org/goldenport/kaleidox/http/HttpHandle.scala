@@ -1,6 +1,7 @@
 package org.goldenport.kaleidox.http
 
 import org.goldenport.RAISE
+import org.goldenport.record.v2.Schema
 import org.goldenport.record.v3.{IRecord, Record}
 import org.goldenport.sexpr._
 import org.goldenport.kaleidox._
@@ -11,7 +12,7 @@ import org.goldenport.kaleidox._
  *  version Apr. 22, 2021
  *  version Jan. 24, 2022
  *  version Aug. 29, 2022
- * @version Nov.  7, 2022
+ * @version Nov. 28, 2022
  * @author  ASAMI, Tomoharu
  */
 class HttpHandle(engine: Engine) {
@@ -61,7 +62,11 @@ class HttpHandle(engine: Engine) {
 
   private def _eval(req: HttpRequest, funcname: String) = {
     val model: Model = Model.httpCall(config, funcname, req.query, req.form)
-    val params = HttpParameters.create(req)
+    engine.run(universe, model)
+  }
+
+  def eval(schema: Schema, script: String, req: HttpRequest): (EvalReport, Vector[Expression], Universe) = {
+    val model: Model = Model.httpEval(config, schema, script, req.query, req.form)
     engine.run(universe, model)
   }
 }

@@ -34,7 +34,8 @@ import org.goldenport.kaleidox._
  *  version Sep. 20, 2021
  *  version Nov. 29, 2021
  *  version Apr. 24, 2022
- * @version May.  5, 2022
+ *  version May.  5, 2022
+ * @version Nov. 28, 2022
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -256,7 +257,8 @@ case class Evaluator(
   protected final def normalize_parameters_function(m: SList, spec: FunctionSpecification): (Universe, SExpr) = {
     val n = spec.numberOfRequiredArguments
     val a = Parameters.fromExpression(m)
-    val params = spec.resolve(a)
+    // val params = spec.resolve(a) ; conflict variable handling.
+    val params = a
     val resolved = m.list(0) :: params.restore
     val nn = n - params.arguments.length
     if (nn > 0) {
