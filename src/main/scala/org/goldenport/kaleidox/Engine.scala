@@ -30,7 +30,9 @@ import org.goldenport.sexpr.eval.{EvalContext, LispBinding}
  *  version May. 14, 2021
  *  version Aug. 29, 2021
  *  version Sep. 20, 2021
- * @version Nov. 28, 2022
+ *  version Nov. 28, 2022
+ *  version Dec. 31, 2022
+ * @version Jan. 22, 2023
  * @author  ASAMI, Tomoharu
  */
 case class Engine(
@@ -96,6 +98,7 @@ case class Engine(
             case Left(l) => l
           }
           context.feature.store.define(Symbol(name), x.table, schema)
+          x.data.foreach(x => context.feature.store.setup(Symbol(name), STable(x)))
       }
     }
   }
@@ -136,6 +139,22 @@ case class Engine(
   def apply(p: Script): RWSB = {
     val (written, result, state) = run(universe, p)
     result.map(_.resolve)
+  }
+
+  def applyModelScript(model: Model, p: String): SExpr = {
+    val s = Script.parse(context.config, p)
+    applyModelScript(model, s)
+  }
+
+  def applyModelScript(model: Model, p: SExpr): SExpr = {
+    applyModelScript(model, Script(p))
+  }
+
+  def applyModelScript(model: Model, p: Script): SExpr = {
+    val u = universe.addSetupModel(model)
+    val (written, result, state) = run(u, p)
+    val rs = result.map(_.resolve)
+    rs.head.asSExpr
   }
 
   def run(pstate: Universe, p: Model): RWSOutput = {

@@ -40,7 +40,8 @@ import org.goldenport.util.StringUtils
  *  version Apr. 25, 2021
  *  version May. 21, 2021
  *  version Sep. 25, 2021
- * @version Dec. 18, 2021
+ *  version Dec. 18, 2021
+ * @version Jan.  1, 2023
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -57,6 +58,15 @@ case class Kaleidox(
   // )
   // val interpreter = Interpreter.create(context)
   val configspace = Space.create(config.cliConfig.properties)
+
+  def createEngine(): Engine = {
+    val args = Array[String]()
+    val req = spec.Request.empty
+    val res = spec.Response()
+    val op = spec.Operation("engine", req, res)
+    val call = OperationCall.create(op, args)
+    _build_world(call)
+  }
 
   def repl(call: OperationCall) {
     val engine = _build_world(call)

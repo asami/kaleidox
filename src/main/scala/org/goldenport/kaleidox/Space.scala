@@ -20,7 +20,8 @@ import org.goldenport.kaleidox.model.{Libraries, Library}
  *  version Apr. 18, 2021
  *  version Aug.  8, 2021
  *  version Apr. 24, 2022
- * @version Nov. 27, 2022
+ *  version Nov. 27, 2022
+ * @version Jan.  2, 2023
  * @author  ASAMI, Tomoharu
  */
 case class Space(
@@ -140,7 +141,8 @@ object Space {
       getOrElse(space1)
     val space3 = model.getDataSet.map(_.setup(space2)).getOrElse(space2) // obsolated
     val space4 = model.getDataBag.map(_.setup(space3)).getOrElse(space3)
-    val space = space4
+    val space5 = model.getEntityModel.map(_.setup(space4)).getOrElse(space4)
+    val space = space5
     space
   }
 }

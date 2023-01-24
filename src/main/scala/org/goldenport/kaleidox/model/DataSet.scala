@@ -25,7 +25,8 @@ import VoucherModel._
  *  version Dec. 29, 2019
  *  version Feb. 28, 2021
  *  version Mar.  8, 2021
- * @version Jun. 25, 2021
+ *  version Jun. 25, 2021
+ * @version Jan. 22, 2023
  * @author  ASAMI, Tomoharu
  */
 case class DataSet(
@@ -44,6 +45,8 @@ case class DataSet(
     slots ++ rhs.slots,
     parseMessages + rhs.parseMessages
   )
+
+  def getSlot(name: String) = slots.get(Symbol(name))
 }
 
 object DataSet {
@@ -104,7 +107,7 @@ object DataSet {
 
   case class Builder(
     ctx: Builder.Context,
-    isDataStore: Boolean
+    isDataStore: Boolean = false
   ) {
     private def _get_model_by_name(p: String): Option[ISchemaClass] = ctx.getSchemaClass(p)
 
@@ -124,12 +127,15 @@ object DataSet {
       else
         _model_data(p)
 
+    def createData(name: String, p: LogicalSection) = _model_data(p, name)
+
     // private def _is_nested(p: LogicalSection) =
     //   p.blocks.blocks.exists(_.isInstanceOf[LogicalSection])
 
-    private def _model_data(p: LogicalSection): DataSet = {
-      val varname = p.nameForModel
+    private def _model_data(p: LogicalSection): DataSet =
+      _model_data(p, p.nameForModel)
 
+    private def _model_data(p: LogicalSection, varname: String): DataSet = {
       case class Z(
         properties: RichConfig = RichConfig.empty,
         xsv: Option[Xsv] = None,
@@ -139,7 +145,8 @@ object DataSet {
 
         private def _get_schema: Option[ISchemaClass] = {
           properties.getStringOption("schema").map(_name_to_schema) orElse
-          properties.getStringOption("column").map(_column_to_schema)
+          properties.getStringOption("column").map(_column_to_schema) orElse
+          Some(_name_to_schema(varname))
         }
 
         private def _name_to_schema(p: String): ISchemaClass =

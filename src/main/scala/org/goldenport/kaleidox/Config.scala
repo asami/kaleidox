@@ -39,7 +39,8 @@ import org.goldenport.kaleidox.extension.modeler.Modeler
  *  version Sep. 24, 2021
  *  version Oct.  4, 2021
  *  version Dec. 19, 2021
- * @version Apr.  4, 2022
+ *  version Apr.  4, 2022
+ * @version Dec. 15, 2022
  * @author  ASAMI, Tomoharu
  */
 case class Config(
@@ -73,7 +74,7 @@ case class Config(
   def dateTimeContext = cliConfig.dateTimeContext
   def i18nContext = cliConfig.i18n
   def createQueryContext() = QueryExpression.Context(
-    DateTimeUtils.toDateTime(System.currentTimeMillis, i18nContext.datetimezone)
+    DateTimeUtils.toDateTime(System.currentTimeMillis, i18nContext.dateTimeZone)
   )
   def logConfig = cliConfig.log
   def charset = cliConfig.charset

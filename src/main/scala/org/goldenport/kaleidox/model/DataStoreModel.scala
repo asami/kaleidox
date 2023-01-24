@@ -6,14 +6,15 @@ import org.smartdox._
 import org.goldenport.RAISE
 import org.goldenport.hocon.RichConfig.Implicits._
 import org.goldenport.collection.VectorMap
-import org.goldenport.parser.ParseResult
+import org.goldenport.parser._
 import org.goldenport.record.v2.Schema
 import org.goldenport.record.v3.Table
 import org.goldenport.kaleidox._
 
 /*
  * @since   May. 13, 2021
- * @version May. 14, 2021
+ *  version May. 14, 2021
+ * @version Jan. 22, 2023
  * @author  ASAMI, Tomoharu
  */
 case class DataStoreModel(
@@ -90,34 +91,62 @@ object DataStoreModel {
   def apply(p: CollectionModel): DataStoreModel =
     DataStoreModel(VectorMap(p.name -> p))
 
-  def create(config: Config, p: Section): DataStoreModel =
-    Builder(config).build(p)
+  def create(context: DataSet.Builder.Context, p: LogicalSection): DataStoreModel =
+    Builder(context).build(p)
 
   // def createClassOption(config: Config, p: Section): Option[CollectionModel] =
   //   Builder(config).createClassOption(p)
 
-  case class Builder(config: Config) {
-    def build(p: Section): DataStoreModel =
-      p.sectionsShallow match {
+  case class Builder(context: DataSet.Builder.Context) {
+    def build(p: LogicalSection): DataStoreModel =
+      p.sections.toList match {
         case Nil => _build_config(p)
         case xs => _build_sections(p, xs)
       }
 
-    private def _build_config(p: Section): DataStoreModel =
+    private def _build_config(p: LogicalSection): DataStoreModel =
       createClassOption(p).
         map(DataStoreModel.apply).
         getOrElse(empty)
 
-    def createClassOption(p: Section): Option[CollectionModel] = {
+    def createClassOption(p: LogicalSection): Option[CollectionModel] = {
       val name = p.nameForModel
-      val s = p.toPlainText
+      _build_properties(p, name)
+    }
+
+    private def _build_properties(p: LogicalSection, name: String): Option[CollectionModel] = {
+      val s = p.text
 //      println(s"X: $s")
 //      println(s"Y: $p")
       val r = CollectionModel.parse(name, s)
       r.toOption // TODO
     }
 
-    private def _build_sections(p: Section, sections: List[Section]): DataStoreModel =
-      RAISE.notImplementedYetDefect
+    private def _build_sections(p: LogicalSection, sections: List[LogicalSection]): DataStoreModel = {
+      val name = p.nameForModel
+      case class Z(
+        collection: Option[CollectionModel] = None,
+        data: Option[Table] = None
+      ) {
+        def r = {
+          val c = collection orElse context.getSchemaClass(name).
+            map(x => CollectionModel(name, None, Left(x.schema), data))
+          c.map(DataStoreModel.apply).orZero
+        }
+
+        def +(rhs: LogicalSection) = rhs.nameForModel match {
+          case "properties" => copy(collection = _build_properties(rhs, name))
+          case "data" => copy(data = _build_data(rhs))
+          case _ => this
+        }
+
+        private def _build_data(p: LogicalSection): Option[Table] = {
+          val builder = DataSet.Builder(context)
+          val ds = builder.createData(name, p)
+          ds.getSlot(name).map(_.data.table.toTable)
+        }
+      }
+      sections./:(Z())(_+_).r
+    }
   }
 }

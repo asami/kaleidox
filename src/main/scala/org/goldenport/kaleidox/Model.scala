@@ -45,7 +45,8 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Sep. 17, 2021
  *  version Oct. 23, 2021
  *  version Dec. 31, 2021
- * @version Nov. 28, 2022
+ *  version Nov. 28, 2022
+ * @version Jan. 23, 2023
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -60,12 +61,17 @@ case class Model(
 
   def entityFactory = config.entityFactory
 
-  private lazy val _ctx = (getSchemaModel, getVoucherModel) match {
-    case (None, None) => DataSet.Builder.Context(config)
-    case (Some(s), None) => DataSet.Builder.Context(config, s)
-    case (None, Some(v)) => DataSet.Builder.Context(config, v)
-    case (Some(s), Some(v)) => DataSet.Builder.Context(config, s, v)
+  private lazy val _ctx = {
+    val schemas = Vector(getSchemaModel, getEntityModel, getVoucherModel).flatten
+    DataSet.Builder.Context(config, schemas)
   }
+
+  // private lazy val _ctx = (getSchemaModel, getVoucherModel) match {
+  //   case (None, None) => DataSet.Builder.Context(config)
+  //   case (Some(s), None) => DataSet.Builder.Context(config, s)
+  //   case (None, Some(v)) => DataSet.Builder.Context(config, v)
+  //   case (Some(s), Some(v)) => DataSet.Builder.Context(config, s, v)
+  // }
 
   def signature: Signature = NoneSignature
 
@@ -154,7 +160,7 @@ case class Model(
 
   def getDataStore: Option[DataStoreModel] = {
     val a = divisions.collect {
-      case m: DataStoreDivision => m.makeModel(config)
+      case m: DataStoreDivision => m.makeModel(_ctx)
     }
     a.concatenate.toOption
   }
@@ -378,30 +384,34 @@ object Model {
   case class DataStoreDivision(
     section: LogicalSection
   ) extends Division {
-    def makeModel(config: Config): DataStoreModel = {
-      val doxconfig = Dox2Parser.Config.default // TODO
-      val dox = Dox2Parser.parse(doxconfig, section)
-      // println(s"DataStoreDivision#makeModel $dox")
-      _make(config, dox)
+    def makeModel(context: DataSet.Builder.Context): DataStoreModel = {
+      _make_datastores(context, section)
     }
 
-    private def _make(config: Config, p: Dox): DataStoreModel = {
-      // println(s"DataStoreModel#_make $p")
-      p match {
-        case m: Section =>
-          if (m.keyForModel == "data-store") // TODO
-            _make_datastores(config, m)
-          else
-            DataStoreModel.empty
-        case m => m.elements.foldMap(_make(config, _))
-      }
-    }
+    // def makeModel(config: Config): DataStoreModel = {
+    //   val doxconfig = Dox2Parser.Config.default // TODO
+    //   val dox = Dox2Parser.parse(doxconfig, section)
+    //   // println(s"DataStoreDivision#makeModel $dox")
+    //   _make(config, dox)
+    // }
 
-    private def _make_datastores(config: Config, p: Section): DataStoreModel =
-      p.sections.foldMap(_make_datastore(config, _))
+    // private def _make(config: Config, p: Dox): DataStoreModel = {
+    //   // println(s"DataStoreModel#_make $p")
+    //   p match {
+    //     case m: Section =>
+    //       if (m.keyForModel == "data-store") // TODO
+    //         _make_datastores(config, m)
+    //       else
+    //         DataStoreModel.empty
+    //     case m => m.elements.foldMap(_make(config, _))
+    //   }
+    // }
 
-    private def _make_datastore(config: Config, p: Section): DataStoreModel =
-      DataStoreModel.create(config, p)
+    private def _make_datastores(context: DataSet.Builder.Context, p: LogicalSection): DataStoreModel =
+      p.sections.foldMap(_make_datastore(context, _))
+
+    private def _make_datastore(context: DataSet.Builder.Context, p: LogicalSection): DataStoreModel =
+      DataStoreModel.create(context, p)
 
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: DataStoreDivision => copy(section + m.section)
