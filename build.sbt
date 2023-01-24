@@ -22,7 +22,9 @@ resolvers += "GitHab releases 2020" at "https://raw.github.com/asami/maven-repos
 
 resolvers += "GitHab releases 2021" at "https://raw.github.com/asami/maven-repository/2021/releases"
 
-resolvers += "GitHab releases" at "https://raw.github.com/asami/maven-repository/2022/releases"
+resolvers += "GitHab releases 2022" at "https://raw.github.com/asami/maven-repository/2022/releases"
+
+resolvers += "GitHab releases" at "https://raw.github.com/asami/maven-repository/2023/releases"
 
 resolvers += "Asami Maven Repository" at "http://www.asamioffice.com/maven"
 
