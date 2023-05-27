@@ -30,7 +30,8 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Sep. 24, 2021
  *  version Oct. 31, 2021
  *  version Nov. 28, 2021
- * @version Dec. 31, 2021
+ *  version Dec. 31, 2021
+ * @version Apr. 23, 2023
  * @author  ASAMI, Tomoharu
  */
 case class EntityModel(
@@ -82,13 +83,18 @@ object EntityModel {
 
     def isResolved: Boolean = parents.forall(_.isResolved)
 
+    private def _id_name = "id" // TODO
+
     def create(p: IRecord)(implicit ctx: LispContext): Consequence[Entity] = {
 //      implicit val sc = ctx.statemachineContext
       implicit val c = ctx.asInstanceOf[Context]
       for {
         attrs <- schemaClass.attributeRecordForCreate(p)
       } yield {
-        val id = EntityId.generate(name)
+        val id = p.getString(_id_name) match {
+          case Some(s) => EntityId(name, s)
+          case None => EntityId.generate(name)
+        }
         val sms = VectorMap(stateMachines.map(factory.spawn(_, id)).
           map(x => Symbol(x.name) -> x))
         KaleidoxEntity.create(this, id, attrs, sms)

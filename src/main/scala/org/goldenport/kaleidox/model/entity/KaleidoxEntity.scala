@@ -18,7 +18,8 @@ import org.goldenport.kaleidox.model.EntityModel
  * @since   Sep. 22, 2021
  *  version Sep. 24, 2021
  *  version Oct. 31, 2021
- * @version Nov. 28, 2021
+ *  version Nov. 28, 2021
+ * @version Feb. 28, 2023
  * @author  ASAMI, Tomoharu
  */
 class KaleidoxEntity(
@@ -49,6 +50,10 @@ class KaleidoxEntity(
 
   def record: IRecord = Record.data(
     klass.idName -> id
+  ) + attributes + _statemachine_record
+
+  def recordWithShortId: IRecord = Record.data(
+    klass.idName -> id.objectId.string
   ) + attributes + _statemachine_record
 
   private def _statemachine_record = Record(statemachines)
