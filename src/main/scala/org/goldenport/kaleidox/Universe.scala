@@ -30,7 +30,8 @@ import org.goldenport.kaleidox.model.StateMachineModel
  *  version Mar. 28, 2021
  *  version Apr. 13, 2021
  *  version May. 10, 2021
- * @version Apr. 24, 2022
+ *  version Apr. 24, 2022
+ * @version Jul. 17, 2023
  * @author  ASAMI, Tomoharu
  */
 case class Universe(
@@ -93,6 +94,7 @@ case class Universe(
   def takeCommandHistory: SExpr = RAISE.notImplementedYetDefect
   def takeCommandHistory(n: Int): SExpr = RAISE.notImplementedYetDefect
   def getCommandHistory(n: Int): Option[SExpr] = RAISE.notImplementedYetDefect
+  def takeIncidentSequence: IncidentSequence = history.foldMap(_.getIncident)
 
   // push and append
   def next(

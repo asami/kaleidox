@@ -1,6 +1,7 @@
 package org.goldenport.kaleidox
 
 import javax.script._
+import java.math.MathContext
 import org.goldenport.RAISE
 import org.goldenport.monitor.Monitor
 import org.goldenport.cli.Environment
@@ -51,13 +52,15 @@ import org.goldenport.kaleidox.extension.modeler.Modeler
  *  version May. 21, 2021
  *  version Sep. 24, 2021
  *  version Dec. 18, 2021
- * @version May.  8, 2022
+ *  version May.  8, 2022
+ * @version Jul. 22, 2023
  * @author  ASAMI, Tomoharu
  */
 case class ExecutionContext(
   environment: Environment,
   config: Config,
   i18nContext: I18NContext,
+  mathContext: MathContext,
   logConfig: LogConfig,
   traceContext: TraceContext,
   statemachineSpace: StateMachineSpace,
@@ -117,6 +120,7 @@ object ExecutionContext {
     env,
     p,
     p.i18nContext,
+    p.mathContext,
     p.logConfig,
     TraceContext.create(),
     p.stateMachineSpace,

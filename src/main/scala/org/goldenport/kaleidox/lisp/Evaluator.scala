@@ -35,7 +35,8 @@ import org.goldenport.kaleidox._
  *  version Nov. 29, 2021
  *  version Apr. 24, 2022
  *  version May.  5, 2022
- * @version Nov. 28, 2022
+IncidentSequence.empty *  version Nov. 28, 2022
+IncidentSequence.empty * @version Jul. 17, 2023
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -120,10 +121,12 @@ case class Evaluator(
         case x :: Nil => SExpr.create(x.asSExpr)
         case xs => SList.create(xs.map(x => SExpr.create(x.asSExpr)))
       }
-      val incident = IncidentSequence.empty
+      val incident = _distill_incident(r._3)
       val bindings = c.bindings
       c.toResult(value, bindings, incident)
     }
+
+    private def _distill_incident(p: Universe): IncidentSequence = p.takeIncidentSequence
 
     override protected def resolve_Parameters(c: LispContext, l: SLambda, args: List[SExpr]): (LispContext, List[SExpr]) = {
       val (u, args9) = normalize_parameters_lambda(SList.create(args), l.parameters.length)

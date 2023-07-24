@@ -2,6 +2,7 @@ package org.goldenport.kaleidox
 
 import scalaz._, Scalaz._
 import java.io.File
+import java.math.MathContext
 import org.goldenport.RAISE
 import org.goldenport.monitor.Monitor
 import org.goldenport.i18n.I18NContext
@@ -41,7 +42,8 @@ import org.goldenport.util.StringUtils
  *  version May. 21, 2021
  *  version Sep. 25, 2021
  *  version Dec. 18, 2021
- * @version Jan.  1, 2023
+ *  version Jan.  1, 2023
+ * @version Jul. 22, 2023
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -93,6 +95,7 @@ case class Kaleidox(
     LogContext.setRootLevel(LogLevel.Info) // suppress boot sequence logging.
     val (universe, model) = _build_universe(call)
     val i18nconfig = _i18n_context(model, config)
+    val mathcontext = _math_context(model, config)
     val logconfig = _log_config(model, config)
     val tracecontext = TraceContext.create()
     val statemachinespace = config.stateMachineSpace.addClasses(model.takeStateMachineClasses)
@@ -104,6 +107,7 @@ case class Kaleidox(
       environment,
       config,
       i18nconfig,
+      mathcontext,
       logconfig,
       tracecontext,
       statemachinespace,
@@ -208,6 +212,10 @@ case class Kaleidox(
 
   private def _i18n_context(model: Model, config: Config): I18NContext = {
     config.i18nContext // TODO model
+  }
+
+  private def _math_context(model: Model, config: Config): MathContext = {
+    config.mathContext // TODO model
   }
 
   private def _log_config(model: Model, config: Config): LogConfig = {

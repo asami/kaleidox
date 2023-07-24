@@ -18,7 +18,9 @@ import org.goldenport.parser.CommandParser
 import org.goldenport.javafx.{JavaFXWindow => LibJavaFXWindow, HtmlWindow}
 import org.goldenport.sexpr._
 import org.goldenport.sexpr.eval.{LispFunction, FunctionSpecification}
+import org.goldenport.sexpr.eval.IncidentSequence
 import org.goldenport.record.util.AnyUtils
+import org.goldenport.util.StringUtils
 
 /*
  * @since   Feb. 17, 2019
@@ -40,7 +42,8 @@ import org.goldenport.record.util.AnyUtils
  *  version Jul.  3, 2021
  *  version Jan. 31, 2022
  *  version Feb.  1, 2022
- * @version Apr. 24, 2022
+ *  version Apr. 24, 2022
+ * @version Jul. 24, 2023
  * @author  ASAMI, Tomoharu
  */
 trait CommandPart { self: Engine =>
@@ -635,8 +638,29 @@ object CommandPart {
 
   case class StackMethod(call: OperationCall) extends KaleidoxMethod {
     def execute = {
+      val r = for {
+        ld <- call.consequenceArg1ListingDirectiveBaseOneOption
+      } yield {
+        val defaultsize = 5
+        val listing = ld getOrElse ListingDirective.init(defaultsize)
+        val xs = universe.stack.map(_.getValueSExpr.getOrElse(SNil))
+        val s1 = xs.map(_.display)
+        val s2 = s1.zipWithIndex
+        val s3 = listing(s2)
+        val s4 = StringUtils.buildLinesWithNumberBaseOne(s3)
+        s4.mkString(newline)
+      }
+      to_response_string(r)
+    }
+
+    def execute0 = {
+      val size = 5
       val xs = universe.stack.map(_.getValueSExpr.getOrElse(SNil))
-      val s = build_lines_string_with_number(xs.map(_.display))
+      val s1 = xs.map(_.display)
+      val s2 = s1.zipWithIndex
+      val s3 = s2.take(size)
+      val s4 = StringUtils.buildLinesWithNumberBaseOne(s3)
+      val s = s4.mkString(newline)
       to_response(s)
     }
   }
@@ -664,8 +688,39 @@ object CommandPart {
 
   case class HistoryMethod(call: OperationCall) extends KaleidoxMethod {
     def execute = {
+      val r = for {
+        ld <- call.consequenceArg1ListingDirectiveBaseOneOption
+      } yield {
+        val defaultsize = 5
+        val listing = ld getOrElse ListingDirective.oneTail(defaultsize)
+        val xs = universe.history.map(_.getValueSExpr.getOrElse(SNil))
+        val s1 = xs.map(_.display)
+        val s2 = s1.zipWithIndex
+        val s3 = listing(s2)
+        val s4 = StringUtils.buildLinesWithNumberBaseOne(s3)
+        s4.mkString(newline)
+      }
+      to_response_string(r)
+    }
+
+    def execute0 = {
+      val defaultsize = 5
+      val size: Option[Int] = call.getArg1AsIntOrString match {
+        case None => Some(defaultsize)
+        case Some(s) => s match {
+          case Left(l) => Some(l)
+          case Right(r) => r match {
+            case "full" => None
+            case _ => None // TODO
+          }
+        }
+      }
       val xs = universe.history.map(_.getValueSExpr.getOrElse(SNil))
-      val s = build_lines_string_with_number(xs.map(_.display))
+      val s1 = xs.map(_.display)
+      val s2 = s1.zipWithIndex
+      val s3 = size.fold(s2)(x => s2.takeRight(x))
+      val s4 = StringUtils.buildLinesWithNumberBaseOne(s3)
+      val s = s4.mkString(newline)
       to_response(s)
     }
   }
@@ -683,6 +738,22 @@ object CommandPart {
 
   case class CommandHistoryMethod(call: OperationCall) extends KaleidoxMethod {
     def execute = {
+      val r = for {
+        ld <- call.consequenceArg1ListingDirectiveBaseOneOption
+      } yield {
+        val defaultsize = 5
+        val listing = ld getOrElse ListingDirective.oneTail(defaultsize)
+        val xs = universe.history.map(_.getStimulusSExpr.getOrElse(SNil))
+        val s1 = xs.map(_.display)
+        val s2 = s1.zipWithIndex
+        val s4 = StringUtils.buildLinesWithNumberBaseOne(s2)
+        s4.mkString(newline)
+      }
+      to_response_string(r)
+    }
+
+
+    def execute0 = {
       val xs = universe.history.map(_.getStimulusSExpr.getOrElse(SNil))
       val s = build_lines_string_with_number(xs.map(_.display))
       to_response(s)
@@ -702,9 +773,47 @@ object CommandPart {
 
   case class IncidentHistoryMethod(call: OperationCall) extends KaleidoxMethod {
     def execute = {
-      val xs = universe.history.map(_.getIncident).map(_.print)
-      val s = build_lines_string_with_number(xs)
+      val r = for {
+        ld <- call.consequenceArg1ListingDirectiveBaseOneOption
+      } yield {
+        val defaultsize = 5
+        val listing = ld getOrElse ListingDirective.oneTail(defaultsize)
+        val xs = universe.history.map(_.getIncident)
+        val s1 = _build_distilled_lines(xs)
+        val s3 = listing(s1)
+        s3.mkString(newline)
+      }
+      to_response_string(r)
+    }
+
+    def execute0 = {
+      val size = 5
+      val xs = universe.history.map(_.getIncident)
+      val s1 = _build_distilled_lines(xs)
+      val s = s1.takeRight(size).mkString(newline)
       to_response(s)
+    }
+
+    private def _build_distilled_lines(
+      ps: Seq[IncidentSequence]
+    ): Seq[String] = {
+      val xs1 = _build_distilled_lines_with_number(ps)
+      val xs = xs1.map {
+        case (x, i) => (x.print, i)
+      }
+      StringUtils.buildLinesWithNumber(xs)
+    }
+
+    private def _build_distilled_lines_with_number(
+      ps: Seq[IncidentSequence]
+    ): Seq[(IncidentSequence, Int)] = {
+      _build_lines_with_number(ps).filterNot(_._1.isEmpty)
+    }
+
+    private def _build_lines_with_number(
+      ps: Seq[IncidentSequence]
+    ): Seq[(IncidentSequence, Int)] = ps.zipWithIndex.map {
+      case (s, i) => (s, i + 1)
     }
   }
 
@@ -749,8 +858,13 @@ object CommandPart {
 
     case class HistoryMethod(call: OperationCall) extends KaleidoxMethod {
       def execute = {
+        val size = 5
         val xs = universe.history
-        val s = build_lines_string_with_number(xs.map(_display))
+        val s1 = xs.map(_display)
+        val s2 = s1.zipWithIndex
+        val s3 = s2.takeRight(size)
+        val s4 = StringUtils.buildLinesWithNumberBaseOne(s3)
+        val s = s4.mkString(newline)
         to_response(s)
       }
     }
