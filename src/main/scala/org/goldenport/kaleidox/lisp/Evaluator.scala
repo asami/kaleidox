@@ -35,8 +35,8 @@ import org.goldenport.kaleidox._
  *  version Nov. 29, 2021
  *  version Apr. 24, 2022
  *  version May.  5, 2022
-IncidentSequence.empty *  version Nov. 28, 2022
-IncidentSequence.empty * @version Jul. 17, 2023
+ *  version Nov. 28, 2022
+ * @version Jul. 29, 2023
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -129,7 +129,7 @@ case class Evaluator(
     private def _distill_incident(p: Universe): IncidentSequence = p.takeIncidentSequence
 
     override protected def resolve_Parameters(c: LispContext, l: SLambda, args: List[SExpr]): (LispContext, List[SExpr]) = {
-      val (u, args9) = normalize_parameters_lambda(SList.create(args), l.parameters.length)
+      val (u, args9) = normalize_parameters_lambda(SList.create(args), l.parameters)
       args9 match {
         case m: SList => (lift_Context(c).withUniverse(u), m.list)
         case _ => RAISE.noReachDefect
@@ -274,14 +274,66 @@ case class Evaluator(
     }
   }
 
-  protected final def normalize_parameters_lambda(m: SList, n: Int): (Universe, SExpr) = {
+  protected final def normalize_parameters_lambda(m: SList, paramnames: List[String]): (Universe, SExpr) = {
     val params = Parameters(m)
+    val n = paramnames.length
     val nn = n - params.arguments.length
     if (nn > 0) {
-      universe.makeStackParameters(nn) match {
-        case \/-((u, xs)) => (u, SList.create(m.list ::: xs))
-        case -\/(e) => (universe, e)
+      case class Slot(name: String, binding: Option[SExpr]) {
+        def isBinded = binding.isDefined
       }
+      case class Z(slots: Vector[Slot] = Vector.empty) {
+        def r = {
+          val nunbinds = slots.filterNot(_.isBinded).length
+          universe.makeStackParameters(nunbinds) match {
+            case \/-((u, xs)) => (u, SList.create(m.list ::: _build(xs)))
+            case -\/(e) => (universe, e)
+          }
+        }
+
+        private def _build(ps: List[SExpr]): List[SExpr] = {
+          case class ZZ(xs: List[SExpr] = ps, rs: Vector[SExpr] = Vector.empty) {
+            def r = rs.toList
+
+            def +(rhs: Slot) = {
+              rhs.binding match {
+                case Some(s) => copy(rs = rs :+ s)
+                case None => copy(xs = xs.tail, rs = rs :+ xs.head)
+              }
+            }
+          }
+          slots./:(ZZ())(_+_).r
+        }
+
+        def +(rhs: String) =
+          if (_is_global_parameter(rhs)) {
+            _get_binding(rhs) match {
+              case Some(s) => s match {
+                case SNil => _add(Slot(rhs, None))
+                case m: SExpr => _add(Slot(rhs, Some(m)))
+                case m => _add(Slot(rhs, Some(SExpr.create(m))))
+              }
+              case None => _add(Slot(rhs, None))
+            }
+          } else {
+            _add(Slot(rhs, None))
+          }
+
+        // FUTURE : Global parameter convension (e.g. First letter is upper case)
+        private def _is_global_parameter(key: String) = true
+
+        // FUTURE : control binding scope (e.g. eliminates setup.bindings, config.bindings)
+        private def _get_binding(key: String): Option[SExpr] = 
+          universe.getBinding(key)
+
+        private def _add(p: Slot) = copy(slots = slots :+ p)
+      }
+      paramnames.takeRight(nn)./:(Z())(_+_).r
+
+      // universe.makeStackParameters(nn) match {
+      //   case \/-((u, xs)) => (u, SList.create(m.list ::: xs))
+      //   case -\/(e) => (universe, e)
+      // }
     } else {
       (universe, m)
     }
