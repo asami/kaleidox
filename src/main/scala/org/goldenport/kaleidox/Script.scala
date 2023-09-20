@@ -16,13 +16,17 @@ import org.goldenport.sexpr.script.Script.StringLiteralTokenizer
  *  version Jul. 15, 2019
  *  version Jan. 22, 2021
  *  version Feb. 11, 2021
- * @version Mar. 16, 2021
+ *  version Mar. 16, 2021
+ *  version Jul. 31, 2023
+ * @version Aug.  5, 2023
  * @author  ASAMI, Tomoharu
  */
 case class Script(
   expressions: Vector[Expression] = Vector.empty
 ) extends Model.Division {
   import Model._
+
+  val name = "script"
 
   def isEmpty = expressions.isEmpty
 
@@ -108,18 +112,22 @@ object Script extends Model.DivisionFactory {
     import org.smartdox._
     import org.smartdox.parser.Dox2Parser
 
-    private val _config = Dox2Parser.Config.orgmodeInline
+    val config = Dox2Parser.Config.orgmodeInline
 
-    case class DoxDocument(dox: Dox) extends IDocument {
+    case class DoxDocument(text: String, dox: Dox) extends IDocument {
+      def print = text
     }
 
     def name = "dox"
-    def literal(p: String): SExpr = {
-      val parser = new Dox2Parser(_config)
+
+    def literal(p: String): SExpr = parse(config, p)
+
+    def parse(c: Dox2Parser.Config, p: String): SExpr = {
+      val parser = new Dox2Parser(c)
       parser.apply(p) match {
-        case ParseSuccess(dox, _) => SDocument(DoxDocument(dox))
+        case ParseSuccess(dox, _) => SDocument(DoxDocument(p, dox))
         case m: ParseFailure[_] => SError.syntaxError(m)
-        case EmptyParseResult() => SDocument(DoxDocument(Dox.empty))
+        case EmptyParseResult() => SDocument(DoxDocument(p, Dox.empty))
       }
     }
   }

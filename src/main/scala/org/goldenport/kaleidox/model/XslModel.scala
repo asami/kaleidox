@@ -9,12 +9,21 @@ import org.goldenport.kaleidox._
 
 /*
  * @since   Jun. 25, 2021
- * @version Jun. 26, 2021
+ *  version Jun. 26, 2021
+ * @version Aug. 21, 2023
  * @author  ASAMI, Tomoharu
  */
 case class XslModel(
   classes: TreeMap[XslModel.XslClass]
-) {
+) extends Model.ISubModel {
+  val name = "xsl"
+
+  protected def print_String: String = classes.values.map(x => x.name).mkString(",")
+
+  protected def display_String: String = classes.values.map(x => x.name).mkString(",")
+
+  protected def show_String: String = classes.values.map(x => x.name).mkString(",")
+
   def isEmpty = classes.isEmpty
   def toOption: Option[XslModel] = if (isEmpty) None else Some(this)
 

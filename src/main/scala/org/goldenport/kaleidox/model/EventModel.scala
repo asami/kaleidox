@@ -10,12 +10,21 @@ import org.goldenport.kaleidox._
  * @since   May.  5, 2021
  *  version May. 23, 2021
  *  version Jun. 26, 2021
- * @version Oct. 31, 2021
+ *  version Oct. 31, 2021
+ * @version Aug. 21, 2023
  * @author  ASAMI, Tomoharu
  */
 case class EventModel(
   rule: EventRule = EventRule.empty
-) {
+) extends Model.ISubModel {
+  val name = "schema"
+
+  protected def display_String: String = rule.display
+
+  protected def print_String: String = rule.print
+
+  protected def show_String: String = rule.show
+
   def isEmpty: Boolean = rule.isEmpty
   def toOption: Option[EventModel] = if (isEmpty) None else Some(this)
 

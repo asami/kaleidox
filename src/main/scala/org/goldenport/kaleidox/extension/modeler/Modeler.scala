@@ -6,7 +6,7 @@ import org.goldenport.kaleidox.lisp.Context
 
 /*
  * @since   Dec. 18, 2021
- * @version Dec. 18, 2021
+ * @version Aug.  4, 2023
  * @author  ASAMI, Tomoharu
  */
 trait Modeler {
@@ -14,6 +14,11 @@ trait Modeler {
     c: Context,
     name: String,
     resourceid: Option[String]
+  ): SExpr
+
+  def generateDiagram(
+    c: Context,
+    model: SModel
   ): SExpr
 }
 
@@ -23,6 +28,11 @@ object Modeler {
       c: Context,
       name: String,
       resourceid: Option[String]
+    ): SExpr = RAISE.unsupportedOperationFault
+
+    def generateDiagram(
+      c: Context,
+      model: SModel
     ): SExpr = RAISE.unsupportedOperationFault
   }
 }

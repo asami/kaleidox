@@ -10,12 +10,21 @@ import org.goldenport.kaleidox._
 /*
  * @since   May.  4, 2021
  *  version May. 23, 2021
- * @version Jun. 27, 2021
+ *  version Jun. 27, 2021
+ * @version Aug. 21, 2023
  * @author  ASAMI, Tomoharu
  */
 case class StateMachineModel(
   classes: TreeMap[StateMachineClass] = TreeMap.empty
-) {
+) extends Model.ISubModel {
+  val name = "stateMachine"
+
+  protected def display_String: String = classes.values.map(x => x.name).mkString(",")
+
+  protected def print_String: String = classes.values.map(x => x.name).mkString(",")
+
+  protected def show_String: String = classes.values.map(x => x.name).mkString(",")
+
   def isEmpty: Boolean = classes.isEmpty
   def toOption: Option[StateMachineModel] = if (isEmpty) None else Some(this)
 

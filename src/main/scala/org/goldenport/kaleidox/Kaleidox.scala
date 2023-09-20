@@ -43,7 +43,8 @@ import org.goldenport.util.StringUtils
  *  version Sep. 25, 2021
  *  version Dec. 18, 2021
  *  version Jan.  1, 2023
- * @version Jul. 22, 2023
+ *  version Jul. 22, 2023
+ * @version Aug.  3, 2023
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -162,7 +163,7 @@ case class Kaleidox(
 
   private def _conf_model: Model = _implicit_model_files.foldMap(Model.load(config, _))
 
-  private def _implicit_model_files: List[File] = {
+  private def _implicit_model_files_0: List[File] = {
     val home = config.homeDirectory.map(x => new File(x, ".init.kld"))
     val homeindir = config.homeDirectory.map(x => new File(x, ".kaleidox/init.kld"))
     val projectimplicit = config.getProjectDirectory.map(x => new File(x, ".init.kld"))
@@ -178,6 +179,92 @@ case class Kaleidox(
       work
     ).flatten.distinct.filter(_.exists)
   }
+
+  private val _suffixes = List("kld", "kdox", "cozy")
+
+  private def _implicit_model_files: List[File] = {
+    val homedir = config.homeDirectory
+    val projectdir = config.getProjectDirectory
+    val workdir = config.workDirectory
+
+    def _is_home_(x: File) = homedir.fold(false)(_ == x)
+
+    def _is_project_(x: File) = projectdir.fold(false)(_ == x)
+
+    def _is_home_decendant_ = {
+      def _go_(x: File): Boolean = {
+        if (_is_home_(x))
+          true
+        else
+          Option(x.getParentFile).fold(false)(_go_)
+      }
+      if (homedir.isEmpty)
+        false
+      else
+        workdir.fold(false)(_go_)
+    }
+
+    def _is_project_decendant_ = {
+      def _go_(x: File): Boolean = {
+        if (_is_project_(x))
+          true
+        else
+          Option(x.getParentFile).fold(false)(_go_)
+      }
+      if (projectdir.isEmpty)
+        false
+      else
+        workdir.fold(false)(_go_)
+    }
+
+    def _implicit_model_files_home_ = {
+      def _go_(x: File): List[File] = {
+        val xs = _implicit_model_files_in_directory(x)
+        if (_is_home_(x))
+          xs
+        else
+          Option(x.getParentFile) match {
+            case Some(s) => _go_(s) ::: xs
+            case None => xs
+          }
+      }
+      workdir.fold(nil[File])(_go_)
+    }
+
+    def _implicit_model_files_project_ = {
+      def _go_(x: File): List[File] = {
+        val xs = _implicit_model_files_in_directory(x)
+        if (_is_project_(x))
+          xs
+        else
+          Option(x.getParentFile) match {
+            case Some(s) => _go_(s) ::: xs
+            case None => xs
+          }
+      }
+      workdir.fold(nil[File])(_go_)
+    }
+
+    def _implicit_model_files_standalone_ = _implicit_model_files_0 // TODO
+
+    if (_is_home_decendant_)
+      _implicit_model_files_home_
+    else if (_is_project_decendant_)
+      _implicit_model_files_project_
+    else
+      _implicit_model_files_standalone_
+  }
+
+  private def _implicit_model_files_in_directory_with_hidden(dir: File): List[File] = {
+    val a = _implicit_model_files_in_directory(dir)
+    val b1 = dir.listFiles().toList.filter(x =>
+      List(".kaleidox", ".cozy").contains(x.getName) && x.isDirectory)
+    val b = b1.foldLeft(nil[File])((z, x) => z ::: _implicit_model_files_in_directory(x))
+    a ::: b
+  }
+
+  private def _implicit_model_files_in_directory(dir: File): List[File] =
+    dir.listFiles().toList.filter(x => StringUtils.isSuffix(x.getName, _suffixes))
 
   private def _in_model(call: OperationCall): Model = {
     val args = call.argumentsAsString

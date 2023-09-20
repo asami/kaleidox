@@ -4,6 +4,7 @@ import scalaz._, Scalaz._
 import com.typesafe.config.{Config => Hocon, ConfigFactory, ConfigObject}
 import org.smartdox.{Dox, Section}
 import org.goldenport.RAISE
+import org.goldenport.context.Showable
 import org.goldenport.hocon.RichConfig.Implicits._
 import org.goldenport.parser._
 import org.goldenport.record.v2.{Schema, Column, SqlSchema}
@@ -31,14 +32,23 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Oct. 31, 2021
  *  version Nov. 28, 2021
  *  version Dec. 31, 2021
- * @version Apr. 23, 2023
+ *  version Apr. 23, 2023
+ * @version Aug. 21, 2023
  * @author  ASAMI, Tomoharu
  */
 case class EntityModel(
   factory: KaleidoxEntityFactory,
   classes: VectorMap[String, EntityModel.EntityClass]
-) extends ISchemaModel {
+) extends Model.ISubModel with ISchemaModel {
   import EntityModel._
+
+  val name = "entity"
+
+  protected def display_String: String = classes.values.map(_.name).mkString(",")
+
+  protected def print_String: String = classes.values.map(_.name).mkString(",")
+
+  protected def show_String: String = classes.values.map(_.name).mkString(",")
 
   def isEmpty: Boolean = classes.isEmpty
   def toOption: Option[EntityModel] = if (isEmpty) None else Some(this)
@@ -76,12 +86,18 @@ object EntityModel {
     schemaClass: SchemaClass,
     parents: List[EntityClass.ParentRef],
     store: IEntityClass.Store = IEntityClass.Store()
-  ) extends IEntityClass {
+  ) extends IEntityClass with Showable.Base {
     def name = schemaClass.name
     def schema = schemaClass.schema
     def stateMachines: Vector[StateMachineClass] = schemaClass.stateMachines
 
     def isResolved: Boolean = parents.forall(_.isResolved)
+
+    protected def print_String: String = schemaClass.print
+
+    protected def display_String: String = schemaClass.display
+
+    protected def show_String: String = schemaClass.show
 
     private def _id_name = "id" // TODO
 

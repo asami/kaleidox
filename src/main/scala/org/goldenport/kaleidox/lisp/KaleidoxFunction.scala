@@ -1,8 +1,12 @@
 package org.goldenport.kaleidox.lisp
 
 import scalaz._, Scalaz._
+import Validation.FlatMap._
 // import org.simplemodeling.model._
+import java.nio.charset.Charset
 import org.goldenport.RAISE
+import org.goldenport.io.InputSource
+import org.goldenport.parser._
 import org.goldenport.event._
 import org.goldenport.statemachine._
 import org.goldenport.statemachine.{ExecutionContext => StateMachineContext}
@@ -10,6 +14,7 @@ import org.goldenport.sexpr._
 import org.goldenport.sexpr.eval._
 import org.goldenport.sexpr.eval.entity.EntityId
 import LispFunction.CursorResult
+import org.goldenport.kaleidox.Model
 import org.goldenport.kaleidox.model.sexpr._
 import org.goldenport.kaleidox.model.diagram._
 
@@ -22,7 +27,10 @@ import org.goldenport.kaleidox.model.diagram._
  *  version Sep. 26, 2021
  *  version Oct. 31, 2021
  *  version Nov. 29, 2021
- * @version Dec. 18, 2021
+ *  version Dec. 18, 2021
+ *  version Jul. 31, 2023
+ *  version Aug. 21, 2023
+ * @version Sep. 16, 2023
  * @author  ASAMI, Tomoharu
  */
 object KaleidoxFunction {
@@ -61,7 +69,12 @@ object KaleidoxFunction {
     Event.Issue,
     Event.Call,
     StateMachine.New,
-    StateMachine.Diagram
+    StateMachine.Diagram,
+    SmartDox.Load,
+    SmartDox.Html,
+    Modeler.Current,
+    Modeler.Load,
+    Modeler.Diagram
   )
 
   object Event {
@@ -430,5 +443,162 @@ object KaleidoxFunction {
       //   SimpleModel(Vector(sm))
       // }
     }
+  }
+
+  object SmartDox {
+    import org.goldenport.kaleidox.Script
+
+    private val _config = Script.DoxLiteralTokenizer.config
+
+    case object Load extends KaleidoxEvalFunction {
+      val specification = FunctionSpecification(
+        "dox-load",
+        param_argument("file"),
+        param_argument_option("charset")
+      )
+
+      def eval(c: Context): CursorResult = for {
+        text <- c.param.textInFile(c)
+      } yield text.flatMap(_load(c))
+
+      private def _load(c: Context)(text: String): ValidationNel[SError, SExpr] =
+        SExpr.executeValidationNel(load(c, text))
+
+      def load(c: Context, text: String): SExpr = {
+        Script.DoxLiteralTokenizer.parse(_config, text)
+      }
+    }
+
+    case object Html extends KaleidoxEvalFunction {
+      import org.goldenport.cli.Environment
+      import org.goldenport.realm.Realm
+      import org.smartdox.Dox
+      import org.smartdox.parser.Dox2Parser
+      import org.smartdox.generator.{Context => DoxContext}
+      import org.smartdox.generators.Dox2HtmlGenerator
+
+      val specification = FunctionSpecification(
+        "dox-html",
+        param_argument("dox"),
+        param_argument_option("charset")
+      )
+
+      def eval(c: Context): CursorResult = for {
+        text <- c.param.textInFile(c)
+      } yield text.flatMap(_html(c))
+
+      private def _html(c: Context)(p: String): ValidationNel[SError, SExpr] = {
+        for {
+          dox <- _parse(p)
+          r <- SExpr.executeValidationNel(html(c, dox))
+        } yield r
+      }
+
+      private def _parse(p: String): ValidationNel[SError, Dox] = {
+        val c = Script.DoxLiteralTokenizer.config
+        val parser = new Dox2Parser(c)
+        parser.apply(p) match {
+          case ParseSuccess(dox, _) => Success(dox)
+          case m: ParseFailure[_] => Failure(SError.syntaxError(m)).toValidationNel
+          case EmptyParseResult() => Success(Dox.empty)
+        }
+      }
+
+      def html(c: Context, text: String): SExpr = 
+        _parse(text) match {
+          case Success(s) => html(c, s)
+          case Failure(e) => e.list.head.RAISE
+        }
+
+      def html(c: Context, dox: Dox): SExpr = {
+        val env = Environment.create()
+        val ctx = DoxContext.create(env)
+        val b = Realm.Builder()
+        b.setObject("article.dox", dox)
+        val in = b.build()
+        val htmltx = new Dox2HtmlGenerator(ctx)
+        val r = htmltx.generate(in)
+        r.get("html.d/article.html") match {
+          case Some(s) => STree.sexpr(s) match {
+            case SString(s) => SHtml(s)
+            case m => m
+          }
+          case None => STree(r)
+        }
+      }
+    }
+  }
+
+  object Modeler {
+    case object Current extends KaleidoxEvalFunction {
+      val specification = FunctionSpecification(
+        "modeler-current"
+      )
+
+      def eval(c: Context): CursorResult = for {
+        r <- c.param.lift(SModel(c.universe.model))
+      } yield r
+    }
+
+    case object Load extends KaleidoxEvalFunction {
+      val specification = FunctionSpecification(
+        "modeler-load",
+        param_argument("model"),
+        param_argument_option("charset")
+      )
+
+      def eval(c: Context): CursorResult = for {
+        text <- c.param.textInFile(c)
+      } yield text.flatMap(_parse(c))
+
+      private def _parse(c: Context)(text: String): ValidationNel[SError, SExpr] = {
+        val m = Model.parse(c.config, text)
+        Success(SModel(m))
+      }
+    }
+
+    case object Diagram extends KaleidoxEvalFunction {
+      val specification = FunctionSpecification(
+        "modeler-diagram",
+        param_argument("model"),
+        param_argument_option("charset")
+      )
+
+      def eval(c: Context): CursorResult = for {
+        textormodel <- c.param.textInFileOr(c) {
+          case m: Model => m
+          case m: SModel => m.model
+        }
+      } yield textormodel.flatMap(_diagram(c))
+
+      private def _diagram(c: Context)(p: Either[String, IModel]): ValidationNel[SError, SExpr] = for {
+        model <- make_model(c, p)
+      } yield c.config.extension.modeler.generateDiagram(c, model)
+    }
+
+    protected def make_model(c: Context, p: Either[String, IModel]): ValidationNel[SError, SModel] = {
+      val a = p match {
+        case Right(r) => r
+        case Left(l) => Model.parse(c.config, l)
+      }
+      val model = SModel(a)
+      Success(model)
+    }
+
+    case object Vocabulary extends KaleidoxEvalFunction {
+      val specification = FunctionSpecification(
+        "modeler-vocabulary",
+        param_argument("model"),
+        param_argument_option("charset")
+      )
+
+      def eval(c: Context): CursorResult = for {
+        text <- c.param.textInFile(c)
+      } yield text.flatMap(_vocabulary(c))
+
+      private def _vocabulary(c: Context)(text: String): ValidationNel[SError, SExpr] =
+        RAISE.notImplementedYetDefect
+    }
+
   }
 }

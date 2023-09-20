@@ -4,6 +4,7 @@ import scalaz._, Scalaz._
 import com.typesafe.config.{Config => Hocon, ConfigFactory, ConfigObject}
 import org.smartdox._
 import org.goldenport.RAISE
+import org.goldenport.context.Showable
 import org.goldenport.hocon.RichConfig.Implicits._
 import org.goldenport.collection.VectorMap
 import org.goldenport.parser._
@@ -14,13 +15,25 @@ import org.goldenport.kaleidox._
 /*
  * @since   May. 13, 2021
  *  version May. 14, 2021
- * @version Jan. 22, 2023
+ *  version Jan. 22, 2023
+ * @version Aug. 21, 2023
  * @author  ASAMI, Tomoharu
  */
 case class DataStoreModel(
   classes: VectorMap[String, DataStoreModel.CollectionModel] = VectorMap.empty
-) {
+) extends Model.ISubModel {
   import DataStoreModel._
+
+  val name = "dataStore"
+
+
+  protected def display_String: String = classes.values.map(x => x.name).mkString(",")
+
+  protected def print_String: String =
+    classes.values.map(x => s"${x.print}").mkString("\n")
+
+  protected def show_String: String =
+    classes.values.map(x => s"${x.display}").mkString(",")
 
   def isEmpty: Boolean = classes.isEmpty
   def toOption: Option[DataStoreModel] = if (isEmpty) None else Some(this)
@@ -41,7 +54,12 @@ object DataStoreModel {
     table: Option[String],
     schema: Either[Schema, String],
     data: Option[Table] = None
-  ) {
+  ) extends Showable.Base {
+    protected def print_String: String = s"$label_string"
+
+    protected def display_String: String = s"$label_string"
+
+    protected def show_String: String = s"$label_string"
   }
   object CollectionModel {
     val PROP_DS_NAME = "name"

@@ -8,7 +8,9 @@ import org.smartdox.parser.Dox2Parser
 import org.smartdox.{Dox, Section}
 import org.goldenport.RAISE
 import org.goldenport.Strings
+import org.goldenport.context.Showable
 import org.goldenport.sexpr.{SExpr, SAtom, SKeyword, SList}
+import org.goldenport.sexpr.IModel
 import org.goldenport.exception.SyntaxErrorFaultException
 import org.goldenport.i18n.I18NElement
 import org.goldenport.collection.TreeMap
@@ -16,6 +18,7 @@ import org.goldenport.parser._
 import org.goldenport.hocon.{RichConfig, HoconUtils}
 import org.goldenport.bag.BufferBag
 import org.goldenport.io.IoUtils
+import org.goldenport.util.StringUtils
 import org.goldenport.parser.ParseMessage
 import org.goldenport.record.v2.{Schema, Column}
 import org.goldenport.record.v3.{IRecord, SingleValue, MultipleValue, EmptyValue}
@@ -46,7 +49,9 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Oct. 23, 2021
  *  version Dec. 31, 2021
  *  version Nov. 28, 2022
- * @version Jan. 23, 2023
+ *  version Jan. 23, 2023
+ *  version Aug. 21, 2023
+ * @version Sep. 18, 2023
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -56,7 +61,7 @@ case class Model(
   libraries: Libraries,
   errors: Vector[ErrorMessage] = Vector.empty,
   warnings: Vector[WarningMessage] = Vector.empty
-) {
+) extends IModel {
   import Model._
 
   def entityFactory = config.entityFactory
@@ -72,6 +77,31 @@ case class Model(
   //   case (None, Some(v)) => DataSet.Builder.Context(config, v)
   //   case (Some(s), Some(v)) => DataSet.Builder.Context(config, s, v)
   // }
+
+  private val _models: Vector[ISubModel] = Vector(
+      getServiceModel,
+      getEntityModel,
+      getSchemaModel,
+      getValueModel,
+      getStateMachineModel,
+      getDataSet,
+      getDataStore,
+      getDataBag,
+      getXslModel
+    ).flatten
+
+  def display = {
+    _models.map(_.display).mkString(";")
+  }
+
+  def print = {
+    // divisions.map(_.print).mkString("\n")
+    _models.map(_.print).mkString("\n")
+  }
+
+  def show = {
+    _models.map(_.display).mkString(";")
+  }
 
   def signature: Signature = NoneSignature
 
@@ -112,6 +142,8 @@ case class Model(
       case m: SchemaDivision => m.makeModel
     }.concatenate.toOption
 
+  lazy val takeSchemaModel: SchemaModel = getSchemaModel getOrElse SchemaModel.empty
+
   lazy val getValueModel: Option[ValueModel] =
     divisions.collect {
       case m: ValueDivision => m.makeModel
@@ -128,6 +160,8 @@ case class Model(
     }
     a.headOption.map(h => a.tail.foldLeft(h)((z, x) => z + x))
   }
+
+  lazy val takeEntityModel: EntityModel = getEntityModel getOrElse EntityModel.empty(entityFactory)
 
   lazy val getServiceModel: Option[ServiceModel] =
     divisions.collect {
@@ -220,7 +254,9 @@ object Model {
     def append(lhs: Model, rhs: => Model) = lhs + rhs
   }
 
-  trait Division {
+  trait Division extends Showable {
+    def name: String
+
     override def toString() = try {
       super.toString()
     } catch {
@@ -231,6 +267,11 @@ object Model {
 
     protected final def to_hocon(p: LogicalParagraph): RichConfig =
       p.lines.lines.map(x => HoconUtils.parse(x.text)).concatenate
+
+    def print: String = s"[${StringUtils.capitalize(name)}]${print_Summary}\n${print_Description}"
+
+    protected def print_Summary: String = ""
+    protected def print_Description: String = ""
   }
   object Division {
     val elements = Vector(
@@ -276,6 +317,8 @@ object Model {
   }
 
   case class IdentificationDivision(section: LogicalSection) extends Division {
+    val name = "identification"
+
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: IdentificationDivision => copy(section + m.section)
     }
@@ -287,6 +330,8 @@ object Model {
   }
 
   case class ImportDivision(section: LogicalSection) extends Division {
+    val name = "import"
+
     def locators: Vector[/*ImportedModel.Locator*/Locator] = {
       val a = section.blocks.blocks map {
         case m: LogicalParagraph => _paragraph(m)
@@ -324,6 +369,8 @@ object Model {
   }
 
   case class SignatureDivision(section: LogicalSection) extends Division {
+    val name = "signature"
+
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: SignatureDivision => copy(section + m.section)
     }
@@ -338,6 +385,8 @@ object Model {
     text: LogicalSection,
     properties: IRecord
   ) extends Division {
+    val name = "environment"
+
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: EnvironmentDivision => copy(text + m.text, properties + m.properties)
     }
@@ -370,6 +419,8 @@ object Model {
   case class DataDivision(
     section: LogicalSection
   ) extends Division {
+    val name = "data"
+
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: DataDivision => copy(section + m.section)
     }
@@ -384,6 +435,8 @@ object Model {
   case class DataStoreDivision(
     section: LogicalSection
   ) extends Division {
+    val name = "dataStore"
+
     def makeModel(context: DataSet.Builder.Context): DataStoreModel = {
       _make_datastores(context, section)
     }
@@ -425,6 +478,8 @@ object Model {
   case class DataBagDivision(
     section: LogicalSection
   ) extends Division {
+    val name = "dataBag"
+
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: DataBagDivision => copy(section + m.section)
     }
@@ -441,6 +496,8 @@ object Model {
   case class DataSourceDivision(
     section: LogicalSection
   ) extends Division {
+    val name = "dataSource"
+
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: DataSourceDivision => copy(section + m.section)
     }
@@ -455,6 +512,8 @@ object Model {
   case class XslDivision(
     section: LogicalSection
   ) extends Division {
+    val name = "Xsl"
+
     def makeModel(config: Config): XslModel = XslModel.create(config, section)
 
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
@@ -470,6 +529,8 @@ object Model {
 
   // TODO literal document (not value object)
   case class DocumentDivision(section: LogicalSection) extends Division {
+    val name = "document"
+
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: DocumentDivision => copy(section + m.section)
     }
@@ -480,6 +541,8 @@ object Model {
   }
 
   case class VoucherDivision(section: LogicalSection) extends Division {
+    val name = "voucher"
+
     def makeModel: VoucherModel = {
       val doxconfig = Dox2Parser.Config.default // TODO
       val dox = Dox2Parser.parse(doxconfig, section)
@@ -516,6 +579,8 @@ object Model {
   }
 
   case class SchemaDivision(section: LogicalSection) extends Division {
+    val name = "schema"
+
     def makeModel: SchemaModel = {
       val doxconfig = Dox2Parser.Config.default // TODO
       val dox = Dox2Parser.parse(doxconfig, section)
@@ -552,6 +617,8 @@ object Model {
   }
 
   case class ServiceDivision(section: LogicalSection) extends Division {
+    val name = "service"
+
     def makeModel(config: Config): ServiceModel = {
       val doxconfig = Dox2Parser.Config.default // TODO
       val dox = Dox2Parser.parse(doxconfig, section)
@@ -589,6 +656,8 @@ object Model {
   }
 
   case class ValueDivision(section: LogicalSection) extends Division {
+    val name = "value"
+
     def makeModel: ValueModel = {
       val doxconfig = Dox2Parser.Config.default // TODO
       val dox = Dox2Parser.parse(doxconfig, section)
@@ -622,6 +691,8 @@ object Model {
   }
 
   case class SlipDivision(section: LogicalSection) extends Division {
+    val name = "slip"
+
     def makeModel: SlipModel = {
       val doxconfig = Dox2Parser.Config.default // TODO
       val dox = Dox2Parser.parse(doxconfig, section)
@@ -655,6 +726,8 @@ object Model {
   }
 
   case class EntityDivision(section: LogicalSection) extends Division {
+    val name = "entity"
+
     def makeModel(s: Option[SchemaModel], f: KaleidoxEntityFactory): EntityModel = {
       val a = section.sections.foldLeft(EntityModel.empty(f))((z, x) => z + EntityModel.create(s, f, x))
       a.resolve()
@@ -693,6 +766,8 @@ object Model {
   }
 
   case class EventDivision(section: LogicalSection) extends Division {
+    val name = "event"
+
     def makeModel(config: Config): EventModel = EventModel.create(config, section)
 
     // def makeModel(config: Config): EventModel = {
@@ -730,6 +805,8 @@ object Model {
   }
 
   case class StateMachineDivision(section: LogicalSection) extends Division {
+    val name = "stateMachine"
+
     def makeModel(config: Config): StateMachineModel = StateMachineModel.create(config, section)
 
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
@@ -742,6 +819,8 @@ object Model {
   }
 
   case class PrologueDivision(section: LogicalSection) extends Division {
+    val name = "prologue"
+
     def getScript(config: Config): Option[Script] = Script.parseOption(config, section)
 
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
@@ -754,6 +833,8 @@ object Model {
   }
 
   case class EpilogueDivision(section: LogicalSection) extends Division {
+    val name = "epilogue"
+
     def getScript(config: Config): Option[Script] = Script.parseOption(config, section)
 
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
@@ -766,6 +847,8 @@ object Model {
   }
 
   case class TestDivision(section: LogicalSection) extends Division {
+    val name = "test"
+
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: TestDivision => copy(section + m.section)
     }
@@ -863,6 +946,12 @@ object Model {
 
   //   val empty = ImportingModels()
   // }
+
+  trait ISubModel extends Showable.Base {
+  }
+
+  trait ISchemaSubModel extends ISchemaModel with ISubModel {
+  }
 
   def apply(config: Config, p: Division, ps: Division*): Model = Model(config, p +: ps.toVector, Libraries.empty) // ImportedModels.empty)
 

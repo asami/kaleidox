@@ -11,6 +11,7 @@ import org.goldenport.record.v3.Record
 import org.goldenport.record.v3.Field
 import org.goldenport.record.v3.ValueDomain
 import org.goldenport.context.Consequence
+import org.goldenport.context.Showable
 import org.goldenport.parser._
 import org.goldenport.sexpr.SSchema
 import org.goldenport.sexpr.eval.entity.EntityId
@@ -30,13 +31,22 @@ import org.goldenport.kaleidox._
  *  version Oct. 31, 2021
  *  version Nov. 20, 2021
  *  version Dec. 31, 2021
- * @version Feb. 24, 2022
+ *  version Feb. 24, 2022
+ * @version Aug. 21, 2023
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
   classes: VectorMap[String, SchemaModel.SchemaClass]
-) extends ISchemaModel {
+) extends Model.ISchemaSubModel {
   import SchemaModel._
+
+  val name = "schema"
+
+  protected def display_String: String = classes.values.map(x => x.name).mkString(",")
+
+  protected def print_String: String = classes.values.map(x => x.name).mkString(",")
+
+  protected def show_String: String = classes.values.map(x => x.name).mkString(",")
 
   def isEmpty: Boolean = classes.isEmpty
   def toOption: Option[SchemaModel] = if (isEmpty) None else Some(this)
@@ -80,7 +90,7 @@ object SchemaModel {
     name: String,
     features: SchemaClass.Features,
     slots: Vector[Slot]
-  ) extends ISchemaClass {
+  ) extends ISchemaClass with Showable.Base {
     lazy val schema: Schema = {
       val columns = slots.map(_.toColumn)
       tableName match {
@@ -186,6 +196,16 @@ object SchemaModel {
     val itemName = Vector("項目", "item")
     val valueName = Vector("値", "value")
     val tableName = Vector("テーブル", "表", "table")
+
+    trait SchemaClassContainer extends Showable.Base {
+      def schemaClass: SchemaClass
+
+      protected def display_String: String = "SchemaClassContainer"
+
+      protected def print_String: String = "SchemaClassContainer"
+
+      protected def show_String: String = "SchemaClassContainer"
+    }
 
     case class Features(
       tableName: Option[String] = None,
@@ -534,6 +554,10 @@ object SchemaModel {
       }
       rs./:(Z())(_+_).r
     }
+
+    def print(p: Schema): String = p.columns.map(_.name).mkString(",")
+    def display(p: Schema): String = p.columns.map(_.name).mkString(",")
+    def show(p: Schema): String = p.columns.map(_.name).mkString(",")
   }
 
   trait Slot {

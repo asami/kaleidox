@@ -26,13 +26,22 @@ import VoucherModel._
  *  version Feb. 28, 2021
  *  version Mar.  8, 2021
  *  version Jun. 25, 2021
- * @version Jan. 22, 2023
+ *  version Jan. 22, 2023
+ * @version Aug. 21, 2023
  * @author  ASAMI, Tomoharu
  */
 case class DataSet(
   slots: VectorMap[Symbol, DataSet.Slot] = VectorMap.empty,
   parseMessages: ParseMessageSequence = ParseMessageSequence.empty
-) {
+) extends Model.ISubModel {
+  val name = "dataSet"
+
+  protected def display_String: String = "dataSet"
+
+  protected def print_String: String = "dataSet"
+
+  protected def show_String: String = "dataSet"
+
   def setup(p: Space): Space = {
     val rs: Seq[Field] = slots.vector.map {
       case (k, v) => Field(k, SingleValue(v.data))

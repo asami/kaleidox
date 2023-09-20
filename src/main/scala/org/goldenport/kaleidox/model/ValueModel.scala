@@ -2,6 +2,7 @@ package org.goldenport.kaleidox.model
 
 import scalaz._, Scalaz._
 import org.smartdox.{Dox, Section}
+import org.goldenport.context.Showable
 import org.goldenport.record.v2.{Schema, Column, SqlSchema}
 import org.goldenport.record.v3.Record
 import org.goldenport.sexpr.SSchema
@@ -11,13 +12,22 @@ import org.goldenport.kaleidox.model.SchemaModel.SchemaClass
 
 /*
  * @since   Jun. 25, 2021
- * @version Jun. 27, 2021
+ *  version Jun. 27, 2021
+ * @version Aug. 21, 2023
  * @author  ASAMI, Tomoharu
  */
 case class ValueModel(
   classes: VectorMap[String, ValueModel.ValueClass]
-) extends ISchemaModel {
+) extends Model.ISubModel with ISchemaModel {
   import ValueModel._
+
+  val name = "value"
+
+  protected def display_String: String = classes.values.map(x => x.name).mkString("\n")
+
+  protected def print_String: String = classes.values.map(x => x.name).mkString("\n")
+
+  protected def show_String: String = classes.values.map(x => x.name).mkString("\n")
 
   def isEmpty: Boolean = classes.isEmpty
   def toOption: Option[ValueModel] = if (isEmpty) None else Some(this)
@@ -47,7 +57,7 @@ object ValueModel {
 
   case class ValueClass(
     schemaClass: SchemaClass
-  ) {
+  ) extends SchemaClass.SchemaClassContainer {
     def name = schemaClass.name
     def schema = schemaClass.schema
   }

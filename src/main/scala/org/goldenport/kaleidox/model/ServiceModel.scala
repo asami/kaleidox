@@ -20,12 +20,21 @@ import org.goldenport.kaleidox._
  *  version Apr. 29, 2021
  *  version May. 27, 2021
  *  version Jun. 20, 2021
- * @version Oct.  1, 2022
+ *  version Oct.  1, 2022
+ * @version Aug. 21, 2023
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
   classes: VectorMap[String, ServiceModel.ServiceClass] = VectorMap.empty
-) {
+) extends Model.ISubModel {
+  val name = "service"
+
+  protected def display_String: String = classes.values.map(x => x.name).mkString(",")
+
+  protected def print_String: String = classes.values.map(x => x.name).mkString(",")
+
+  protected def show_String: String = classes.values.map(x => x.name).mkString(",")
+
   def isEmpty: Boolean = classes.isEmpty
   def toOption: Option[ServiceModel] = if (isEmpty) None else Some(this)
 

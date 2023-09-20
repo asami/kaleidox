@@ -4,6 +4,7 @@ import scalaz._, Scalaz._
 import org.goldenport.record.v2.{Schema, Column, SqlSchema}
 import org.goldenport.record.v3.Record
 import org.goldenport.sexpr.SSchema
+import org.goldenport.context.Showable
 import org.goldenport.collection.VectorMap
 import org.goldenport.kaleidox._
 import VoucherModel._
@@ -16,7 +17,8 @@ import VoucherModel._
  *  version Dec.  7, 2019
  *  version Jan.  9, 2021
  *  version Feb. 23, 2021
- * @version Jun. 25, 2021
+ *  version Jun. 25, 2021
+ * @version Aug. 21, 2023
  * @author  ASAMI, Tomoharu
  */
 case class VoucherModel(
@@ -56,7 +58,7 @@ object VoucherModel {
     name: String,
     features: VoucherClass.Features,
     slots: Vector[Slot]
-  ) extends ISchemaClass {
+  ) extends ISchemaClass with Showable.Base {
     lazy val schema: Schema = {
       val tablename = features.tableName
       val columns = slots.map(_.toColumn)
