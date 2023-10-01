@@ -13,6 +13,7 @@ import org.goldenport.matrix.INumericalOperations
 import org.goldenport.record.unitofwork.interpreter._
 import org.goldenport.record.v3.sql.SqlContext
 import org.goldenport.record.store.StoreFactory
+import org.goldenport.record.store.Query
 import org.goldenport.record.query.QueryExpression
 import org.goldenport.statemachine.StateMachineSpace
 import org.goldenport.util.DateTimeUtils
@@ -41,7 +42,8 @@ import org.goldenport.kaleidox.extension.modeler.Modeler
  *  version Dec. 19, 2021
  *  version Apr.  4, 2022
  *  version Dec. 15, 2022
- * @version Jul. 22, 2023
+ *  version Jul. 22, 2023
+ * @version Sep. 30, 2023
  * @author  ASAMI, Tomoharu
  */
 case class Config(
@@ -75,8 +77,11 @@ case class Config(
   def dateTimeContext = cliConfig.dateTimeContext
   def i18nContext = cliConfig.i18n
   def mathContext = cliConfig.mathContext
-  def createQueryContext() = QueryExpression.Context(
-    DateTimeUtils.toDateTime(System.currentTimeMillis, i18nContext.dateTimeZone)
+  def createQueryContext() = Query.Context(
+    Query.Context.Default.default,
+    QueryExpression.Context(
+      DateTimeUtils.toDateTime(System.currentTimeMillis, i18nContext.dateTimeZone)
+    )
   )
   def logConfig = cliConfig.log
   def charset = cliConfig.charset

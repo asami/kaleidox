@@ -33,7 +33,8 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Nov. 28, 2021
  *  version Dec. 31, 2021
  *  version Apr. 23, 2023
- * @version Aug. 21, 2023
+ *  version Aug. 21, 2023
+ * @version Sep. 30, 2023
  * @author  ASAMI, Tomoharu
  */
 case class EntityModel(
@@ -88,6 +89,7 @@ object EntityModel {
     store: IEntityClass.Store = IEntityClass.Store()
   ) extends IEntityClass with Showable.Base {
     def name = schemaClass.name
+    def packageName = "domain" // TODO
     def schema = schemaClass.schema
     def stateMachines: Vector[StateMachineClass] = schemaClass.stateMachines
 
