@@ -3,6 +3,7 @@ package org.goldenport.kaleidox.model
 import scalaz._, Scalaz._
 import com.typesafe.config.{Config => Hocon, ConfigFactory, ConfigObject}
 import org.smartdox.{Dox, Section}
+import org.smartdox.Description
 import org.goldenport.RAISE
 import org.goldenport.context.Showable
 import org.goldenport.hocon.RichConfig.Implicits._
@@ -34,16 +35,16 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Dec. 31, 2021
  *  version Apr. 23, 2023
  *  version Aug. 21, 2023
- * @version Sep. 30, 2023
+ *  version Sep. 30, 2023
+ * @version Oct. 22, 2023
  * @author  ASAMI, Tomoharu
  */
 case class EntityModel(
   factory: KaleidoxEntityFactory,
-  classes: VectorMap[String, EntityModel.EntityClass]
+  classes: VectorMap[String, EntityModel.EntityClass],
+  description: Description = Description.name("entity")
 ) extends Model.ISubModel with ISchemaModel {
   import EntityModel._
-
-  val name = "entity"
 
   protected def display_String: String = classes.values.map(_.name).mkString(",")
 
@@ -86,10 +87,10 @@ object EntityModel {
     factory: KaleidoxEntityFactory,
     schemaClass: SchemaClass,
     parents: List[EntityClass.ParentRef],
-    store: IEntityClass.Store = IEntityClass.Store()
+    store: IEntityClass.Store = IEntityClass.Store(),
+    packageName: String = "domain" // TODO
   ) extends IEntityClass with Showable.Base {
     def name = schemaClass.name
-    def packageName = "domain" // TODO
     def schema = schemaClass.schema
     def stateMachines: Vector[StateMachineClass] = schemaClass.stateMachines
 

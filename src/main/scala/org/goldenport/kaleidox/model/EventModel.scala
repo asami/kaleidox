@@ -1,6 +1,7 @@
 package org.goldenport.kaleidox.model
 
 import scalaz._, Scalaz._
+import org.smartdox.Description
 import org.goldenport.parser.LogicalSection
 import org.goldenport.collection.TreeMap
 import org.goldenport.event._
@@ -11,14 +12,14 @@ import org.goldenport.kaleidox._
  *  version May. 23, 2021
  *  version Jun. 26, 2021
  *  version Oct. 31, 2021
- * @version Aug. 21, 2023
+ *  version Aug. 21, 2023
+ * @version Oct. 15, 2023
  * @author  ASAMI, Tomoharu
  */
 case class EventModel(
-  rule: EventRule = EventRule.empty
+  rule: EventRule = EventRule.empty,
+  description: Description = Description.name("schema")
 ) extends Model.ISubModel {
-  val name = "schema"
-
   protected def display_String: String = rule.display
 
   protected def print_String: String = rule.print
@@ -52,7 +53,7 @@ object EventModel {
   //   Builder(config).createClassOption(p)
 
   case class Builder(config: Config) extends BuilderBase[EventModel, EventRule, EventClazz] {
-    protected def to_Model(p: Option[EventRule]): EventModel = p.map(EventModel.apply).orZero
+    protected def to_Model(p: Option[EventRule]): EventModel = p.map(EventModel.apply(_)).orZero
 
     protected def class_Name(p: EventClazz): String = p.name
 

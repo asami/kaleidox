@@ -1,6 +1,7 @@
 package org.goldenport.kaleidox.model
 
 import scalaz.{State => _, _}, Scalaz._
+import org.smartdox.Description
 import org.goldenport.parser.LogicalSection
 import org.goldenport.collection.TreeMap
 import org.goldenport.context.Consequence
@@ -11,14 +12,14 @@ import org.goldenport.kaleidox._
  * @since   May.  4, 2021
  *  version May. 23, 2021
  *  version Jun. 27, 2021
- * @version Aug. 21, 2023
+ *  version Aug. 21, 2023
+ * @version Oct. 15, 2023
  * @author  ASAMI, Tomoharu
  */
 case class StateMachineModel(
-  classes: TreeMap[StateMachineClass] = TreeMap.empty
+  classes: TreeMap[StateMachineClass] = TreeMap.empty,
+  description: Description = Description.name("stateMachine")
 ) extends Model.ISubModel {
-  val name = "stateMachine"
-
   protected def display_String: String = classes.values.map(x => x.name).mkString(",")
 
   protected def print_String: String = classes.values.map(x => x.name).mkString(",")

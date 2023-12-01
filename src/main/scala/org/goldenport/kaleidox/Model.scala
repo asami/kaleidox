@@ -4,11 +4,15 @@ import scalaz._, Scalaz._
 import scala.util.control.NonFatal
 import java.io.File
 import java.net.{URL, URI}
+import com.typesafe.config.{Config => Hocon, ConfigFactory}
 import org.smartdox.parser.Dox2Parser
 import org.smartdox.{Dox, Section}
+import org.smartdox.Description
+import org.smartdox.Table
 import org.goldenport.RAISE
 import org.goldenport.Strings
 import org.goldenport.context.Showable
+import org.goldenport.values.Designation
 import org.goldenport.sexpr.{SExpr, SAtom, SKeyword, SList}
 import org.goldenport.sexpr.IModel
 import org.goldenport.exception.SyntaxErrorFaultException
@@ -23,6 +27,7 @@ import org.goldenport.parser.ParseMessage
 import org.goldenport.record.v2.{Schema, Column}
 import org.goldenport.record.v3.{IRecord, SingleValue, MultipleValue, EmptyValue}
 import org.goldenport.record.v3.{Record, Field}
+import org.goldenport.record.v3.HoconRecord
 import org.goldenport.record.util.{HoconUtils => RHoconUtils}
 import org.goldenport.statemachine.StateMachineClass
 import org.goldenport.kaleidox.model._
@@ -51,7 +56,8 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Nov. 28, 2022
  *  version Jan. 23, 2023
  *  version Aug. 21, 2023
- * @version Sep. 18, 2023
+ *  version Sep. 18, 2023
+ * @version Oct. 22, 2023
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -79,16 +85,18 @@ case class Model(
   // }
 
   private val _models: Vector[ISubModel] = Vector(
-      getServiceModel,
-      getEntityModel,
-      getSchemaModel,
-      getValueModel,
-      getStateMachineModel,
-      getDataSet,
-      getDataStore,
-      getDataBag,
-      getXslModel
-    ).flatten
+    getServiceModel,
+    getDataTypeModel,
+    getEntityModel,
+    getSchemaModel,
+    getValueModel,
+    getPowertypeModel,
+    getStateMachineModel,
+    getDataSet,
+    getDataStore,
+    getDataBag,
+    getXslModel
+  ).flatten
 
   def display = {
     _models.map(_.display).mkString(";")
@@ -142,12 +150,19 @@ case class Model(
       case m: SchemaDivision => m.makeModel
     }.concatenate.toOption
 
-  lazy val takeSchemaModel: SchemaModel = getSchemaModel getOrElse SchemaModel.empty
+  lazy val takeSchemaModel: SchemaModel = getSchemaModel.orZero
 
   lazy val getValueModel: Option[ValueModel] =
     divisions.collect {
       case m: ValueDivision => m.makeModel
     }.concatenate.toOption
+
+  lazy val getPowertypeModel: Option[PowertypeModel] =
+    divisions.collect {
+      case m: PowertypeDivision => m.makeModel
+    }.concatenate.toOption
+
+  lazy val takePowertypeModel: PowertypeModel = getPowertypeModel.orZero
 
   lazy val getSlipModel: Option[SlipModel] =
     divisions.collect {
@@ -168,6 +183,13 @@ case class Model(
       case m: ServiceDivision => m.makeModel(config)
     }.concatenate.toOption
 
+  lazy val getDataTypeModel: Option[DataTypeModel] = 
+    divisions.collect {
+      case m: DataTypeDivision => m.makeModel(config)
+    }.concatenate.toOption
+
+  lazy val takeDataTypeModel = getDataTypeModel.orZero
+
   lazy val getEventModel: Option[EventModel] =
     divisions.collect {
       case m: EventDivision => m.makeModel(config)
@@ -179,6 +201,8 @@ case class Model(
     divisions.collect {
       case m: StateMachineDivision => m.makeModel(config)
     }.concatenate.toOption
+
+  lazy val takeStateMachineModel = getStateMachineModel.orZero
 
   def stateMachineModel: StateMachineModel = getStateMachineModel.orZero
 
@@ -288,6 +312,8 @@ object Model {
       DocumentDivision, // unused
       VoucherDivision, // unused
       SchemaDivision,
+      DataTypeDivision,
+      PowertypeDivision,
       ValueDivision,
       SlipDivision,
       ServiceDivision,
@@ -576,6 +602,85 @@ object Model {
   object VoucherDivision extends DivisionFactory {
     override val name_Candidates = Vector("voucher")
     protected def to_Division(p: LogicalSection): Division = VoucherDivision(p)
+  }
+
+  case class DataTypeDivision(section: LogicalSection) extends Division {
+    val name = "datatype"
+
+    def makeModel(config: Config): DataTypeModel =
+      DataTypeModel.create(config, section)
+
+    // def makeModel(config: Config): DataTypeModel = {
+    //   val doxconfig = Dox2Parser.Config.default // TODO
+    //   val dox = Dox2Parser.parse(doxconfig, section)
+    //   // println(s"DataTypeDivision#makeModel $dox")
+    //   _make(dox)
+    // }
+
+    // private def _make(p: Dox): DataTypeModel = {
+    //   // println(s"SchemaModel#_make $p")
+    //   p match {
+    //     case m: Section =>
+    //       if (m.keyForModel == "schema") // TODO
+    //         _make_schemas(m)
+    //       else
+    //         DataTypeModel.empty
+    //     case m => m.elements.foldMap(_make)
+    //   }
+    // }
+
+    // private def _make_schemas(p: Section): DataTypeModel = p.sections.foldMap(_make_schema)
+
+    // private def _make_schema(p: Section): DataTypeModel =
+    //   DataTypeModel.DataTypeClass.createOption(p).
+    //     map(DataTypeModel.apply).
+    //     getOrElse(DataTypeModel.empty)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: DataTypeDivision => copy(section + m.section)
+    }
+  }
+  object DataTypeDivision extends DivisionFactory {
+    override val name_Candidates = Vector("datatype")
+    protected def to_Division(p: LogicalSection): Division = DataTypeDivision(p)
+  }
+
+  case class PowertypeDivision(section: LogicalSection) extends Division {
+    val name = "datatype"
+
+    def makeModel: PowertypeModel = {
+      val doxconfig = Dox2Parser.Config.default // TODO
+      val dox = Dox2Parser.parse(doxconfig, section)
+      // println(s"PowertypeDivision#makeModel $dox")
+      _make(dox)
+    }
+
+    private def _make(p: Dox): PowertypeModel = {
+      // println(s"PowertypeModel#_make $p")
+      p match {
+        case m: Section =>
+          if (m.keyForModel == "schema") // TODO
+            _make_schemas(m)
+          else
+            PowertypeModel.empty
+        case m => m.elements.foldMap(_make)
+      }
+    }
+
+    private def _make_schemas(p: Section): PowertypeModel = p.sections.foldMap(_make_schema)
+
+    private def _make_schema(p: Section): PowertypeModel =
+      PowertypeModel.PowertypeClass.createOption(p).
+        map(PowertypeModel.apply).
+        getOrElse(PowertypeModel.empty)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: PowertypeDivision => copy(section + m.section)
+    }
+  }
+  object PowertypeDivision extends DivisionFactory {
+    override val name_Candidates = Vector("schema")
+    protected def to_Division(p: LogicalSection): Division = PowertypeDivision(p)
   }
 
   case class SchemaDivision(section: LogicalSection) extends Division {
@@ -947,7 +1052,7 @@ object Model {
   //   val empty = ImportingModels()
   // }
 
-  trait ISubModel extends Showable.Base {
+  trait ISubModel extends Showable.Base with Description.Holder {
   }
 
   trait ISchemaSubModel extends ISchemaModel with ISubModel {
@@ -1203,5 +1308,109 @@ object Model {
   }
   object Builder {
     def apply(config: Config): Builder = new Builder(config)
+  }
+
+  trait ModelBuilderBase {
+    type T
+    def config: Config
+
+    protected def is_Accept(p: LogicalSection): Boolean
+
+    protected def create_Model(
+      p: LogicalSection,
+      ps: Vector[LogicalSection],
+      desc: Description
+    ): T
+
+    protected def create_Model(
+      p: LogicalSection,
+      desc: Description,
+      properties: IRecord
+    ): T
+
+    protected def create_Model(
+      p: LogicalSection,
+      desc: Description,
+      tables: List[Table]
+    ): T
+
+    def createOption(p: LogicalSection): Option[T] = {
+      if (is_Accept(p))
+        Some(create_model(p))
+      else
+        None
+    }
+
+    protected def create_model(p: LogicalSection): T = {
+      val xs = p.sections
+      if (xs.isEmpty)
+        create_model_flat(p)
+      else
+        create_model_sections(p, xs)
+    }
+
+    protected def create_model_flat(p: LogicalSection): T = {
+      val tables = dox_table_list(p)
+      if (tables.isEmpty)
+        create_model_properties(p)
+      else
+        create_model_tables(p, tables)
+    }
+
+    protected def create_model_properties(p: LogicalSection): T = {
+      val desc = dox_description_name(p)
+      val props = dox_properties(p)
+      create_Model(p, desc, props)
+    }
+
+    protected def create_model_tables(p: LogicalSection, tables: List[Table]): T = {
+      val desc = dox_description(p)
+      create_Model(p, desc, tables)
+    }
+
+    protected def create_model_sections(
+      p: LogicalSection,
+      ps: Vector[LogicalSection]
+    ): T = {
+      val desc = dox_description(p)
+      create_Model(p, ps, desc)
+    }
+
+    import org.smartdox.parser.Dox2Parser
+
+    val doxconfig = Dox2Parser.Config.default // TODO
+
+    protected final def dox_table_list(p: LogicalSection): List[Table] = {
+      val dox = Dox2Parser.parseSection(doxconfig, p)
+      dox.tableList
+    }
+
+    protected final def dox_content(p: LogicalSection): Dox =
+      dox_content(p.blocks)
+
+    protected final def dox_content(p: LogicalBlocks): Dox =
+      Dox2Parser.parse(doxconfig, p)
+
+    protected final def dox_description(p: LogicalSection): Description = {
+      val title = p.title
+      val designation = Designation(title.toI18NString)
+      val prologue = p.prologue
+      val content = dox_content(prologue)
+      Description(designation, content)
+    }
+
+    protected final def dox_description_name(p: LogicalSection): Description = {
+      val title = p.title
+      val designation = Designation(title.toI18NString)
+      Description(designation)
+    }
+
+    protected final def dox_properties(p: LogicalSection): IRecord = {
+      val s = p.text
+      val hocon = ConfigFactory.parseString(s)
+      HoconRecord(RichConfig(hocon))
+    }
+  }
+  object ModelBuilderBase {
   }
 }

@@ -21,14 +21,14 @@ import org.goldenport.kaleidox._
  *  version May. 27, 2021
  *  version Jun. 20, 2021
  *  version Oct.  1, 2022
- * @version Aug. 21, 2023
+ *  version Aug. 21, 2023
+ * @version Oct. 15, 2023
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
-  classes: VectorMap[String, ServiceModel.ServiceClass] = VectorMap.empty
+  classes: VectorMap[String, ServiceModel.ServiceClass] = VectorMap.empty,
+  description: Description = Description.name("service")
 ) extends Model.ISubModel {
-  val name = "service"
-
   protected def display_String: String = classes.values.map(x => x.name).mkString(",")
 
   protected def print_String: String = classes.values.map(x => x.name).mkString(",")

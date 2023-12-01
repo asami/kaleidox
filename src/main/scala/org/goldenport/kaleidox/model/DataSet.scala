@@ -3,6 +3,7 @@ package org.goldenport.kaleidox.model
 import scalaz._, Scalaz._
 import scala.util.Try
 import org.smartdox.{Dox, Table => DTable}
+import org.smartdox.Description
 import org.smartdox.parser.Dox2Parser
 import org.goldenport.RAISE
 import org.goldenport.record.v2.{Schema, Column}
@@ -27,15 +28,15 @@ import VoucherModel._
  *  version Mar.  8, 2021
  *  version Jun. 25, 2021
  *  version Jan. 22, 2023
- * @version Aug. 21, 2023
+ *  version Aug. 21, 2023
+ * @version Oct. 15, 2023
  * @author  ASAMI, Tomoharu
  */
 case class DataSet(
+  description: Description = Description.name("dataSet"),
   slots: VectorMap[Symbol, DataSet.Slot] = VectorMap.empty,
   parseMessages: ParseMessageSequence = ParseMessageSequence.empty
 ) extends Model.ISubModel {
-  val name = "dataSet"
-
   protected def display_String: String = "dataSet"
 
   protected def print_String: String = "dataSet"
@@ -51,8 +52,8 @@ case class DataSet(
   }
 
   def +(rhs: DataSet): DataSet = DataSet(
-    slots ++ rhs.slots,
-    parseMessages + rhs.parseMessages
+    slots = slots ++ rhs.slots,
+    parseMessages = parseMessages + rhs.parseMessages
   )
 
   def getSlot(name: String) = slots.get(Symbol(name))
@@ -83,7 +84,7 @@ object DataSet {
     create(dataname, model, RecordSequence(xs))
 
   def create(dataname: String, model: ISchemaClass, xs: RecordSequence): DataSet =
-    DataSet(VectorMap(Symbol(dataname) -> DataSet.Slot(model, STable(Table.create(model.schema, xs)))))
+    DataSet(slots = VectorMap(Symbol(dataname) -> DataSet.Slot(model, STable(Table.create(model.schema, xs)))))
 
   def create(dataname: String, model: ISchemaClass, p: Xsv): DataSet = {
     val schema = model.schema
@@ -110,7 +111,7 @@ object DataSet {
   }
 
   def create(dataname: String, model: ISchemaClass, p: ITable): DataSet =
-    DataSet(VectorMap(Symbol(dataname) -> DataSet.Slot(model, STable(p))))
+    DataSet(slots = VectorMap(Symbol(dataname) -> DataSet.Slot(model, STable(p))))
 
   def warning(p: String): DataSet = DataSet(parseMessages = ParseMessageSequence.warning(p))
 

@@ -16,16 +16,15 @@ import org.goldenport.kaleidox._
  * @since   May. 13, 2021
  *  version May. 14, 2021
  *  version Jan. 22, 2023
- * @version Aug. 21, 2023
+ *  version Aug. 21, 2023
+ * @version Oct. 15, 2023
  * @author  ASAMI, Tomoharu
  */
 case class DataStoreModel(
+  description: Description = Description.name("dataStore"),
   classes: VectorMap[String, DataStoreModel.CollectionModel] = VectorMap.empty
 ) extends Model.ISubModel {
   import DataStoreModel._
-
-  val name = "dataStore"
-
 
   protected def display_String: String = classes.values.map(x => x.name).mkString(",")
 
@@ -107,7 +106,7 @@ object DataStoreModel {
   }
 
   def apply(p: CollectionModel): DataStoreModel =
-    DataStoreModel(VectorMap(p.name -> p))
+    DataStoreModel(classes = VectorMap(p.name -> p))
 
   def create(context: DataSet.Builder.Context, p: LogicalSection): DataStoreModel =
     Builder(context).build(p)

@@ -3,6 +3,7 @@ package org.goldenport.kaleidox.model
 import scalaz._, Scalaz._
 import org.smartdox.parser.Dox2Parser
 import org.smartdox.Section
+import org.smartdox.Description
 import org.goldenport.record.v2.{Schema, Column, SqlSchema}
 import org.goldenport.record.v2.XStateMachine
 import org.goldenport.record.v2.Constraint
@@ -12,6 +13,8 @@ import org.goldenport.record.v3.Field
 import org.goldenport.record.v3.ValueDomain
 import org.goldenport.context.Consequence
 import org.goldenport.context.Showable
+import org.goldenport.values.Designation
+import org.goldenport.values.PathName
 import org.goldenport.parser._
 import org.goldenport.sexpr.SSchema
 import org.goldenport.sexpr.eval.entity.EntityId
@@ -32,15 +35,15 @@ import org.goldenport.kaleidox._
  *  version Nov. 20, 2021
  *  version Dec. 31, 2021
  *  version Feb. 24, 2022
- * @version Aug. 21, 2023
+ *  version Aug. 21, 2023
+ * @version Oct. 15, 2023
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
-  classes: VectorMap[String, SchemaModel.SchemaClass]
+  classes: VectorMap[String, SchemaModel.SchemaClass],
+  description: Description = Description.name("schema")
 ) extends Model.ISchemaSubModel {
   import SchemaModel._
-
-  val name = "schema"
 
   protected def display_String: String = classes.values.map(x => x.name).mkString(",")
 
@@ -73,8 +76,12 @@ object SchemaModel {
     def append(lhs: SchemaModel, rhs: => SchemaModel) = lhs + rhs
   }
 
-  val featureKeys = Set("feature", "features", "特性")
-  val attributeKeys = Set("attribute", "attributes", "属性")
+  val featureKeys = Set("feature", "features", "フィーチャー", "フィーチャ", "特性")
+  val attributeKeys = Set("attribute", "attributes", "アトリビュート", "属性")
+  val associationKeys = Set("association", "associations", "アソシエーション", "関連")
+  val aggregationKeys = Set("aggregation", "aggregations", "アグレゲーション", "集約")
+  val compositionKeys = Set("composition", "compositions", "コンポジション", "合成")
+  val powertypeKeys = Set("powertype", "powertypes", "パワータイプ", "区分")
   val statemachineKeys = Set("statemachine", "statemachines", "ステートマシーン", "状態機械", "statechart", "statecharts", "ステートチャート")
 
   def apply(p: SchemaClass): SchemaModel = SchemaModel(VectorMap(p.name -> p))
@@ -196,6 +203,8 @@ object SchemaModel {
     val itemName = Vector("項目", "item")
     val valueName = Vector("値", "value")
     val tableName = Vector("テーブル", "表", "table")
+    val objectRefName = Vector("オブジェクト参照", "エンティティ", "objectref", "entity")
+    val powertypeRefName = Vector("パワータイプ", "区分", "powertyperef", "powertype")
 
     trait SchemaClassContainer extends Showable.Base {
       def schemaClass: SchemaClass
@@ -253,6 +262,9 @@ object SchemaModel {
           propertyTables: Vector[Table] = Vector.empty,
           attributeTables: Vector[Table] = Vector.empty,
           associationTables: Vector[Table] = Vector.empty,
+          aggregationTables: Vector[Table] = Vector.empty,
+          compositionTables: Vector[Table] = Vector.empty,
+          powertypeTables: Vector[Table] = Vector.empty,
           statemachines: Vector[StateMachineClass] = Vector.empty,
           anonTables: Vector[Table] = Vector.empty
         ) {
@@ -261,7 +273,17 @@ object SchemaModel {
             // val props = propertyTables.headOption orElse anonTables.headOption
             // props.map(_to_schema_class(p.nameForModel, features, _))
             val props = if (propertyTables.nonEmpty) propertyTables else anonTables
-            _get_schema_class(p.nameForModel, featureTables, props, attributeTables, associationTables, statemachines)
+            _get_schema_class(
+              p.nameForModel,
+              featureTables,
+              props,
+              attributeTables,
+              associationTables,
+              aggregationTables,
+              compositionTables,
+              powertypeTables,
+              statemachines
+            )
           }
 
           def +(rhs: LogicalBlock) = rhs match {
@@ -287,6 +309,14 @@ object SchemaModel {
               _features(p)
             else if (_is_attributes(p))
               _attributes(p)
+            else if (_is_associations(p))
+              _associations(p)
+            else if (_is_aggregations(p))
+              _aggregations(p)
+            else if (_is_compositions(p))
+              _compositions(p)
+            else if (_is_powertypes(p))
+              _powertypes(p)
             else if (_is_statemachines(p))
               _statemachines(p)
             else
@@ -298,6 +328,18 @@ object SchemaModel {
           private def _is_attributes(p: LogicalSection) =
             attributeKeys.contains(p.keyForModel)
 
+          private def _is_associations(p: LogicalSection) =
+            associationKeys.contains(p.keyForModel)
+
+          private def _is_aggregations(p: LogicalSection) =
+            aggregationKeys.contains(p.keyForModel)
+
+          private def _is_compositions(p: LogicalSection) =
+            compositionKeys.contains(p.keyForModel)
+
+          private def _is_powertypes(p: LogicalSection) =
+            powertypeKeys.contains(p.keyForModel)
+
           private def _is_statemachines(p: LogicalSection) = 
             statemachineKeys.contains(p.keyForModel)
 
@@ -307,6 +349,22 @@ object SchemaModel {
 
           private def _attributes(p: LogicalSection) = {
             copy(attributeTables = attributeTables ++ _table_list(p))
+          }
+
+          private def _associations(p: LogicalSection) = {
+            copy(associationTables = associationTables ++ _table_list(p))
+          }
+
+          private def _aggregations(p: LogicalSection) = {
+            copy(aggregationTables = aggregationTables ++ _table_list(p))
+          }
+
+          private def _compositions(p: LogicalSection) = {
+            copy(compositionTables = compositionTables ++ _table_list(p))
+          }
+
+          private def _powertypes(p: LogicalSection) = {
+            copy(powertypeTables = powertypeTables ++ _table_list(p))
           }
 
           private def _statemachines(p: LogicalSection) = {
@@ -335,6 +393,9 @@ object SchemaModel {
           propertyTables: Vector[Table] = Vector.empty,
           attributeTables: Vector[Table] = Vector.empty,
           associationTables: Vector[Table] = Vector.empty,
+          aggregationTables: Vector[Table] = Vector.empty,
+          compositionTables: Vector[Table] = Vector.empty,
+          powertypeTables: Vector[Table] = Vector.empty,
           statemachines: Vector[StateMachineClass] = Vector.empty,
           anonTables: Vector[Table] = Vector.empty
         ) {
@@ -343,7 +404,17 @@ object SchemaModel {
             // val props = propertyTables.headOption orElse anonTables.headOption
             // props.map(_to_schema_class(p.nameForModel, features, _))
             val props = if (propertyTables.nonEmpty) propertyTables else anonTables
-            _get_schema_class(p.nameForModel, featureTables, props, attributeTables, associationTables, statemachines)
+            _get_schema_class(
+              p.nameForModel,
+              featureTables,
+              props,
+              attributeTables,
+              associationTables,
+              aggregationTables,
+              compositionTables,
+              powertypeTables,
+              statemachines
+            )
           }
 
           def +(rhs: Dox) = rhs match {
@@ -415,11 +486,17 @@ object SchemaModel {
         props: Seq[Table],
         attrs: Seq[Table],
         assocs: Seq[Table],
+        aggres: Seq[Table],
+        compos: Seq[Table],
+        powers: Seq[Table],
         sms: Seq[StateMachineClass]
       ): Option[SchemaClass] = {
         val name = if (autoCapitalize) UString.capitalize(pname) else pname
         val fs: Option[Features] = _to_features_option(features)
-        val xs: Seq[Slot] = _to_props(props) ++ _to_attrs(attrs) ++ _to_assocs(assocs) ++ _to_sms(sms)
+        val xs: Seq[Slot] =
+          _to_props(props) ++ _to_attrs(attrs) ++
+        _to_assocs(assocs) ++ _to_aggres(aggres) ++ _to_comps(compos) ++
+        _to_powers(powers) ++ _to_sms(sms)
         if (fs.isEmpty && xs.isEmpty)
           None
         else
@@ -444,7 +521,22 @@ object SchemaModel {
         rs.map(_association)
       }
 
-      private def _to_sms(ps: Seq[StateMachineClass]): Seq[StateMachine] = {
+      private def _to_aggres(ps: Seq[Table]): Seq[Aggregation] = {
+        val rs = ps.toVector.foldMap(SimpleModelerUtils.toRecords)
+        rs.map(_aggregation)
+      }
+
+      private def _to_comps(ps: Seq[Table]): Seq[Composition] = {
+        val rs = ps.toVector.foldMap(SimpleModelerUtils.toRecords)
+        rs.map(_composition)
+      }
+
+      private def _to_powers(ps: Seq[Table]): Seq[PowertypeSlot] = {
+        val rs = ps.toVector.foldMap(SimpleModelerUtils.toRecords)
+        rs.map(_powertype)
+      }
+
+      private def _to_sms(ps: Seq[StateMachineClass]): Seq[StateMachineSlot] = {
         ps.map(_statemachine)
       }
 
@@ -509,13 +601,39 @@ object SchemaModel {
       )
 
       private def _association(p: Record) = Association(
-        _name(p),
-        _datatype(p),
-        _multiplicity(p),
-        _label(p)
+        _desc(p),
+        _objectref(p),
+        _multiplicity(p)
       )
 
-      private def _statemachine(p: StateMachineClass) = StateMachine(p, None)
+      private def _aggregation(p: Record) = Aggregation(
+        _desc(p),
+        _objectref(p),
+        _multiplicity(p)
+      )
+
+      private def _composition(p: Record) = Composition(
+        _desc(p),
+        _objectref(p),
+        _multiplicity(p)
+      )
+
+      private def _powertype(p: Record) = PowertypeRelationship(
+        _desc(p),
+        _powertyperef(p),
+        _multiplicity(p)
+      )
+
+      private def _statemachine(p: StateMachineClass) =
+        StateMachine(p, None)
+        // if (true) {
+        //   StateMachineRelationship(
+        //     _desc(p),
+        //     _statemachineref(p)
+        //   )
+        // } else {
+        //   StateMachine(p, None)
+        // }
 
       private def _name(p: Record): String = p.getStringCaseInsensitive(nameName).getOrElse {
         RAISE.syntaxErrorFault("No name in table.")
@@ -524,8 +642,26 @@ object SchemaModel {
       private def _label(p: Record): Option[I18NString] = p.getStringCaseInsensitive(labelName).
         map(I18NString.apply)
 
+      private def _desc(p: Record): Description =
+        p.getStringCaseInsensitive(nameName).map { name =>
+          val d = Designation(name)
+          Description(d)
+        }.getOrElse (
+          RAISE.syntaxErrorFault("No name in table.")
+        )
+
       private def _datatype(p: Record): DataType = p.getStringCaseInsensitive(typeName).
         flatMap(DataType.get).getOrElse(XString)
+
+      private def _objectref(p: Record): ObjectRef =
+        p.getStringCaseInsensitive(objectRefName).map(ObjectRef).getOrElse(
+          RAISE.syntaxErrorFault("No objectref in table")
+        )
+
+      private def _powertyperef(p: Record): PowertypeRef =
+        p.getStringCaseInsensitive(powertypeRefName).map(PowertypeRef).getOrElse(
+          RAISE.syntaxErrorFault("No powertyperef in table")
+        )
 
       private def _multiplicity(p: Record): Multiplicity = p.getStringCaseInsensitive(multiplicityName).
         flatMap(Multiplicity.get).getOrElse(MOne)
@@ -560,9 +696,19 @@ object SchemaModel {
     def show(p: Schema): String = p.columns.map(_.name).mkString(",")
   }
 
+  case class ObjectRef(v: String) {
+    lazy val pathname = PathName(v, ".")
+    def qualifiedName = v
+  }
+
+  case class PowertypeRef(v: String) {
+  }
+
+  case class StateMachineRef(v: String) {
+  }
+
   trait Slot {
     def name: String
-    def label: Option[I18NString]
     def toColumn: Column
     def unmarshall(p: Any): Consequence[Any]
   }
@@ -609,17 +755,69 @@ object SchemaModel {
     def unmarshall(p: Any): Consequence[Any] = verify(p)
   }
 
-  case class Association(
-    name: String,
-    datatype: DataType,
-    multiplicity: Multiplicity,
-    label: Option[I18NString]
+  class Association(
+    constituent: Association.Constituent
   ) extends Slot {
+    def name: String = constituent.name
+    def objectRef: ObjectRef = constituent.objectRef
+    def multiplicity: Multiplicity = constituent.multiplicity
+    def description: Description = constituent.description
+
+    def toColumn = RAISE.noReachDefect
+
+    def unmarshall(p: Any): Consequence[Any] = Consequence.success(p) // TODO
+  }
+  object Association {
+    case class Constituent(
+      description: Description,
+      objectRef: ObjectRef,
+      multiplicity: Multiplicity
+    ) {
+      def name = description.name
+    }
+
+    def apply(desc: Description, oref: ObjectRef, multiplicity: Multiplicity) =
+      new Association(Constituent(desc, oref, multiplicity))
+  }
+
+  class Aggregation(constituent: Association.Constituent) extends Association(constituent)
+  object Aggregation {
+    def apply(desc: Description, oref: ObjectRef, multiplicity: Multiplicity) =
+      new Aggregation(Association.Constituent(desc, oref, multiplicity))
+  }
+
+  class Composition(constituent: Association.Constituent) extends Aggregation(constituent)
+  object Composition {
+    def apply(desc: Description, oref: ObjectRef, multiplicity: Multiplicity) =
+      new Composition(Association.Constituent(desc, oref, multiplicity))
+  }
+
+  sealed trait PowertypeSlot extends Slot {
+  }
+
+  case class PowertypeRelationship(
+    description: Description,
+    powertypeRef: PowertypeRef,
+    multiplicity: Multiplicity
+  ) extends PowertypeSlot {
+    def name: String = description.name
+
     def toColumn = Column(
-      name,
-      datatype,
-      multiplicity,
-      i18nLabel = label
+      name
+    )
+
+    def unmarshall(p: Any): Consequence[Any] = Consequence.success(p) // TODO
+  }
+
+  sealed trait StateMachineSlot extends Slot {
+  }
+
+  case class StateMachineRelationship(
+    description: Description,
+    stateMachineRef: StateMachineRef
+  ) extends StateMachineSlot with Description.Holder {
+    def toColumn = Column(
+      name
     )
 
     def unmarshall(p: Any): Consequence[Any] = Consequence.success(p) // TODO
@@ -628,7 +826,7 @@ object SchemaModel {
   case class StateMachine(
     statemachine: StateMachineClass,
     label: Option[I18NString]
-  ) extends Slot {
+  ) extends StateMachineSlot {
     def name = statemachine.name
     def datatype = XStateMachine(Some(statemachine))
     def multiplicity = MOne
