@@ -9,6 +9,7 @@ import org.smartdox.parser.Dox2Parser
 import org.smartdox.{Dox, Section}
 import org.smartdox.Description
 import org.smartdox.Table
+import org.smartdox.Doxes
 import org.goldenport.RAISE
 import org.goldenport.Strings
 import org.goldenport.context.Showable
@@ -32,6 +33,10 @@ import org.goldenport.record.util.{HoconUtils => RHoconUtils}
 import org.goldenport.statemachine.StateMachineClass
 import org.goldenport.kaleidox.model._
 import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
+import org.goldenport.kaleidox.model.vision.VisionModel
+import org.goldenport.kaleidox.model.business.BusinessModel
+import org.goldenport.kaleidox.model.requirement.RequirementModel
+import org.goldenport.kaleidox.model.analysis.AnalysisModel
 
 /*
  * @since   Sep. 24, 2018
@@ -57,7 +62,10 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Jan. 23, 2023
  *  version Aug. 21, 2023
  *  version Sep. 18, 2023
- * @version Oct. 22, 2023
+ *  version Oct. 22, 2023
+ *  version Jan.  3, 2024
+ *  version Jul. 12, 2024
+ * @version Aug.  5, 2024
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -85,6 +93,7 @@ case class Model(
   // }
 
   private val _models: Vector[ISubModel] = Vector(
+    getPreambleModel,
     getServiceModel,
     getDataTypeModel,
     getEntityModel,
@@ -99,16 +108,19 @@ case class Model(
   ).flatten
 
   def display = {
-    _models.map(_.display).mkString(";")
+    val s = _models.map(_.display).mkString(";")
+    s"Model[$s]"
   }
 
   def print = {
     // divisions.map(_.print).mkString("\n")
-    _models.map(_.print).mkString("\n")
+    val s = _models.map(_.print).mkString("\n")
+    s"Model[$s]"
   }
 
   def show = {
-    _models.map(_.display).mkString(";")
+    val s = _models.map(_.display).mkString(";")
+    s"Model[$s]"
   }
 
   def signature: Signature = NoneSignature
@@ -177,6 +189,11 @@ case class Model(
   }
 
   lazy val takeEntityModel: EntityModel = getEntityModel getOrElse EntityModel.empty(entityFactory)
+
+  lazy val getPreambleModel: Option[PreambleModel] =
+    divisions.collect {
+      case m: PreambleDivision => m.makeModel(config)
+    }.foldLeft(PreambleModel.empty(config))(_ |+| _).toOption
 
   lazy val getServiceModel: Option[ServiceModel] =
     divisions.collect {
@@ -278,7 +295,7 @@ object Model {
     def append(lhs: Model, rhs: => Model) = lhs + rhs
   }
 
-  trait Division extends Showable {
+  trait Division extends Showable with Doxes {
     def name: String
 
     override def toString() = try {
@@ -296,6 +313,15 @@ object Model {
 
     protected def print_Summary: String = ""
     protected def print_Description: String = ""
+
+    protected final def make_description(c: Config, p: LogicalSection): Description =
+      make_description(c.doxConfig, p)
+
+    protected final def make_sections(c: Config, p: LogicalSection): List[Section] =
+      make_sections(c.doxConfig, p)
+
+    protected final def make_description_sections(c: Config, p: LogicalSection): (Description, List[Section]) =
+      make_description_sections(c.doxConfig, p)
   }
   object Division {
     val elements = Vector(
@@ -322,7 +348,8 @@ object Model {
       EntityDivision,
       PrologueDivision,
       EpilogueDivision,
-      TestDivision
+      TestDivision,
+      PreambleDivision
     )
 
     def take(p: LogicalSection): Division = elements.toStream.flatMap(_.accept(p)).headOption.getOrElse(DocumentDivision(p))
@@ -963,94 +990,53 @@ object Model {
     protected def to_Division(p: LogicalSection): Division = TestDivision(p)
   }
 
-  // case class ImportedModel(locator: ImportedModel.Locator, model: Model) {
-  //   def isMatch(p: ImportedModel) = locator == p.locator // TODO
+  case class PreambleDivision(divisions: Vector[Division]) extends Division {
+    val name = "preamble"
 
-  //   def isMatch(p: ImportedModel.Locator) = p == locator // TODO version
+    def makeModel(config: Config): PreambleModel = {
+      case class Z(
+        vision: Option[VisionModel] = None,
+        business: Option[BusinessModel] = None,
+        requirement: Option[RequirementModel] = None,
+        analysis: Option[AnalysisModel] = None
+      ) {
+        def r = PreambleModel(
+          Description.name("preamble"), // TODO
+          vision getOrElse VisionModel.empty,
+          business getOrElse BusinessModel.empty(config),
+          requirement getOrElse RequirementModel.empty(config),
+          analysis getOrElse AnalysisModel.empty(config)
+        )
 
-  //   def getWholeScript = model.getWholeScript
-  // }
-  // object ImportedModel {
-  //   case class Locator(uri: URI) {
-  //     def isMatch(p: Locator): Boolean = p.uri == uri
-  //   }
-  //   object Locator {
-  //     def apply(p: String): Locator = Locator(new URI(p))
-  //   }
-  // }
+        def +(rhs: Division) = rhs match {
+          case m: VisionModel.VisionDivision => copy(vision = Some(m.makeModel(config)))
+          case m: BusinessModel.BusinessDivision => copy(business = Some(m.makeModel(config)))
+          case m: RequirementModel.RequirementDivision => copy(requirement = Some(m.makeModel(config)))
+          case m: AnalysisModel.AnalysisDivision => copy(analysis = Some(m.makeModel(config)))
+          case m => this // TODO
+        }
+      }
+      divisions./:(Z())(_+_).r
+    }
 
-  // case class ImportedModels(
-  //   models: Vector[ImportedModel] = Vector.empty
-  // ) {
-  //   def isExists(p: ImportedModel.Locator) = models.exists(_.isMatch(p))
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: PreambleDivision => copy(divisions = divisions ++ m.divisions)
+    }
+  }
+  object PreambleDivision extends DivisionFactory {
+    val divisions = Vector(
+      VisionModel.VisionDivision,
+      BusinessModel.BusinessDivision,
+      RequirementModel.RequirementDivision,
+      AnalysisModel.AnalysisDivision
+    )
 
-  //   def +(rhs: ImportedModels) = {
-  //     val a = rhs.models.filterNot(_is_match)
-  //     copy(models = models ++ a)
-  //   }
-
-  //   private def _is_match(p: Model.ImportedModel) = models.exists(_.isMatch(p))
-
-  //   def getWholeScript: Option[Script] = models.flatMap(_.getWholeScript).concatenate.toOption
-  // }
-  // object ImportedModels {
-  //   val empty = ImportedModels()
-  // }
-
-  // case class ImportingModels(
-  //   models: Vector[ImportedModel] = Vector.empty,
-  //   warnings: Vector[ImportingModels.Message[WarningMessage]] = Vector.empty,
-  //   errors: Vector[ImportingModels.Message[ErrorMessage]] = Vector.empty
-  // ) {
-  //   def isExists(p: ImportedModel.Locator): Boolean =
-  //     models.exists(_.isMatch(p)) || warnings.exists(_.isMatch(p)) || errors.exists(_.isMatch(p))
-
-  //   def +(rhs: ImportingModels) = {
-  //     val a = rhs.models.filterNot(_is_match)
-  //     copy(
-  //       models = models ++ a,
-  //       warnings = warnings ++ rhs.warnings,
-  //       errors = errors ++ rhs.errors
-  //     )
-  //   }
-
-  //   def add(uri: URI, p: Model) = {
-  //     val locator = ImportedModel.Locator(uri)
-  //     copy(
-  //       models = (models :+ ImportedModel(locator, p)) ++ p.importedModels.models,
-  //       warnings = warnings ++ p.warnings.map(_to_message(locator, _)),
-  //       errors = errors ++ p.errors.map(_to_message(locator, _))
-  //     )
-  //   }
-
-  //   private def _to_message(locator: ImportedModel.Locator, p: WarningMessage) =
-  //     ImportingModels.Message(locator, p)
-
-  //   private def _to_message(locator: ImportedModel.Locator, p: ErrorMessage) =
-  //     ImportingModels.Message(locator, p)
-
-  //   private def _is_match(p: ImportedModel) = models.exists(_.isMatch(p))
-
-  //   def toImportedModels: ImportedModels = ImportedModels(models)
-
-  //   def toErrorMessages: Vector[ErrorMessage] = errors.map(_.message)
-
-  //   def toWarningMessages: Vector[WarningMessage] = warnings.map(_.message)
-  // }
-  // object ImportingModels {
-  //   // implicit object ImportedModelsMonoid extends Monoid[ImportedModels] {
-  //   //   def zero = ImportedModels.empty
-  //   //   def append(lhs: ImportedModels, rhs: => ImportedModels): ImportedModels = lhs + rhs
-  //   // }
-  //   case class Message[T <: ParseMessage](
-  //     locator: ImportedModel.Locator,
-  //     message: T
-  //   ) {
-  //     def isMatch(p: ImportedModel.Locator): Boolean = locator == p
-  //   }
-
-  //   val empty = ImportingModels()
-  // }
+    override val name_Candidates = PreambleModel.divisionNames
+    protected def to_Division(p: LogicalSection): Division = {
+      val x = divisions.toStream.flatMap(_.accept(p)).headOption.getOrElse(DocumentDivision(p))
+      PreambleDivision(Vector(x))
+    }
+  }
 
   trait ISubModel extends Showable.Base with Description.Holder {
   }
@@ -1069,74 +1055,6 @@ object Model {
 
   def parse(config: Config, p: String): Model = Builder(config).parse(p)
   def parseExpression(config: Config, p: String): Model = Builder(config).parseExpression(p)
-
-  // def load(config: Config, p: File): Model = try {
-  //   val encoding = config.charset
-  //   val s = IoUtils.toText(p, encoding)
-  //   _parse(config, s)
-  // } catch {
-  //   case NonFatal(e) => error(p, e)
-  // }
-
-  // def load(config: Config, p: String): Model = try {
-  //   val encoding = config.charset
-  //   val s = IoUtils.toText(p, encoding)
-  //   _parse(config, s)
-  // } catch {
-  //   case NonFatal(e) => error(e)
-  // }
-
-  // def load(config: Config, p: URL): Model = try {
-  //   val encoding = config.charset
-  //   val s = IoUtils.toText(p, encoding)
-  //   _parse(config, s)
-  // } catch {
-  //   case NonFatal(e) => error(p, e)
-  // }
-
-  // def load(config: Config, p: URI): Model = try {
-  //   val encoding = config.charset
-  //   val s = IoUtils.toText(p, encoding)
-  //   _parse(config, s)
-  // } catch {
-  //   case NonFatal(e) => error(p, e)
-  // }
-
-  // def parse(config: Config, p: String): Model = try {
-  //   _parse(config, p)
-  // } catch {
-  //   case NonFatal(e) => error(e)
-  // }
-
-  // private def _parse(config: Config, p: String): Model =  {
-  //   val bconfig = if (config.isLocation)
-  //     LogicalBlocks.Config.default.forLisp
-  //   else
-  //     LogicalBlocks.Config.noLocation.forLisp
-  //   val blocks = LogicalBlocks.parse(bconfig, p)
-  //   _parse(config, blocks)
-  // }
-
-  // def parseExpression(config: Config, p: String): Model = try {
-  //   val bconfig = if (config.isLocation)
-  //     LogicalBlocks.Config.expression.forLisp
-  //   else
-  //     LogicalBlocks.Config.expression.withoutLocation.forLisp
-  //   val blocks = LogicalBlocks.parse(bconfig, p)
-  //   _parse(config, blocks)
-  // } catch {
-  //   case NonFatal(e) => error(e)
-  // }
-
-  // private def _parse(config: Config, blocks: LogicalBlocks): Model = {
-  //   val divs = blocks.blocks collect {
-  //     case m: LogicalSection => Division.take(m)
-  //   }
-  //   if (divs.isEmpty)
-  //     Model(config, Script.parse(config, blocks))
-  //   else
-  //     Model(config, divs, ImportedModels.empty) + _import_divisions(divs)
-  // }
 
   // TODO schema for direct service
   def httpCall(config: Config, funcname: String, query: IRecord, form: IRecord): Model = {
@@ -1378,7 +1296,7 @@ object Model {
 
     import org.smartdox.parser.Dox2Parser
 
-    val doxconfig = Dox2Parser.Config.default // TODO
+    val doxconfig = config.doxConfig
 
     protected final def dox_table_list(p: LogicalSection): List[Table] = {
       val dox = Dox2Parser.parseSection(doxconfig, p)

@@ -44,7 +44,8 @@ import org.goldenport.util.StringUtils
  *  version Dec. 18, 2021
  *  version Jan.  1, 2023
  *  version Jul. 22, 2023
- * @version Aug.  3, 2023
+ *  version Aug.  3, 2023
+ * @version Aug.  5, 2024
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -460,6 +461,7 @@ object Kaleidox {
         case m: SLazyFuture => _special(s)
         case m: SWait => _special(s)
         case m: SFutureWait => _special(s)
+        case m: SModel => _model(s)
         case m => _unknown(s)
       }
     }
@@ -483,6 +485,8 @@ object Kaleidox {
     private def _error(p: String): Message = Message.red(p).withUnderline()
 
     private def _special(p: String): Message = Message.underline(p)
+
+    private def _model(p: String): Message = Message.blue(p).withBold()
 
     private def _unknown(p: String): Message = Message.yellow(p).withUnderline()
 

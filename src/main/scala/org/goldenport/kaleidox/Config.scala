@@ -20,6 +20,7 @@ import org.goldenport.util.DateTimeUtils
 import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
 import org.goldenport.kaleidox.extension.ExtensionContext
 import org.goldenport.kaleidox.extension.modeler.Modeler
+import org.smartdox.parser.Dox2Parser
 
 /*
  * @since   Aug. 20, 2018
@@ -43,7 +44,8 @@ import org.goldenport.kaleidox.extension.modeler.Modeler
  *  version Apr.  4, 2022
  *  version Dec. 15, 2022
  *  version Jul. 22, 2023
- * @version Sep. 30, 2023
+ *  version Sep. 30, 2023
+ * @version Jul.  7, 2024
  * @author  ASAMI, Tomoharu
  */
 case class Config(
@@ -72,6 +74,7 @@ case class Config(
   lazy val storeFactory = new StoreFactory(cliConfig.makeConfig("store"), sqlContext)
   lazy val entityFactory = new KaleidoxEntityFactory(i18nContext, storeFactory, stateMachineSpace)
   lazy val feature = FeatureContext.create(properties, cliConfig.i18n, sqlContext, entityFactory)
+  val doxConfig = Dox2Parser.Config.default
 
   def properties = cliConfig.properties
   def dateTimeContext = cliConfig.dateTimeContext

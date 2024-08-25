@@ -36,7 +36,8 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Apr. 23, 2023
  *  version Aug. 21, 2023
  *  version Sep. 30, 2023
- * @version Oct. 22, 2023
+ *  version Oct. 22, 2023
+ * @version Jul. 12, 2024
  * @author  ASAMI, Tomoharu
  */
 case class EntityModel(
@@ -77,7 +78,9 @@ case class EntityModel(
 
 object EntityModel {
 //  val empty = EntityModel(VectorMap.empty[String, EntityClass])
-  def empty(f: KaleidoxEntityFactory) = EntityModel(f, VectorMap.empty[String, EntityModel.EntityClass])
+  def empty(config: Config): EntityModel = empty(config.entityFactory)
+
+  def empty(f: KaleidoxEntityFactory): EntityModel = EntityModel(f, VectorMap.empty[String, EntityModel.EntityClass])
 
   implicit object EntityModelSemigroup extends Semigroup[EntityModel] {
     def append(lhs: EntityModel, rhs: => EntityModel) = lhs + rhs

@@ -13,7 +13,8 @@ import org.goldenport.kaleidox._
  *  version Jun. 26, 2021
  *  version Oct. 31, 2021
  *  version Aug. 21, 2023
- * @version Oct. 15, 2023
+ *  version Oct. 15, 2023
+ * @version Jul. 12, 2024
  * @author  ASAMI, Tomoharu
  */
 case class EventModel(
