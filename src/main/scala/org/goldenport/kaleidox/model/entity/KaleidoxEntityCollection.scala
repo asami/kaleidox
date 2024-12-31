@@ -8,7 +8,7 @@ import org.goldenport.record.store.{Id => StoreId, Collection, Query}
 import org.goldenport.record.v3.IRecord
 import org.goldenport.record.v3.RecordSequence
 import org.goldenport.record.v3.Table.HeaderStrategy
-import org.goldenport.statemachine._
+import org.goldenport.sm._
 import org.goldenport.sexpr._
 import org.goldenport.sexpr.eval.LispContext
 import org.goldenport.sexpr.eval.entity._
@@ -18,7 +18,8 @@ import org.goldenport.kaleidox.model.EntityModel
  * @since   Sep. 20, 2021
  *  version Sep. 24, 2021
  *  version Oct. 31, 2021
- * @version Nov. 28, 2021
+ *  version Nov. 28, 2021
+ * @version Sep.  6, 2024
  * @author  ASAMI, Tomoharu
  */
 class KaleidoxEntityCollection(

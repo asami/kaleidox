@@ -9,7 +9,7 @@ import org.goldenport.record.v3.IRecord
 import org.goldenport.record.v3.Table.HeaderStrategy
 import org.goldenport.sexpr._
 import org.goldenport.sexpr.eval.entity._
-import org.goldenport.statemachine.StateMachine
+import org.goldenport.sm.StateMachine
 import org.goldenport.kaleidox.ExecutionContext
 import org.goldenport.kaleidox.model.EntityModel
 // import org.goldenport.kaleidox.model.SchemaModel.StateMachine
@@ -19,7 +19,8 @@ import org.goldenport.kaleidox.model.EntityModel
  *  version Sep. 24, 2021
  *  version Oct. 31, 2021
  *  version Nov. 28, 2021
- * @version Feb. 28, 2023
+ *  version Feb. 28, 2023
+ * @version Sep.  6, 2024
  * @author  ASAMI, Tomoharu
  */
 class KaleidoxEntity(

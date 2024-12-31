@@ -8,8 +8,8 @@ import org.goldenport.RAISE
 import org.goldenport.io.InputSource
 import org.goldenport.parser._
 import org.goldenport.event._
-import org.goldenport.statemachine._
-import org.goldenport.statemachine.{ExecutionContext => StateMachineContext}
+import org.goldenport.sm._
+import org.goldenport.sm.{ExecutionContext => StateMachineContext}
 import org.goldenport.sexpr._
 import org.goldenport.sexpr.eval._
 import org.goldenport.sexpr.eval.entity.EntityId
@@ -30,7 +30,8 @@ import org.goldenport.kaleidox.model.diagram._
  *  version Dec. 18, 2021
  *  version Jul. 31, 2023
  *  version Aug. 21, 2023
- * @version Sep. 16, 2023
+ *  version Sep. 16, 2023
+ * @version Sep.  6, 2024
  * @author  ASAMI, Tomoharu
  */
 object KaleidoxFunction {

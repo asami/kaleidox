@@ -1,4 +1,4 @@
-package org.goldenport.kaleidox.model.analysis
+package org.goldenport.kaleidox.model.rule
 
 import org.goldenport.parser.LogicalSection
 import org.goldenport.kaleidox.Config
@@ -11,15 +11,12 @@ import org.smartdox.Description
 import org.smartdox.Section
 
 /*
- * @since   Jan.  1, 2024
- *  version Jan.  3, 2024
- *  version Jul. 12, 2024
- *  version Aug.  4, 2024
- * @version Nov.  4, 2024
+ * @since   Nov.  5, 2024
+ * @version Dec. 29, 2024
  * @author  ASAMI, Tomoharu
  */
-case class AnalysisModel(
-  description: Description = Description.name("analysis"),
+case class RuleModel(
+  description: Description = Description.name("rule"),
   sections: List[Section] = Nil,
   entities: EntityModel,
   events: EventModel
@@ -30,32 +27,33 @@ case class AnalysisModel(
 
   def isEmpty: Boolean = sections.isEmpty && entities.isEmpty && events.isEmpty
 
-  def +(rhs: AnalysisModel): AnalysisModel = copy(
+  def +(rhs: RuleModel): RuleModel = copy(
     entities = entities + rhs.entities,
     events = events + rhs.events
   )
 }
 
-object AnalysisModel {
-  def empty(config: Config) = AnalysisModel(
+object RuleModel {
+  def empty(config: Config) = RuleModel(
     entities = EntityModel.empty(config),
     events = EventModel.empty
   )
-  val divisionNames = Vector("analysis")
-  case class AnalysisDivision(section: LogicalSection) extends Division {
-    val name = "analysis"
+  val divisionNames = Vector("rule")
+
+  case class RuleDivision(section: LogicalSection) extends Division {
+    val name = "rule"
 
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
-      case m: AnalysisDivision => copy(section + m.section)
+      case m: RuleDivision => copy(section + m.section)
     }
 
-    def makeModel(config: Config): AnalysisModel = {
+    def makeModel(config: Config): RuleModel = {
       val (desc, sections) = make_description_sections(config, section)
-      AnalysisModel(desc, sections, ???, ???)
+      RuleModel(desc, sections, ???, ???)
     }
   }
-  object AnalysisDivision extends DivisionFactory {
-    override val name_Candidates = Vector("analysis")
-    protected def to_Division(p: LogicalSection): Division = AnalysisDivision(p)
+  object RuleDivision extends DivisionFactory {
+    override val name_Candidates = Vector("rule")
+    protected def to_Division(p: LogicalSection): Division = RuleDivision(p)
   }
 }

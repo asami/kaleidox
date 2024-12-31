@@ -4,7 +4,7 @@ import org.goldenport.context.Effect
 import org.goldenport.trace.TraceContext
 import org.goldenport.record.v3.{IRecord, Record}
 import org.goldenport.incident.{Incident => LibIncident}
-import org.goldenport.statemachine.{ExecutionContext => StateMachineContext}
+import org.goldenport.sm.{ExecutionContext => StateMachineContext}
 import org.goldenport.sexpr._
 import org.goldenport.sexpr.eval._
 import org.goldenport.kaleidox._
@@ -28,7 +28,8 @@ import org.goldenport.kaleidox.extension.modeler.Modeler
  *  version May. 21, 2021
  *  version Nov. 29, 2021
  *  version Dec. 18, 2021
- * @version Apr. 24, 2022
+ *  version Apr. 24, 2022
+ * @version Sep.  6, 2024
  * @author  ASAMI, Tomoharu
  */
 case class Context(

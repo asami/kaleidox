@@ -20,8 +20,8 @@ import org.goldenport.sexpr.SSchema
 import org.goldenport.sexpr.eval.entity.EntityId
 import org.goldenport.collection.VectorMap
 import org.goldenport.event.ObjectId
-import org.goldenport.statemachine.StateMachineClass
-import org.goldenport.statemachine.{StateMachine => StateMachineInstance}
+import org.goldenport.sm.StateMachineClass
+import org.goldenport.sm.{StateMachine => StateMachineInstance}
 import org.goldenport.kaleidox._
 
 /*
@@ -36,7 +36,8 @@ import org.goldenport.kaleidox._
  *  version Dec. 31, 2021
  *  version Feb. 24, 2022
  *  version Aug. 21, 2023
- * @version Oct. 15, 2023
+ *  version Oct. 15, 2023
+ * @version Sep.  6, 2024
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(

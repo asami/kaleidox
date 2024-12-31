@@ -14,12 +14,13 @@ import org.goldenport.kaleidox._
  *  version Oct. 31, 2021
  *  version Aug. 21, 2023
  *  version Oct. 15, 2023
- * @version Jul. 12, 2024
+ *  version Jul. 12, 2024
+ * @version Dec. 28, 2024
  * @author  ASAMI, Tomoharu
  */
 case class EventModel(
   rule: EventRule = EventRule.empty,
-  description: Description = Description.name("schema")
+  description: Description = Description.name("event")
 ) extends Model.ISubModel {
   protected def display_String: String = rule.display
 

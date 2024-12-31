@@ -3,11 +3,12 @@ package org.goldenport.kaleidox
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest._
+import org.scalatest.matchers._
+import scala.util.matching.Regex
 import org.goldenport.RAISE
-import org.goldenport.cli.Environment
+import org.goldenport.log.LogLevel
 import org.goldenport.sexpr._
-import org.goldenport.record.v2._
-import org.goldenport.record.unitofwork.interpreter.MockUnitOfWorkLogic
+import org.goldenport.record.v3._
 import org.goldenport.kaleidox.interpreter.Interpreter
 
 /*
@@ -15,34 +16,65 @@ import org.goldenport.kaleidox.interpreter.Interpreter
  *  version Feb. 25, 2019
  *  version Oct.  2, 2019
  *  version Nov. 20, 2020
- * @version Jan. 17, 2021
+ *  version Jan. 17, 2021
+ *  version Sep.  6, 2024
+ * @version Oct. 23, 2024
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
-class TryoutSpec extends WordSpec with Matchers with GivenWhenThen {
-  val mocklogic = MockUnitOfWorkLogic.build(
-    "http://www.yahoo.com" -> "OK"
-  )
-  val env = Environment.create()
-  val config = {
-    val a = Config.log.trace // trace // warn // debug
-    a.withServiceLogic(mocklogic)
-  }
-  val context = ExecutionContext(env, config)
-  val interpreter = Interpreter.create(context)
-  val engine = Engine(context, Universe.empty, interpreter)
-  engine.initialize()
+class TryoutSpec extends WordSpec with Matchers with GivenWhenThen with SpecEnvironment {
+  import LiteralSpec.matchers._
 
-  def result(p: Vector[Expression]): SExpr =
-    p.head match {
-      case LispExpression(sexpr) => sexpr
-      case m => RAISE.noReachDefect
+  override def logLevel = LogLevel.Trace
+
+  "Division" should {
+    import org.goldenport.parser.LogicalSection
+    import org.goldenport.kaleidox.Model._
+    val config = {
+      Config.log.debug // trace // warn // debug
     }
+    def section(title: String, content: String): LogicalSection =
+      LogicalSection.create(title, content)
+    "Division" in {
+      val s = """* Identification
+
+id division
+
+* Environment
+
+a.b.c="abc"
+
+* Data
+
+data division
+
+* Procedure
+
+${1 + 2 + 3}
+"""
+      val model = Model.parseWitoutLocation(config, s)
+      val target = Model(
+        config.withoutLocation,
+        IdentificationDivision(section("Identification", "id division")),
+        EnvironmentDivision.create(section("Environment", """a.b.c="abc"""")),
+        DataDivision(section("Data", "data division")),
+        Script(SScript("1 + 2 + 3"))
+      )
+//      model.config should be(config)
+      model.config should be(target.config)
+      model.divisions(0) should be(target.divisions(0))
+      model.divisions(1) should be(target.divisions(1))
+      model.divisions(2) should be(target.divisions(2))
+      model.divisions(3) should be(target.divisions(3))
+      model.libraries should be(target.libraries)
+      model should be(target)
+    }
+  }
 
   // "token" should {
   //   "url" in {
   //     val s = "http://www.yahoo.com"
-  //     val script = Script.parse(s)
+  //     val script = parse(s)
   //     val r = engine.applySExpr(script)
   //     println(s"XXX: $r")
   //     println(s"XXX: ${r.asString}")

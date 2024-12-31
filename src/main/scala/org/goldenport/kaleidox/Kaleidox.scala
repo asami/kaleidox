@@ -5,6 +5,9 @@ import java.io.File
 import java.math.MathContext
 import org.goldenport.RAISE
 import org.goldenport.monitor.Monitor
+import org.goldenport.context.ContextFoundation
+import org.goldenport.context.DateTimeContext
+import org.goldenport.context.FormatContext
 import org.goldenport.i18n.I18NContext
 import org.goldenport.log.{LogContext, LogLevel, LogConfig}
 import org.goldenport.trace.TraceContext
@@ -15,7 +18,7 @@ import org.goldenport.parser.LogicalLines
 import org.goldenport.parser.ParseMessage
 import org.goldenport.parser.{ErrorMessage, WarningMessage}
 import org.goldenport.console.{ConsoleManager, MessageSequence, Message}
-import org.goldenport.statemachine.StateMachineSpace
+import org.goldenport.sm.StateMachineSpace
 import org.goldenport.kaleidox.interpreter.Interpreter
 import org.goldenport.kaleidox.http.HttpHandle
 import org.goldenport.util.StringUtils
@@ -45,7 +48,9 @@ import org.goldenport.util.StringUtils
  *  version Jan.  1, 2023
  *  version Jul. 22, 2023
  *  version Aug.  3, 2023
- * @version Aug.  5, 2024
+ *  version Aug.  5, 2024
+ *  version Sep.  6, 2024
+ * @version Oct. 13, 2024
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -96,8 +101,16 @@ case class Kaleidox(
   private def _build_world(call: OperationCall): Engine = {
     LogContext.setRootLevel(LogLevel.Info) // suppress boot sequence logging.
     val (universe, model) = _build_universe(call)
-    val i18nconfig = _i18n_context(model, config)
+    val i18ncontext = _i18n_context(model, config)
     val mathcontext = _math_context(model, config)
+    val datetimecontext = _datetime_context(model, config)
+    val formatcontext = _format_context(model, config)
+    val contextfoundation = ContextFoundation(
+      mathcontext,
+      i18ncontext,
+      datetimecontext,
+      formatcontext
+    )
     val logconfig = _log_config(model, config)
     val tracecontext = TraceContext.create()
     val statemachinespace = config.stateMachineSpace.addClasses(model.takeStateMachineClasses)
@@ -108,8 +121,7 @@ case class Kaleidox(
     val context = ExecutionContext(
       environment,
       config,
-      i18nconfig,
-      mathcontext,
+      contextfoundation,
       logconfig,
       tracecontext,
       statemachinespace,
@@ -304,6 +316,14 @@ case class Kaleidox(
 
   private def _math_context(model: Model, config: Config): MathContext = {
     config.mathContext // TODO model
+  }
+
+  private def _datetime_context(model: Model, config: Config): DateTimeContext = {
+    config.dateTimeContext // TODO model
+  }
+
+  private def _format_context(model: Model, config: Config): FormatContext = {
+    config.formatContext // TODO model
   }
 
   private def _log_config(model: Model, config: Config): LogConfig = {

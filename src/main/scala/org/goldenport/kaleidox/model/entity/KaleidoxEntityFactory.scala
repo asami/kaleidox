@@ -4,8 +4,8 @@ import org.goldenport.RAISE
 import org.goldenport.i18n.I18NContext
 import org.goldenport.record.store._
 import org.goldenport.event.ObjectId
-import org.goldenport.statemachine._
-import org.goldenport.statemachine.{ExecutionContext => StateMachineContext}
+import org.goldenport.sm._
+import org.goldenport.sm.{ExecutionContext => StateMachineContext}
 import org.goldenport.sexpr.eval.entity._
 import org.goldenport.kaleidox.lisp.Context
 import org.goldenport.kaleidox.model.EntityModel.{EntityClass => KaleidoxEntityClass}
@@ -15,7 +15,8 @@ import org.goldenport.kaleidox.model.EntityModel.{EntityClass => KaleidoxEntityC
  * @since   Sep. 20, 2021
  *  version Sep. 24, 2021
  *  version Oct. 31, 2021
- * @version Nov. 29, 2021
+ *  version Nov. 29, 2021
+ * @version Sep.  6, 2024
  * @author  ASAMI, Tomoharu
  */
 class KaleidoxEntityFactory(

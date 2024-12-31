@@ -19,7 +19,7 @@ import org.goldenport.sexpr.eval.entity.Entity
 import org.goldenport.sexpr.eval.entity.EntityId
 import org.goldenport.context.Consequence
 import org.goldenport.collection.VectorMap
-import org.goldenport.statemachine.StateMachineClass
+import org.goldenport.sm.StateMachineClass
 import org.goldenport.kaleidox._
 import org.goldenport.kaleidox.lisp.Context
 import org.goldenport.kaleidox.model.SchemaModel.SchemaClass
@@ -37,7 +37,8 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Aug. 21, 2023
  *  version Sep. 30, 2023
  *  version Oct. 22, 2023
- * @version Jul. 12, 2024
+ *  version Jul. 12, 2024
+ * @version Sep.  6, 2024
  * @author  ASAMI, Tomoharu
  */
 case class EntityModel(

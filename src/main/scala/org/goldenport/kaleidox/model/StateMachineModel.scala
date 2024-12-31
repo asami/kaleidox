@@ -5,7 +5,7 @@ import org.smartdox.Description
 import org.goldenport.parser.LogicalSection
 import org.goldenport.collection.TreeMap
 import org.goldenport.context.Consequence
-import org.goldenport.statemachine._
+import org.goldenport.sm._
 import org.goldenport.kaleidox._
 
 /*
@@ -13,7 +13,8 @@ import org.goldenport.kaleidox._
  *  version May. 23, 2021
  *  version Jun. 27, 2021
  *  version Aug. 21, 2023
- * @version Oct. 15, 2023
+ *  version Oct. 15, 2023
+ * @version Sep.  6, 2024
  * @author  ASAMI, Tomoharu
  */
 case class StateMachineModel(

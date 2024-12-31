@@ -21,7 +21,8 @@ import org.goldenport.kaleidox.interpreter.Interpreter
  *  version Oct.  2, 2019
  *  version Nov. 20, 2020
  *  version Jan. 17, 2021
- * @version Feb. 13, 2021
+ *  version Feb. 13, 2021
+ * @version Oct. 23, 2024
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -72,7 +73,7 @@ class EngineSpec extends WordSpec with Matchers with GivenWhenThen {
       val s = "http://www.yahoo.com"
       val script = parse(s)
       val r = engine.apply(script)
-      result(r) should be(SHtml("OK"))
+      result(r) should be(SUrl(s))
     }
     "xml" in {
       val s = "<user><name>taro</name><city>yokohama</city></user>"

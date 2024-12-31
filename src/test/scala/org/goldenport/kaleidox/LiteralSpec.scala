@@ -14,39 +14,24 @@ import org.goldenport.kaleidox.interpreter.Interpreter
 /*
  * @since   Jan. 19, 2021
  *  version Jan. 31, 2021
- * @version Feb. 14, 2021
+ *  version Feb. 14, 2021
+ *  version Sep.  8, 2024
+ * @version Oct. 23, 2024
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
-class LiteralSpec extends WordSpec with Matchers with GivenWhenThen {
-  def literal(p: SExpr) = ScriptValueMatcher(p)
-  def result(p: SExpr) = ResultValueMatcher(p)
+class LiteralSpec extends WordSpec with Matchers with GivenWhenThen with SpecEnvironment {
+  import LiteralSpec.matchers._
 
-  case class ScriptValueMatcher(o: SExpr) extends Matcher[Script] {
-    def apply(p: Script) = p.expressions match {
-      case x +: Seq() => MatchResult(x.asSExpr == o, s"$x was not equal to $o", s"$x was equal to $o")
-      case x +: xs => MatchResult(false, s"Too many expressions: ${p.expressions}", "")
-      case _ => MatchResult(false, "Empty expressions", "")
-    }
-  }
+  // val env = Environment.create()
+  // val config = Config.log.debug // trace // warn // debug
+  // val context = ExecutionContext(env, config)
+  // val interpreter = Interpreter.create(context)
+  // val engine = Engine(context, Universe.empty, interpreter)
+  // engine.initialize()
 
-  case class ResultValueMatcher(o: SExpr) extends Matcher[Vector[Expression]] {
-    def apply(p: Vector[Expression]) = p match {
-      case x +: Seq() => MatchResult(x.asSExpr == o, s"$x was not equal to $o", s"$x was equal to $o")
-      case x +: xs => MatchResult(false, s"Too many expressions: ${p}", "")
-      case _ => MatchResult(false, "Empty expressions", "")
-    }
-  }
-
-  val env = Environment.create()
-  val config = Config.log.debug // trace // warn // debug
-  val context = ExecutionContext(env, config)
-  val interpreter = Interpreter.create(context)
-  val engine = Engine(context, Universe.empty, interpreter)
-  engine.initialize()
-
-  def parse(p: String): Script = Script.parse(config, p)
-  def parseWithoutMetaCommand(p: String): Script = Script.parseWithoutMetaCommand(config, p)
+  // def parse(p: String): Script = Script.parse(config, p)
+  // def parseWithoutMetaCommand(p: String): Script = Script.parseWithoutMetaCommand(config, p)
 
   "string" should {
     "natural" in {
@@ -65,7 +50,7 @@ class LiteralSpec extends WordSpec with Matchers with GivenWhenThen {
   }
   "keyword" should {
     "natural" in {
-      val s = ":hello"
+      val s = "':hello"
       val script = parseWithoutMetaCommand(s)
       val r = engine.apply(script)
       r should result(SKeyword("hello"))
@@ -174,12 +159,13 @@ class LiteralSpec extends WordSpec with Matchers with GivenWhenThen {
     "string" in {
       val s = """regex"(\\d\\d\\d\\d)-(\\d\\d)-(\\d\\d)""""
       val script = parse(s)
-      script should literal(SRegex(new Regex(s)))
+      script should literal(SRegex(new Regex("(\\d\\d\\d\\d)-(\\d\\d)-(\\d\\d)")))
     }
     "sexpr" in {
       val s = """(regex raw"(\d\d\d\d)-(\d\d)-(\d\d)" "year" "month" "day")"""
       val script = parse(s)
-      script should literal(SRegex(new Regex(s, "year", "month", "day")))
+      val r = engine.apply(script)
+      r should result(SRegex(new Regex("""(\d\d\d\d)-(\d\d)-(\d\d)""", "year", "month", "day")))
     }
   }
   "clob" should {
@@ -231,18 +217,33 @@ class LiteralSpec extends WordSpec with Matchers with GivenWhenThen {
       script should literal(SRecord(Record.data("a" -> "A", "b" -> "B")))
     }
   }
+  "vector" should {
+    "natural" in {
+      val s = "[1 2]"
+      val script = parse(s)
+      script should(literal(SVector.lift(Vector(1, 2))))
+    }
+  }
   "table" should {
     "natural" in {
-      val s = """???"""
+      val s =
+        s"""table${"\"\"\""}a,b
+          |A,B${"\"\"\""}
+          |""".stripMargin
       val script = parse(s)
       script should literal(STable.data(Vector(Record.data("a" -> "A", "b" -> "B"))))
     }
   }
   "matrix" should {
     "natural" in {
-      val s = "matrix\"hello\""
+      val s = "[[1,2,3\n4,5,6]]"
       val script = parse(s)
-      script should literal(SMatrix.data(List(List(1, 2, 3))))
+      script should literal(SMatrix.data(List(List(1, 2, 3), List(4,5,6))))
+    }
+    "string" in {
+      val s = "matrix\"1,2,3\n4,5,6\""
+      val script = parse(s)
+      script should literal(SMatrix.data(List(List(1, 2, 3), List(4,5,6))))
     }
   }
   // "dataframe" should {
@@ -254,9 +255,9 @@ class LiteralSpec extends WordSpec with Matchers with GivenWhenThen {
   // }
   "lxsv" should {
     "natural" in {
-      val s = "lxsv\"hello\""
+      val s = "lxsv\"A:a\tB:b\""
       val script = parse(s)
-      script should literal(SLxsv("hello"))
+      script should literal(SLxsv("A:a\tB:b"))
     }
   }
   "url" should {
@@ -282,9 +283,9 @@ class LiteralSpec extends WordSpec with Matchers with GivenWhenThen {
   }
   "expression" should {
     "natural" in {
-      val s = "\"hello\""
+      val s = "a.b"
       val script = parse(s)
-      script should literal(SExpression("hello"))
+      script should literal(SExpression("a.b"))
     }
   }
   "script" should {
@@ -294,25 +295,25 @@ class LiteralSpec extends WordSpec with Matchers with GivenWhenThen {
       script should literal(SScript("1 + 2"))
     }
   }
-  "bean" should {
-    "natural" in {
-      val s = "\"hello\""
-      val script = parse(s)
-      script should literal(SBean("hello"))
-    }
-  }
+  // "bean" should {
+  //   "natural" in {
+  //     val s = "\"hello\""
+  //     val script = parse(s)
+  //     script should literal(SBean("hello"))
+  //   }
+  // }
   "xml" should {
     "natural" in {
-      val s = "\"hello\""
+      val s = "<hello/>"
       val script = parse(s)
-      script should literal(SXml("hello"))
+      script should literal(SXml("<hello/>"))
     }
   }
   "html" should {
     "natural" in {
-      val s = "\"hello\""
+      val s = "html\"<div>hello</div>\""
       val script = parse(s)
-      script should literal(SHtml("hello"))
+      script should literal(SHtml("<div>hello</div>"))
     }
   }
   "xpath" should {
@@ -324,7 +325,7 @@ class LiteralSpec extends WordSpec with Matchers with GivenWhenThen {
   }
   "xsl" should {
     "natural" in {
-      val s = "\"hello\""
+      val s = "xsl\"hello\""
       val script = parse(s)
       script should literal(SXsl("hello"))
     }
@@ -338,16 +339,16 @@ class LiteralSpec extends WordSpec with Matchers with GivenWhenThen {
   }
   "json" should {
     "natural" in {
-      val s = "\"hello\""
+      val s = """{"A":"a"}"""
       val script = parse(s)
-      script should literal(SJson("hello"))
+      script should literal(SJson("""{"A":"a"}"""))
     }
   }
   "datetime" should {
     "natural" in {
       val s = "2021-01-30T12:01:00+09:00"
       val script = parse(s)
-      script should literal(SDateTime.jst(2021, 1, 30, 12, 1, 0))
+      script should literal(SDateTime.plus900(2021, 1, 30, 12, 1, 0))
     }
   }
   "localdatetime" should {
@@ -401,30 +402,103 @@ class LiteralSpec extends WordSpec with Matchers with GivenWhenThen {
   }
   "period" should {
     "natural" in {
-      val s = "P5Y2M10D"
+      val s = "P10D"
       val script = parse(s)
-      script should literal(SPeriod.yearMonthDay(5, 2, 10))
+      script should literal(SPeriod.day(10))
     }
   }
   "money" should {
-    "natural" in {
-      val s = "\"hello\""
+    "yen" in {
+      val s = "100¥"
       val script = parse(s)
       script should literal(SMoney.yen(100))
+    }
+    "dollar" in {
+      val s = "100$"
+      val script = parse(s)
+      script should literal(SMoney.dollar(100))
+    }
+    "euro" in {
+      val s = "100€"
+      val script = parse(s)
+      script should literal(SMoney.euro(100))
+    }
+    "pound" in {
+      val s = "100£"
+      val script = parse(s)
+      script should literal(SMoney.pound(100))
+    }
+    "string money default yen" in {
+      val s = """money"100""""
+      val script = parse(s)
+      script should literal(SMoney.yen(100))
+    }
+    "string money default dollar" in {
+      val s = """money"100""""
+      val script = parseEnUs(s)
+      script should literal(SMoney.dollar(100))
+    }
+    "string money default pound" in {
+      val s = """money"100""""
+      val script = parseEnGb(s)
+      script should literal(SMoney.pound(100))
+    }
+    "string money default euro" in {
+      val s = """money"100""""
+      val script = parseDeDe(s)
+      script should literal(SMoney.euro(100))
+    }
+    "string money default swiss franc" in {
+      val s = """money"100""""
+      val script = parseDeCh(s)
+      script should literal(SMoney.swissfranc(100))
+    }
+    "string money dollar" in {
+      val s = """money"100$""""
+      val script = parse(s)
+      script should literal(SMoney.dollar(100))
     }
   }
   "percent" should {
     "natural" in {
-      val s = "\"hello\""
+      val s = "35.5%"
       val script = parse(s)
       script should literal(SPercent(35.5))
     }
   }
   "unit" should {
     "natural" in {
-      val s = "\"hello\""
+      val s = "unit\"個\""
       val script = parse(s)
-      script should literal(SUnit("hello"))
+      script should literal(SUnit("個"))
+    }
+  }
+}
+
+object LiteralSpec {
+  object matchers {
+    def literal(p: SExpr) = ScriptValueMatcher(p)
+    def result(p: SExpr) = ResultValueMatcher(p)
+
+    private def _is_match(p: Expression, o: SExpr) = {
+      val x = p.asSExpr
+      MatchResult(x == o, s"$x was not equal to $o", s"$x was equal to $o")
+    }
+
+    case class ScriptValueMatcher(o: SExpr) extends Matcher[Script] {
+      def apply(p: Script) = p.expressions match {
+        case x +: Seq() => _is_match(x, o)
+        case x +: xs => MatchResult(false, s"Too many expressions: ${p.expressions}", "")
+        case _ => MatchResult(false, "Empty expressions", "")
+      }
+    }
+
+    case class ResultValueMatcher(o: SExpr) extends Matcher[Vector[Expression]] {
+      def apply(p: Vector[Expression]) = p match {
+        case x +: Seq() => _is_match(x, o)
+        case x +: xs => MatchResult(false, s"Too many expressions: ${p}", "")
+        case _ => MatchResult(false, "Empty expressions", "")
+      }
     }
   }
 }

@@ -36,7 +36,8 @@ import org.goldenport.kaleidox._
  *  version Apr. 24, 2022
  *  version May.  5, 2022
  *  version Nov. 28, 2022
- * @version Jul. 29, 2023
+ *  version Jul. 29, 2023
+ * @version Sep.  6, 2024
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -257,7 +258,13 @@ case class Evaluator(
   // see org.goldenport.sexpr.eval.Evaluator.get_specification
   private def _get_specification(name: String) = _binding.getFunction(name).map(_.specification)
 
-  protected final def normalize_parameters_function(m: SList, spec: FunctionSpecification): (Universe, SExpr) = {
+  protected final def normalize_parameters_function(m: SList, spec: FunctionSpecification): (Universe, SExpr) =
+    if (spec.isQuote)
+      (universe, m)
+    else
+      _normalize_parameters_function(m, spec)
+
+    private def _normalize_parameters_function(m: SList, spec: FunctionSpecification): (Universe, SExpr) = {
     val n = spec.numberOfRequiredArguments
     val a = Parameters.fromExpression(m)
     // val params = spec.resolve(a) ; conflict variable handling.

@@ -15,7 +15,7 @@ import org.goldenport.record.v3.sql.SqlContext
 import org.goldenport.record.store.StoreFactory
 import org.goldenport.record.store.Query
 import org.goldenport.record.query.QueryExpression
-import org.goldenport.statemachine.StateMachineSpace
+import org.goldenport.sm.StateMachineSpace
 import org.goldenport.util.DateTimeUtils
 import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
 import org.goldenport.kaleidox.extension.ExtensionContext
@@ -45,7 +45,9 @@ import org.smartdox.parser.Dox2Parser
  *  version Dec. 15, 2022
  *  version Jul. 22, 2023
  *  version Sep. 30, 2023
- * @version Jul.  7, 2024
+ *  version Jul.  7, 2024
+ *  version Sep.  6, 2024
+ * @version Oct. 14, 2024
  * @author  ASAMI, Tomoharu
  */
 case class Config(
@@ -77,9 +79,11 @@ case class Config(
   val doxConfig = Dox2Parser.Config.default
 
   def properties = cliConfig.properties
+  def contextFoundation = cliConfig.contextFoundation
   def dateTimeContext = cliConfig.dateTimeContext
   def i18nContext = cliConfig.i18n
   def mathContext = cliConfig.mathContext
+  def formatContext = cliConfig.formatContext
   def createQueryContext() = Query.Context(
     Query.Context.Default.default,
     QueryExpression.Context(
@@ -132,7 +136,7 @@ object Config {
   def create(env: Environment): Config = {
     Config(
       env.config,
-      scriptConfig,
+      scriptConfig.withContextFoundation(env.contextFoundation),
       defaultServiceLogic,
       defaultStoreLogic
     )

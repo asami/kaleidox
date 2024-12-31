@@ -4,6 +4,7 @@ import javax.script._
 import java.math.MathContext
 import org.goldenport.RAISE
 import org.goldenport.monitor.Monitor
+import org.goldenport.context.ContextFoundation
 import org.goldenport.cli.Environment
 import org.goldenport.cli.Environment.EnvironmentExecutionContextBase
 import org.goldenport.config.ConfigHelper
@@ -12,7 +13,7 @@ import org.goldenport.i18n.I18NContext
 import org.goldenport.log.LogConfig
 import org.goldenport.trace.TraceContext
 import org.goldenport.io.ResourceManager
-import org.goldenport.statemachine.StateMachineSpace
+import org.goldenport.sm.StateMachineSpace
 import org.goldenport.record.unitofwork.interpreter.{UnitOfWorkLogic, StoreOperationLogic}
 import org.goldenport.record.v3.sql.SqlContext
 import org.goldenport.sexpr._
@@ -53,14 +54,15 @@ import org.goldenport.kaleidox.extension.modeler.Modeler
  *  version Sep. 24, 2021
  *  version Dec. 18, 2021
  *  version May.  8, 2022
- * @version Jul. 22, 2023
+ *  version Jul. 22, 2023
+ *  version Sep.  6, 2024
+ * @version Oct. 13, 2024
  * @author  ASAMI, Tomoharu
  */
 case class ExecutionContext(
   environment: Environment,
   config: Config,
-  i18nContext: I18NContext,
-  mathContext: MathContext,
+  contextFoundation: ContextFoundation,
   logConfig: LogConfig,
   traceContext: TraceContext,
   statemachineSpace: StateMachineSpace,
@@ -119,8 +121,7 @@ object ExecutionContext {
   def apply(env: Environment, p: Config): ExecutionContext = ExecutionContext(
     env,
     p,
-    p.i18nContext,
-    p.mathContext,
+    p.contextFoundation,
     p.logConfig,
     TraceContext.create(),
     p.stateMachineSpace,

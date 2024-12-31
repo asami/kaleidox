@@ -14,7 +14,8 @@ import org.smartdox.Section
  * @since   Jan.  1, 2024
  *  version Jan.  3, 2024
  *  version Jul. 12, 2024
- * @version Aug.  4, 2024
+ *  version Aug.  4, 2024
+ * @version Nov.  4, 2024
  * @author  ASAMI, Tomoharu
  */
 case class RequirementModel(
@@ -28,6 +29,11 @@ case class RequirementModel(
   protected def show_String: String = ???
 
   def isEmpty: Boolean = sections.isEmpty && entities.isEmpty && events.isEmpty
+
+  def +(rhs: RequirementModel): RequirementModel = copy(
+    entities = entities + rhs.entities,
+    events = events + rhs.events
+  )
 }
 
 object RequirementModel {

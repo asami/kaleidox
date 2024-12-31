@@ -10,6 +10,7 @@ import org.smartdox.{Dox, Section}
 import org.smartdox.Description
 import org.smartdox.Table
 import org.smartdox.Doxes
+import org.smartdox.structure.Statement
 import org.goldenport.RAISE
 import org.goldenport.Strings
 import org.goldenport.context.Showable
@@ -30,7 +31,7 @@ import org.goldenport.record.v3.{IRecord, SingleValue, MultipleValue, EmptyValue
 import org.goldenport.record.v3.{Record, Field}
 import org.goldenport.record.v3.HoconRecord
 import org.goldenport.record.util.{HoconUtils => RHoconUtils}
-import org.goldenport.statemachine.StateMachineClass
+import org.goldenport.sm.StateMachineClass
 import org.goldenport.kaleidox.model._
 import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
 import org.goldenport.kaleidox.model.vision.VisionModel
@@ -65,7 +66,9 @@ import org.goldenport.kaleidox.model.analysis.AnalysisModel
  *  version Oct. 22, 2023
  *  version Jan.  3, 2024
  *  version Jul. 12, 2024
- * @version Aug.  5, 2024
+ *  version Aug.  5, 2024
+ *  version Sep.  6, 2024
+ * @version Nov. 22, 2024
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -322,6 +325,9 @@ object Model {
 
     protected final def make_description_sections(c: Config, p: LogicalSection): (Description, List[Section]) =
       make_description_sections(c.doxConfig, p)
+
+    protected final def make_structure_statement(c: Config, p: LogicalSection): Statement =
+      make_structure_statement(c.doxConfig, p)
   }
   object Division {
     val elements = Vector(
@@ -865,6 +871,9 @@ object Model {
       a.resolve()
     }
 
+    def makeModel(config: Config): EntityModel =
+      makeModel(None, config.entityFactory)
+
     // def makeModel: EntityModel = {
     //   val doxconfig = Dox2Parser.Config.default // TODO
     //   val dox = Dox2Parser.parse(doxconfig, section)
@@ -1002,8 +1011,8 @@ object Model {
       ) {
         def r = PreambleModel(
           Description.name("preamble"), // TODO
-          vision getOrElse VisionModel.empty,
           business getOrElse BusinessModel.empty(config),
+          vision getOrElse VisionModel.empty,
           requirement getOrElse RequirementModel.empty(config),
           analysis getOrElse AnalysisModel.empty(config)
         )

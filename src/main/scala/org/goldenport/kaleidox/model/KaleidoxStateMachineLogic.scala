@@ -2,14 +2,15 @@ package org.goldenport.kaleidox.model
 
 import scalaz.{State => _, _}, Scalaz._
 import org.goldenport.context.Consequence
-import org.goldenport.statemachine._
+import org.goldenport.sm._
 import org.goldenport.kaleidox._
 import org.goldenport.kaleidox.lisp.Context
 
 /*
  * @since   May. 23, 2021
  *  version May. 29, 2021
- * @version Nov. 29, 2021
+ *  version Nov. 29, 2021
+ * @version Sep.  6, 2024
  * @author  ASAMI, Tomoharu
  */
 trait KaleidoxStateMachineLogic extends StateMachineModel {

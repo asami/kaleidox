@@ -13,7 +13,8 @@ import org.goldenport.kaleidox.Model._
  *  version Feb.  6, 2019
  *  version Apr.  6, 2019
  *  version Oct.  2, 2019
- * @version Apr.  5, 2021
+ *  version Apr.  5, 2021
+ * @version Oct. 23, 2024
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -53,13 +54,18 @@ data division
 ${1 + 2 + 3}
 """
       val model = Model.parseWitoutLocation(config, s)
-      model should be(Model(
-        config,
+      val target = Model(
+        config.withoutLocation,
         IdentificationDivision(section("Identification", "id division")),
         EnvironmentDivision.create(section("Environment", """a.b.c="abc"""")),
         DataDivision(section("Data", "data division")),
         Script(SScript("1 + 2 + 3"))
-      ))
+      )
+      model.divisions(0) should be(target.divisions(0))
+      model.divisions(1) should be(target.divisions(1))
+      model.divisions(2) should be(target.divisions(2))
+      model.divisions(3) should be(target.divisions(3))
+      model should be(target)
     }
   }
 }
