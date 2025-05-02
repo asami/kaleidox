@@ -129,10 +129,13 @@ object ServiceModel {
 
           private def _using_params: Vector[Parameter] = results.flatMap(_.parameter)
 
-          private def _faults = results.map(_.result).flatMap {
-            case Failure(fs) => fs.list
-            case _ => Nil
-          }.toList
+          private def _faults: IList[ArgumentFault] = {
+            val a = results.map(_.result).flatMap {
+              case Failure(fs) => fs.list.toList
+              case _ => Nil
+            }.toList
+            IList.fromList(a)
+          }
 
           private def _sequence(p: List[ValidationNel[ArgumentFault, SExpr]]): ValidationNel[ArgumentFault, List[SExpr]] =
             p match {
@@ -171,7 +174,7 @@ object ServiceModel {
       def resolve(p: SExpr): ValidationNel[ArgumentFault, SExpr] =
         column.resolve(p.asObject) match {
           case Success(s) => Success(SExpr.create(s))
-          case Failure(e) => Failure(NonEmptyList(InvalidArgumentFault(column.name, e)))
+          case Failure(e) => Failure(NonEmptyList(InvalidArgumentFault(column.name, e.list.toList)))
         }
     }
     object Parameter {
@@ -310,15 +313,15 @@ object ServiceModel {
             val b = SCell(l, SList.create(a))
             u.eval(b)
           case Failure(e) =>
-            u.trace.fault(e.list)
-            val c = Conclusion.argumentFault(e.list)
+            u.trace.fault(e.list.toList)
+            val c = Conclusion.argumentFault(e.list.toList)
             SError(c)
         }
         val r = out.resolve(u, r0) match {
           case Success(a) => a
           case Failure(e) => 
-            u.trace.fault(e.list)
-            val c = Conclusion.resultFault(e.list)
+            u.trace.fault(e.list.toList)
+            val c = Conclusion.resultFault(e.list.toList)
             SError(c)
         }
         u.toResult(r)

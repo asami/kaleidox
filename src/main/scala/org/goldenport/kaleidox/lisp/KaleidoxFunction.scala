@@ -508,7 +508,7 @@ object KaleidoxFunction {
       def html(c: Context, text: String): SExpr = 
         _parse(text) match {
           case Success(s) => html(c, s)
-          case Failure(e) => e.list.head.RAISE
+          case Failure(e) => e.list.toList.head.RAISE
         }
 
       def html(c: Context, dox: Dox): SExpr = {

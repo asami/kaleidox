@@ -7,7 +7,7 @@ import org.scalatest.matchers.{BeMatcher, MatchResult}
  * @version Dec. 26, 2024
  * @author  ASAMI, Tomoharu
  */
-trait ModelBeMatcher[T] extends BeMatcher[T] with ModelMatchResultHelper {
+trait ModelBeMatcher[T <: AnyRef] extends BeMatcher[T] with ModelMatchResultHelper {
   def expected: T
 
   def apply(actual: T): MatchResult =
