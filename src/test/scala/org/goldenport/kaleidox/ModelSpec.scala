@@ -14,7 +14,8 @@ import org.goldenport.kaleidox.Model._
  *  version Apr.  6, 2019
  *  version Oct.  2, 2019
  *  version Apr.  5, 2021
- * @version Oct. 23, 2024
+ *  version Oct. 23, 2024
+ * @version Feb.  8, 2025
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -24,7 +25,7 @@ class ModelSpec extends WordSpec with Matchers with GivenWhenThen {
   }
 
   def section(title: String, content: String): LogicalSection = 
-    LogicalSection.create(title, content)
+    LogicalSection.createOrg(title, content)
 
   "Model" should {
 //     "quote" in {

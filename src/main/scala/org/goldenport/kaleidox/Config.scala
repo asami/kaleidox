@@ -47,7 +47,8 @@ import org.smartdox.parser.Dox2Parser
  *  version Sep. 30, 2023
  *  version Jul.  7, 2024
  *  version Sep.  6, 2024
- * @version Oct. 14, 2024
+ *  version Oct. 14, 2024
+ * @version May.  3, 2025
  * @author  ASAMI, Tomoharu
  */
 case class Config(
@@ -84,6 +85,9 @@ case class Config(
   def i18nContext = cliConfig.i18n
   def mathContext = cliConfig.mathContext
   def formatContext = cliConfig.formatContext
+  def observabilityContext = cliConfig.observabilityContext
+  def notificationContext = cliConfig.notificationContext
+  def randomContext = cliConfig.randomContext
   def createQueryContext() = Query.Context(
     Query.Context.Default.default,
     QueryExpression.Context(

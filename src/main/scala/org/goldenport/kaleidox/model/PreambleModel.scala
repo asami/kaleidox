@@ -20,7 +20,8 @@ import org.goldenport.kaleidox.model.analysis.AnalysisModel
  * @since   Jan.  1, 2024
  *  version Jan.  3, 2024
  *  version Jul. 12, 2024
- * @version Nov.  5, 2024
+ *  version Nov.  5, 2024
+ * @version Jan.  1, 2025
  * @author  ASAMI, Tomoharu
  */
 case class PreambleModel(
@@ -70,9 +71,9 @@ object PreambleModel {
   ) {
     def parse(p: String): Consequence[PreambleModel] = {
       val bconfig = if (config.isLocation)
-        LogicalBlocks.Config.easyhtml
+        LogicalBlocks.Config.easyHtml
       else
-        LogicalBlocks.Config.easyhtml.withoutLocation
+        LogicalBlocks.Config.easyHtml.withoutLocation
       val blocks = LogicalBlocks.parse(bconfig, p)
       parse(blocks)
     }

@@ -37,7 +37,8 @@ import org.goldenport.kaleidox._
  *  version Feb. 24, 2022
  *  version Aug. 21, 2023
  *  version Oct. 15, 2023
- * @version Sep.  6, 2024
+ *  version Sep.  6, 2024
+ * @version May.  2, 2025
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -209,6 +210,8 @@ object SchemaModel {
 
     trait SchemaClassContainer extends Showable.Base {
       def schemaClass: SchemaClass
+
+      def print = s"[${label_string}]${print_String}"
 
       protected def display_String: String = "SchemaClassContainer"
 

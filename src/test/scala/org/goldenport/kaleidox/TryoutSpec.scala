@@ -18,7 +18,8 @@ import org.goldenport.kaleidox.interpreter.Interpreter
  *  version Nov. 20, 2020
  *  version Jan. 17, 2021
  *  version Sep.  6, 2024
- * @version Oct. 23, 2024
+ *  version Oct. 23, 2024
+ * @version Feb.  8, 2025
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -34,7 +35,7 @@ class TryoutSpec extends WordSpec with Matchers with GivenWhenThen with SpecEnvi
       Config.log.debug // trace // warn // debug
     }
     def section(title: String, content: String): LogicalSection =
-      LogicalSection.create(title, content)
+      LogicalSection.createOrg(title, content)
     "Division" in {
       val s = """* Identification
 

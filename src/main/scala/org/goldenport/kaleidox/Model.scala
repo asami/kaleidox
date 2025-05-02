@@ -68,7 +68,8 @@ import org.goldenport.kaleidox.model.analysis.AnalysisModel
  *  version Jul. 12, 2024
  *  version Aug.  5, 2024
  *  version Sep.  6, 2024
- * @version Nov. 22, 2024
+ *  version Nov. 22, 2024
+ * @version May.  2, 2025
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -1048,6 +1049,7 @@ object Model {
   }
 
   trait ISubModel extends Showable.Base with Description.Holder {
+    def print = s"[${label_string}]${print_String}"
   }
 
   trait ISchemaSubModel extends ISchemaModel with ISubModel {

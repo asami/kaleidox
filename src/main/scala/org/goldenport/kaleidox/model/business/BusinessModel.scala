@@ -26,7 +26,8 @@ import org.smartdox.Section
  *  version Jul. 12, 2024
  *  version Aug.  4, 2024
  *  version Nov.  7, 2024
- * @version Dec. 22, 2024
+ *  version Dec. 22, 2024
+ * @version Jan.  1, 2025
  * @author  ASAMI, Tomoharu
  */
 case class BusinessModel(
@@ -93,9 +94,9 @@ object BusinessModel {
   case class Builder(config: Config) {
     def parse(p: String): Consequence[BusinessModel] = {
       val bconfig = if (config.isLocation)
-        LogicalBlocks.Config.easyhtml
+        LogicalBlocks.Config.easyHtml
       else
-        LogicalBlocks.Config.easyhtml.withoutLocation
+        LogicalBlocks.Config.easyHtml.withoutLocation
       val blocks = LogicalBlocks.parse(bconfig, p)
       parse(blocks)
     }

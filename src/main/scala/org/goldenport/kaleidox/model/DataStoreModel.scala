@@ -17,7 +17,8 @@ import org.goldenport.kaleidox._
  *  version May. 14, 2021
  *  version Jan. 22, 2023
  *  version Aug. 21, 2023
- * @version Oct. 15, 2023
+ *  version Oct. 15, 2023
+ * @version May.  2, 2025
  * @author  ASAMI, Tomoharu
  */
 case class DataStoreModel(
@@ -54,6 +55,8 @@ object DataStoreModel {
     schema: Either[Schema, String],
     data: Option[Table] = None
   ) extends Showable.Base {
+    def print = s"[${label_string}]${print_String}"
+
     protected def print_String: String = s"$label_string"
 
     protected def display_String: String = s"$label_string"

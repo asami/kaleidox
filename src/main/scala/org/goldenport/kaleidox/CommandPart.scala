@@ -43,7 +43,9 @@ import org.goldenport.util.StringUtils
  *  version Jan. 31, 2022
  *  version Feb.  1, 2022
  *  version Apr. 24, 2022
- * @version Jul. 24, 2023
+ *  version Jul. 24, 2023
+ *  version Feb.  2, 2025
+ * @version May.  3, 2025
  * @author  ASAMI, Tomoharu
  */
 trait CommandPart { self: Engine =>
@@ -471,7 +473,8 @@ object CommandPart {
         import org.smartdox.transformers.Dox2HtmlTransformer
 
         val ctx = Context.create()
-        val tx = Dox2HtmlTransformer(ctx)
+        val rule = Dox2HtmlTransformer.Rule.default
+        val tx = Dox2HtmlTransformer(ctx, rule)
         tx.transform(p) match {
           case m: ParseSuccess[_] => m.ast
           case m: EmptyParseResult[_] => RAISE.noReachDefect
@@ -689,7 +692,7 @@ object CommandPart {
   case class HistoryMethod(call: OperationCall) extends KaleidoxMethod {
     def execute = {
       val r = for {
-        ld <- call.consequenceArg1ListingDirectiveBaseOneOption
+        ld <- call.consequenceArg1ListingDirectiveBaseOneTailOption
       } yield {
         val defaultsize = 5
         val listing = ld getOrElse ListingDirective.oneTail(defaultsize)

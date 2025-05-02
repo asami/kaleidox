@@ -7,7 +7,8 @@ import org.goldenport.record.v2.Schema
  * @since   Feb. 23, 2021
  *  version Mar.  2, 2021
  *  version Jun. 25, 2021
- * @version Aug. 21, 2023
+ *  version Aug. 21, 2023
+ * @version May.  2, 2025
  * @author  ASAMI, Tomoharu
  */
 trait ISchemaModel {
@@ -16,6 +17,8 @@ trait ISchemaModel {
 
 trait ISchemaClass extends Showable.Base {
   def schema: Schema
+
+  def print = s"[${label_string}]${print_String}"
 
   protected def print_String: String = schema.print
 

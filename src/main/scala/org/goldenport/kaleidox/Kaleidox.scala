@@ -8,9 +8,12 @@ import org.goldenport.monitor.Monitor
 import org.goldenport.context.ContextFoundation
 import org.goldenport.context.DateTimeContext
 import org.goldenport.context.FormatContext
+import org.goldenport.context.RandomContext
 import org.goldenport.i18n.I18NContext
 import org.goldenport.log.{LogContext, LogLevel, LogConfig}
 import org.goldenport.trace.TraceContext
+import org.goldenport.observability.ObservabilityContext
+import org.goldenport.notification.NotificationContext
 import org.goldenport.cli._
 import org.goldenport.bag.BufferBag
 import org.goldenport.record.v3.Record
@@ -50,7 +53,8 @@ import org.goldenport.util.StringUtils
  *  version Aug.  3, 2023
  *  version Aug.  5, 2024
  *  version Sep.  6, 2024
- * @version Oct. 13, 2024
+ *  version Oct. 13, 2024
+ * @version May.  3, 2025
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -105,11 +109,17 @@ case class Kaleidox(
     val mathcontext = _math_context(model, config)
     val datetimecontext = _datetime_context(model, config)
     val formatcontext = _format_context(model, config)
+    val observabilitycontext = _observability_context(model, config)
+    val notificationcontext = _notification_context(model, config)
+    val randomcontext = _random_context(model, config)
     val contextfoundation = ContextFoundation(
       mathcontext,
       i18ncontext,
       datetimecontext,
-      formatcontext
+      formatcontext,
+      observabilitycontext,
+      notificationcontext,
+      randomcontext
     )
     val logconfig = _log_config(model, config)
     val tracecontext = TraceContext.create()
@@ -326,6 +336,18 @@ case class Kaleidox(
     config.formatContext // TODO model
   }
 
+  private def _observability_context(model: Model, config: Config): ObservabilityContext = {
+    config.observabilityContext // TODO model
+  }
+
+  private def _notification_context(model: Model, config: Config): NotificationContext = {
+    config.notificationContext // TODO model
+  }
+
+  private def _random_context(model: Model, config: Config): RandomContext = {
+    config.randomContext // TODO model
+  }
+
   private def _log_config(model: Model, config: Config): LogConfig = {
     val c = config.logConfig
     // TODO model : conf file, level
@@ -353,7 +375,7 @@ case class Kaleidox(
 
   private def _to_parameter_record(p: Request): Record = {
     val as = p.arguments.map(_.value)
-    val ps: Seq[(String, Any)] = p.properties.map(x => x.name -> x.value.value)
+    val ps: Seq[(String, Any)] = p.properties.map(x => x.name -> x.value)
     Record.data(
       "request" -> (
         Record.data(
