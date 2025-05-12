@@ -31,7 +31,8 @@ import org.goldenport.kaleidox.model.diagram._
  *  version Jul. 31, 2023
  *  version Aug. 21, 2023
  *  version Sep. 16, 2023
- * @version Sep.  6, 2024
+ *  version Sep.  6, 2024
+ * @version May. 12, 2025
  * @author  ASAMI, Tomoharu
  */
 object KaleidoxFunction {
@@ -75,7 +76,9 @@ object KaleidoxFunction {
     SmartDox.Html,
     Modeler.Current,
     Modeler.Load,
-    Modeler.Diagram
+    Modeler.Diagram,
+    Modeler.Vocabulary,
+    Modeler.Scala
   )
 
   object Event {
@@ -351,7 +354,7 @@ object KaleidoxFunction {
               case NameTransitionTo(to) => to
             }.headOption
         }
-        ps./:(Z())(_+_).r
+        ps.foldLeft(Z())(_+_).r
       }
 
       // private def _normalize_init(initstatename: Option[String], states: Seq[MState], sms: Seq[MState]): Seq[MState] = {
@@ -601,5 +604,24 @@ object KaleidoxFunction {
         RAISE.notImplementedYetDefect
     }
 
+    case object Scala extends KaleidoxEvalFunction {
+      val specification = FunctionSpecification(
+        "modeler-scala",
+        param_argument("model"),
+        param_argument_option("charset")
+      )
+
+      def eval(c: Context): CursorResult = for {
+        textormodel <- c.param.textInFileOr(c) {
+          case m: Model => m
+          case m: SModel => m.model
+        }
+      } yield textormodel.flatMap(_scala(c))
+
+      private def _scala(c: Context)(p: Either[String, IModel]): ValidationNel[SError, SExpr] =
+        for {
+          model <- make_model(c, p)
+        } yield c.extension.modeler.generateScala(c, model)
+    }
   }
 }

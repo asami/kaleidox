@@ -37,7 +37,8 @@ import org.goldenport.kaleidox._
  *  version May.  5, 2022
  *  version Nov. 28, 2022
  *  version Jul. 29, 2023
- * @version Sep.  6, 2024
+ *  version Sep.  6, 2024
+ * @version May.  6, 2025
  * @author  ASAMI, Tomoharu
  */
 case class Evaluator(
@@ -309,7 +310,7 @@ case class Evaluator(
               }
             }
           }
-          slots./:(ZZ())(_+_).r
+          slots.foldLeft(ZZ())(_+_).r
         }
 
         def +(rhs: String) =
@@ -335,7 +336,7 @@ case class Evaluator(
 
         private def _add(p: Slot) = copy(slots = slots :+ p)
       }
-      paramnames.takeRight(nn)./:(Z())(_+_).r
+      paramnames.takeRight(nn).foldLeft(Z())(_+_).r
 
       // universe.makeStackParameters(nn) match {
       //   case \/-((u, xs)) => (u, SList.create(m.list ::: xs))
@@ -360,7 +361,7 @@ case class Evaluator(
         copy(zu = r)
       }
     }
-    s.listSExpr./:(Z(universe))(_+_).r
+    s.listSExpr.foldLeft(Z(universe))(_+_).r
   }
 }
 

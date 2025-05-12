@@ -6,7 +6,8 @@ import org.goldenport.kaleidox.lisp.Context
 
 /*
  * @since   Dec. 18, 2021
- * @version Aug.  4, 2023
+ *  version Aug.  4, 2023
+ * @version May.  5, 2025
  * @author  ASAMI, Tomoharu
  */
 trait Modeler {
@@ -17,6 +18,11 @@ trait Modeler {
   ): SExpr
 
   def generateDiagram(
+    c: Context,
+    model: SModel
+  ): SExpr
+
+  def generateScala(
     c: Context,
     model: SModel
   ): SExpr
@@ -31,6 +37,11 @@ object Modeler {
     ): SExpr = RAISE.unsupportedOperationFault
 
     def generateDiagram(
+      c: Context,
+      model: SModel
+    ): SExpr = RAISE.unsupportedOperationFault
+
+    def generateScala(
       c: Context,
       model: SModel
     ): SExpr = RAISE.unsupportedOperationFault

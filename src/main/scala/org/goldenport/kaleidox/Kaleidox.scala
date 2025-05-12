@@ -54,7 +54,7 @@ import org.goldenport.util.StringUtils
  *  version Aug.  5, 2024
  *  version Sep.  6, 2024
  *  version Oct. 13, 2024
- * @version May.  3, 2025
+ * @version May. 11, 2025
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -538,13 +538,13 @@ object Kaleidox {
   }
 
   def main(args: Array[String]) = {
-    val env = Environment.create(args)
+    val (args1, env) = Environment.parse(args)
     val config = Config.create(env)
     val kal = Kaleidox(config, env)
     val req = spec.Request.empty
     val res = spec.Response()
     val op = spec.Operation("kaleidox", req, res)
-    val call = OperationCall.create(op, args)
+    val call = OperationCall.create(op, args1)
     // println(s"Call: ${call.request}")
     if (call.request.arguments.isEmpty || call.request.isInteractive)
       kal.repl(call)
