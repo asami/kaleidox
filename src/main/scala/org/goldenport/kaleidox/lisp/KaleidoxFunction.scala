@@ -32,7 +32,8 @@ import org.goldenport.kaleidox.model.diagram._
  *  version Aug. 21, 2023
  *  version Sep. 16, 2023
  *  version Sep.  6, 2024
- * @version May. 12, 2025
+ *  version May. 12, 2025
+ * @version Sep. 15, 2025
  * @author  ASAMI, Tomoharu
  */
 object KaleidoxFunction {
@@ -458,7 +459,7 @@ object KaleidoxFunction {
       val specification = FunctionSpecification(
         "dox-load",
         param_argument("file"),
-        param_argument_option("charset")
+        param_property_option("charset")
       )
 
       def eval(c: Context): CursorResult = for {
@@ -484,7 +485,7 @@ object KaleidoxFunction {
       val specification = FunctionSpecification(
         "dox-html",
         param_argument("dox"),
-        param_argument_option("charset")
+        param_property_option("charset")
       )
 
       def eval(c: Context): CursorResult = for {
@@ -500,7 +501,7 @@ object KaleidoxFunction {
 
       private def _parse(p: String): ValidationNel[SError, Dox] = {
         val c = Script.DoxLiteralTokenizer.config
-        val parser = new Dox2Parser(c)
+        val parser = Dox2Parser.create(c)
         parser.apply(p) match {
           case ParseSuccess(dox, _) => Success(dox)
           case m: ParseFailure[_] => Failure(SError.syntaxError(m)).toValidationNel
@@ -548,7 +549,7 @@ object KaleidoxFunction {
       val specification = FunctionSpecification(
         "modeler-load",
         param_argument("model"),
-        param_argument_option("charset")
+        param_property_option("charset")
       )
 
       def eval(c: Context): CursorResult = for {
@@ -565,7 +566,7 @@ object KaleidoxFunction {
       val specification = FunctionSpecification(
         "modeler-diagram",
         param_argument("model"),
-        param_argument_option("charset")
+        param_property_option("charset")
       )
 
       def eval(c: Context): CursorResult = for {
@@ -593,7 +594,7 @@ object KaleidoxFunction {
       val specification = FunctionSpecification(
         "modeler-vocabulary",
         param_argument("model"),
-        param_argument_option("charset")
+        param_property_option("charset")
       )
 
       def eval(c: Context): CursorResult = for {
@@ -608,7 +609,8 @@ object KaleidoxFunction {
       val specification = FunctionSpecification(
         "modeler-scala",
         param_argument("model"),
-        param_argument_option("charset")
+        param_argument_option("save"),
+        param_property_option("charset")
       )
 
       def eval(c: Context): CursorResult = for {
@@ -616,7 +618,17 @@ object KaleidoxFunction {
           case m: Model => m
           case m: SModel => m.model
         }
-      } yield textormodel.flatMap(_scala(c))
+        uri <- c.param.getUri('save)
+      } yield {
+        for {
+          m <- textormodel
+          s <- _scala(c)(m)
+          o <- uri
+        } yield {
+          o foreach (x => uri_save(c, x, s))
+          s
+        }
+      }
 
       private def _scala(c: Context)(p: Either[String, IModel]): ValidationNel[SError, SExpr] =
         for {

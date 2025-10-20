@@ -17,6 +17,7 @@ import org.goldenport.record.store.Query
 import org.goldenport.record.query.QueryExpression
 import org.goldenport.sm.StateMachineSpace
 import org.goldenport.util.DateTimeUtils
+import org.goldenport.kaleidox.interpreter.ExecutionUnitOfWorkLogic
 import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
 import org.goldenport.kaleidox.extension.ExtensionContext
 import org.goldenport.kaleidox.extension.modeler.Modeler
@@ -48,7 +49,8 @@ import org.smartdox.parser.Dox2Parser
  *  version Jul.  7, 2024
  *  version Sep.  6, 2024
  *  version Oct. 14, 2024
- * @version May.  3, 2025
+ *  version May.  3, 2025
+ * @version Sep. 12, 2025
  * @author  ASAMI, Tomoharu
  */
 case class Config(
@@ -88,6 +90,7 @@ case class Config(
   def observabilityContext = cliConfig.observabilityContext
   def notificationContext = cliConfig.notificationContext
   def randomContext = cliConfig.randomContext
+  def fileTextResolver = cliConfig.fileTextResolver
   def createQueryContext() = Query.Context(
     Query.Context.Default.default,
     QueryExpression.Context(
@@ -129,7 +132,7 @@ object Config {
     val default = Variations()
   }
 
-  val defaultServiceLogic = new StandardUnitOfWorkLogic()
+  val defaultServiceLogic = UnitOfWorkLogic.default
   val defaultStoreLogic = new StandardStoreOperationLogic()
   val scriptConfig = SConfig.default.addStringLiteralTokenizers(
     DoxLiteralTokenizer
@@ -138,10 +141,11 @@ object Config {
   val noLocation = default.withoutLocation
 
   def create(env: Environment): Config = {
+    val servicelogic = ExecutionUnitOfWorkLogic.create(env)
     Config(
       env.config,
       scriptConfig.withContextFoundation(env.contextFoundation),
-      defaultServiceLogic,
+      servicelogic,
       defaultStoreLogic
     )
   }

@@ -29,7 +29,8 @@ import org.goldenport.kaleidox.extension.modeler.Modeler
  *  version Nov. 29, 2021
  *  version Dec. 18, 2021
  *  version Apr. 24, 2022
- * @version Sep.  6, 2024
+ *  version Sep.  6, 2024
+ * @version Aug. 20, 2025
  * @author  ASAMI, Tomoharu
  */
 case class Context(
@@ -46,7 +47,7 @@ case class Context(
 
   def config = executionContext.config
   def dateTimeContext = executionContext.dateTimeContext
-  def i18nContext = executionContext.i18nContext
+  def i18nContext = executionContext.i18NContext
   def serviceLogic = executionContext.serviceLogic
   def storeLogic = executionContext.storeLogic
   def scriptContext = executionContext.scriptContext

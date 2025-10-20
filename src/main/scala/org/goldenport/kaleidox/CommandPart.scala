@@ -45,7 +45,8 @@ import org.goldenport.util.StringUtils
  *  version Apr. 24, 2022
  *  version Jul. 24, 2023
  *  version Feb.  2, 2025
- * @version May.  3, 2025
+ *  version May. 17, 2025
+ * @version Sep. 15, 2025
  * @author  ASAMI, Tomoharu
  */
 trait CommandPart { self: Engine =>
@@ -118,7 +119,19 @@ object CommandPart {
     protected final def to_response_file(url: Option[URL], p: Option[SExpr]): Response =
       url match {
         case Some(s) => to_response_file(s, p)
-        case None => to_response_file(p.map(_.toChunkBag).getOrElse(EmptyBag))
+        case None => to_response_file(p) // to_response_file(p.map(_.toChunkBag).getOrElse(EmptyBag))
+      }
+
+    protected final def to_response_file(p: Option[SExpr]): Response =
+      p match {
+        case Some(s) => to_response_file(s)
+        case None => to_response_file(EmptyBag)
+      }
+
+    protected final def to_response_file(p: SExpr): Response =
+      p match {
+        case m: STree => to_response_file(m.tree)
+        case m => to_response_file(m.toChunkBag)
       }
   }
 
@@ -463,7 +476,7 @@ object CommandPart {
 
       private def _to_html_program(p: SExpr, lang: String) = {
         val s = p.pretty
-        val prog = Program(s, "program" -> lang)
+        val prog = Program.create(s, "program" -> lang)
         _to_html(prog)
       }
 

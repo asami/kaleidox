@@ -18,7 +18,8 @@ import org.goldenport.sexpr.script.Script.StringLiteralTokenizer
  *  version Feb. 11, 2021
  *  version Mar. 16, 2021
  *  version Jul. 31, 2023
- * @version Aug.  5, 2023
+ *  version Aug.  5, 2023
+ * @version Sep. 15, 2025
  * @author  ASAMI, Tomoharu
  */
 case class Script(
@@ -122,8 +123,8 @@ object Script extends Model.DivisionFactory {
 
     def literal(p: String): SExpr = parse(config, p)
 
-    def parse(c: Dox2Parser.Config, p: String): SExpr = {
-      val parser = new Dox2Parser(c)
+    def parse(config: Dox2Parser.Config, p: String): SExpr = {
+      val parser = Dox2Parser.create(config)
       parser.apply(p) match {
         case ParseSuccess(dox, _) => SDocument(DoxDocument(p, dox))
         case m: ParseFailure[_] => SError.syntaxError(m)
