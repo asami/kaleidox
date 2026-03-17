@@ -38,12 +38,8 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Sep. 30, 2023
  *  version Oct. 22, 2023
  *  version Jul. 12, 2024
-
-
- * @version May.  2, 2025
-
-
- * @version May.  2, 2025
+ *  version May.  2, 2025
+ * @version Mar. 18, 2026
  * @author  ASAMI, Tomoharu
  */
 case class EntityModel(
@@ -154,8 +150,13 @@ object EntityModel {
       def isResolved: Boolean
     }
     object ParentRef {
+      private def _is_external_parent(p: String): Boolean = {
+        val name = p.split("\\.").lastOption.getOrElse(p).trim
+        name.equalsIgnoreCase("SimpleEntity") || name.equalsIgnoreCase("simple_entity")
+      }
+
       case class Name(name: String) extends ParentRef {
-        def isResolved: Boolean = false
+        def isResolved: Boolean = _is_external_parent(name)
       }
       case class EntityKlass(entityClass: EntityClass) extends ParentRef {
         def isResolved: Boolean = true
@@ -356,11 +357,19 @@ object EntityModel {
         }
 
         def +(rhs: LogicalSection) =
-          rhs.nameForModel match {
-            case "features" => copy(props = _features(rhs.text))
-//            case "schema" => copy(schema = _schema(rhs))
-            case _ => this
-          }
+          if (_is_features(rhs))
+            copy(props = _features(rhs.text))
+          else
+            this
+
+        private def _is_features(p: LogicalSection): Boolean = {
+          val name = _section_head(p.nameForModel)
+          val key = _section_head(p.keyForModel)
+          name == "features" || name == "feature" || key == "features" || key == "feature"
+        }
+
+        private def _section_head(p: String): String =
+          p.linesIterator.toStream.headOption.getOrElse("").trim.toLowerCase
 
         private def _features(p: String) = Some(ConfigFactory.parseString(p))
 
