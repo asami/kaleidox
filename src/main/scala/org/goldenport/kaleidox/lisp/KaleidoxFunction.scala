@@ -33,7 +33,8 @@ import org.goldenport.kaleidox.model.diagram._
  *  version Sep. 16, 2023
  *  version Sep.  6, 2024
  *  version May. 12, 2025
- * @version Sep. 15, 2025
+ *  version Sep. 15, 2025
+ * @version Mar. 19, 2026
  * @author  ASAMI, Tomoharu
  */
 object KaleidoxFunction {
@@ -586,8 +587,13 @@ object KaleidoxFunction {
         case Right(r) => r
         case Left(l) => Model.parse(c.config, l)
       }
-      val model = SModel(a)
-      Success(model)
+      a match {
+        case m: Model if m.errors.nonEmpty =>
+          val msg = m.errors.map(_.en).mkString("\n")
+          Failure(SError.syntaxError(msg)).toValidationNel
+        case _ =>
+          Success(SModel(a))
+      }
     }
 
     case object Vocabulary extends KaleidoxEvalFunction {

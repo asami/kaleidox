@@ -22,6 +22,7 @@ import org.goldenport.collection.VectorMap
 import org.goldenport.event.ObjectId
 import org.goldenport.sm.StateMachineClass
 import org.goldenport.sm.{StateMachine => StateMachineInstance}
+import org.goldenport.sm._
 import org.goldenport.kaleidox._
 
 /*
@@ -383,7 +384,190 @@ object SchemaModel {
 
           private def _statemachine(p: LogicalSection): Option[StateMachineClass] = {
             val f = KaleidoxStateMachineLogic.Factory
-            StateMachineClass.parseBodyForResource(f, p.nameForModel, p.text).toOption
+            _parse_statemachine_cml_for_resource(f, p).orElse(
+              StateMachineClass.parseBodyForResource(f, p.nameForModel, p.text).toOption
+            )
+          }
+
+          private def _parse_statemachine_cml_for_resource(
+            factory: StateMachineLogic.Factory,
+            p: LogicalSection
+          ): Option[StateMachineClass] = {
+            val statesection = p.sections.find(_.keyForModel.equalsIgnoreCase("state"))
+            statesection.flatMap { ss =>
+              val machinename = p.nameForModel
+              val events = _event_names(p)
+              val states = ss.sections.toList.zipWithIndex.map {
+                case (s, i) => _state_from_section(machinename, s, i)
+              }
+              if (states.isEmpty)
+                None
+              else {
+                _validate_state_transitions(machinename, states, events)
+                val rule = StateMachineRule(
+                  name = Some(p.nameForModel),
+                  kind = StateMachineKind.Resource,
+                  states = states
+                )
+                Some(StateMachineClass(p.nameForModel, rule, factory.create(rule)))
+              }
+            }
+          }
+
+          private def _event_names(p: LogicalSection): Set[String] =
+            p.sections.find(_.keyForModel.equalsIgnoreCase("event")).toVector.flatMap(_.sections.map(_.nameForModel.trim)).filterNot(_.isEmpty).toSet
+
+          private def _state_from_section(
+            machinename: String,
+            p: LogicalSection,
+            index: Int
+          ): StateClass = {
+            val entry = _activity_from_actions(_collect_action_lines(p, "entry"))
+            val exit = _activity_from_actions(_collect_action_lines(p, "exit"))
+            val ts = p.sections.filter(_.keyForModel.equalsIgnoreCase("transition")).map(_transition_from_section(machinename, p.nameForModel, _))
+            StateClass(
+              name = p.nameForModel,
+              value = _state_value_auto(p.nameForModel, index),
+              stateMachinePath = None,
+              transitions = Transitions.call(ts)
+            ).withEntryActivity(entry).withExitActivity(exit)
+          }
+
+          private def _state_value_auto(name: String, index: Int): Int =
+            StateClass.predefinedStateValues.getOrElse(name, STATE_VALUE_UNDEFINED - index)
+
+          private def _collect_action_lines(p: LogicalSection, key: String): Vector[String] = {
+            p.sections.filter(_.keyForModel.equalsIgnoreCase(key)).flatMap { x =>
+              _key_values(x.text).collect {
+                case (k, v) if k == "action" => v
+              }
+            }.toVector
+          }
+
+          private def _transition_from_section(
+            machinename: String,
+            statename: String,
+            p: LogicalSection
+          ): Transition = {
+            val kv = _key_values(p.text)
+            val to = _required_transition_key(kv, "to", machinename, statename)
+            val on = _required_transition_key(kv, "on", machinename, statename)
+            val guard = kv.collectFirst {
+              case (k, v) if k == "guard" => v
+            }
+            val actions = kv.collect {
+              case (k, v) if k == "action" => v
+            }
+            Transition(
+              guard = _transition_guard(on, guard),
+              to = _transition_to(to),
+              effect = _activity_from_actions(actions)
+            )
+          }
+
+          private def _required_transition_key(
+            kv: Vector[(String, String)],
+            key: String,
+            machinename: String,
+            statename: String
+          ): String =
+            kv.collectFirst {
+              case (k, v) if k == key => v
+            }.getOrElse {
+              RAISE.syntaxErrorFault(s"StateMachine '$machinename' state '$statename' transition requires '$key'.")
+            }
+
+          private def _validate_state_transitions(
+            machinename: String,
+            states: Seq[StateClass],
+            events: Set[String]
+          ): Unit = {
+            val statenames = states.map(_.name).toSet
+            states.foreach { s =>
+              s.transitions.call.foreach { t =>
+                _validate_transition_target(machinename, s.name, t, statenames)
+                _validate_transition_event(machinename, s.name, t, events)
+              }
+            }
+          }
+
+          private def _validate_transition_target(
+            machinename: String,
+            statename: String,
+            t: Transition,
+            statenames: Set[String]
+          ): Unit =
+            t.to match {
+              case NameTransitionTo(name) =>
+                if (!statenames.contains(name))
+                  RAISE.syntaxErrorFault(s"StateMachine '$machinename' state '$statename' transition target '$name' is not defined.")
+              case _ =>
+            }
+
+          // Policy: when Event section is present, transitions must reference declared events.
+          // When Event section is omitted, events are accepted as implicit declarations.
+          private def _validate_transition_event(
+            machinename: String,
+            statename: String,
+            t: Transition,
+            events: Set[String]
+          ): Unit = {
+            val eventname = _event_name(t.guard).getOrElse {
+              RAISE.syntaxErrorFault(s"StateMachine '$machinename' state '$statename' transition requires 'on'.")
+            }
+            if (events.nonEmpty && !events.contains(eventname))
+              RAISE.syntaxErrorFault(s"StateMachine '$machinename' state '$statename' references undeclared event '$eventname'.")
+          }
+
+          private def _event_name(guard: SmGuard): Option[String] =
+            guard match {
+              case EventNameGuard(name) => Some(name)
+              case AndGuard(exprs) => exprs.toStream.flatMap(_event_name).headOption
+              case OrGuard(exprs) => exprs.toStream.flatMap(_event_name).headOption
+              case _ => None
+            }
+
+          private def _transition_guard(on: String, guard: Option[String]): SmGuard =
+            guard.filterNot(_.isEmpty) match {
+              case Some(g) => AndGuard(Vector(EventNameGuard(on), CmlExpressionGuard(g)))
+              case None => EventNameGuard(on)
+          }
+
+          private def _transition_to(p: String): TransitionTo =
+            if (p.equalsIgnoreCase(PROP_STATE_FINAL))
+              FinalTransitionTo
+            else if (p.equalsIgnoreCase(PROP_STATE_HISTORY))
+              HistoryTransitionTo()
+            else
+              NameTransitionTo(p)
+
+          private def _activity_from_actions(actions: Seq[String]): Activity =
+            actions.toList match {
+              case Nil => Activity.Empty
+              case x :: Nil => Activity.Opaque(x)
+              case xs => Activity.Opaque(xs.mkString("\n"))
+            }
+
+          private def _key_values(p: String): Vector[(String, String)] = {
+            p.split("\\r?\\n").toVector.flatMap { x =>
+              val s = x.trim
+              if (s.isEmpty)
+                None
+              else {
+                val a = if (s.startsWith("-")) s.drop(1).trim else s
+                val i = a.indexOf("::")
+                if (i <= 0)
+                  None
+                else {
+                  val k = a.substring(0, i).trim.toLowerCase
+                  val v = a.substring(i + 2).trim
+                  if (k.isEmpty || v.isEmpty)
+                    None
+                  else
+                    Some(k -> v)
+                }
+              }
+            }
           }
 
           private def _table_list(p: LogicalSection): List[Table] = {
@@ -466,7 +650,190 @@ object SchemaModel {
 
           private def _statemachine(p: Section): Option[StateMachineClass] = {
             val f = KaleidoxStateMachineLogic.Factory
-            StateMachineClass.parseBody(f, p.nameForModel, p.toText).toOption
+            _parse_statemachine_cml_for_resource(f, p).orElse(
+              StateMachineClass.parseBody(f, p.nameForModel, p.toText).toOption
+            )
+          }
+
+          private def _parse_statemachine_cml_for_resource(
+            factory: StateMachineLogic.Factory,
+            p: Section
+          ): Option[StateMachineClass] = {
+            val statesection = p.sections.find(_.keyForModel.equalsIgnoreCase("state"))
+            statesection.flatMap { ss =>
+              val machinename = p.nameForModel
+              val events = _event_names(p)
+              val states = ss.sections.zipWithIndex.map {
+                case (s, i) => _state_from_section(machinename, s, i)
+              }
+              if (states.isEmpty)
+                None
+              else {
+                _validate_state_transitions(machinename, states, events)
+                val rule = StateMachineRule(
+                  name = Some(p.nameForModel),
+                  kind = StateMachineKind.Resource,
+                  states = states
+                )
+                Some(StateMachineClass(p.nameForModel, rule, factory.create(rule)))
+              }
+            }
+          }
+
+          private def _event_names(p: Section): Set[String] =
+            p.sections.find(_.keyForModel.equalsIgnoreCase("event")).toVector.flatMap(_.sections.map(_.nameForModel.trim)).filterNot(_.isEmpty).toSet
+
+          private def _state_from_section(
+            machinename: String,
+            p: Section,
+            index: Int
+          ): StateClass = {
+            val entry = _activity_from_actions(_collect_action_lines(p, "entry"))
+            val exit = _activity_from_actions(_collect_action_lines(p, "exit"))
+            val ts = p.sections.filter(_.keyForModel.equalsIgnoreCase("transition")).map(_transition_from_section(machinename, p.nameForModel, _))
+            StateClass(
+              name = p.nameForModel,
+              value = _state_value_auto(p.nameForModel, index),
+              stateMachinePath = None,
+              transitions = Transitions.call(ts)
+            ).withEntryActivity(entry).withExitActivity(exit)
+          }
+
+          private def _collect_action_lines(p: Section, key: String): Vector[String] = {
+            p.sections.filter(_.keyForModel.equalsIgnoreCase(key)).flatMap { x =>
+              _key_values(x.toText).collect {
+                case (k, v) if k == "action" => v
+              }
+            }.toVector
+          }
+
+          private def _transition_from_section(
+            machinename: String,
+            statename: String,
+            p: Section
+          ): Transition = {
+            val kv = _key_values(p.toText)
+            val to = _required_transition_key(kv, "to", machinename, statename)
+            val on = _required_transition_key(kv, "on", machinename, statename)
+            val guard = kv.collectFirst {
+              case (k, v) if k == "guard" => v
+            }
+            val actions = kv.collect {
+              case (k, v) if k == "action" => v
+            }
+            Transition(
+              guard = _transition_guard(on, guard),
+              to = _transition_to(to),
+              effect = _activity_from_actions(actions)
+            )
+          }
+
+          private def _state_value_auto(name: String, index: Int): Int =
+            StateClass.predefinedStateValues.getOrElse(name, STATE_VALUE_UNDEFINED - index)
+
+          private def _required_transition_key(
+            kv: Vector[(String, String)],
+            key: String,
+            machinename: String,
+            statename: String
+          ): String =
+            kv.collectFirst {
+              case (k, v) if k == key => v
+            }.getOrElse {
+              RAISE.syntaxErrorFault(s"StateMachine '$machinename' state '$statename' transition requires '$key'.")
+            }
+
+          private def _validate_state_transitions(
+            machinename: String,
+            states: Seq[StateClass],
+            events: Set[String]
+          ): Unit = {
+            val statenames = states.map(_.name).toSet
+            states.foreach { s =>
+              s.transitions.call.foreach { t =>
+                _validate_transition_target(machinename, s.name, t, statenames)
+                _validate_transition_event(machinename, s.name, t, events)
+              }
+            }
+          }
+
+          private def _validate_transition_target(
+            machinename: String,
+            statename: String,
+            t: Transition,
+            statenames: Set[String]
+          ): Unit =
+            t.to match {
+              case NameTransitionTo(name) =>
+                if (!statenames.contains(name))
+                  RAISE.syntaxErrorFault(s"StateMachine '$machinename' state '$statename' transition target '$name' is not defined.")
+              case _ =>
+            }
+
+          // Policy: when Event section is present, transitions must reference declared events.
+          // When Event section is omitted, events are accepted as implicit declarations.
+          private def _validate_transition_event(
+            machinename: String,
+            statename: String,
+            t: Transition,
+            events: Set[String]
+          ): Unit = {
+            val eventname = _event_name(t.guard).getOrElse {
+              RAISE.syntaxErrorFault(s"StateMachine '$machinename' state '$statename' transition requires 'on'.")
+            }
+            if (events.nonEmpty && !events.contains(eventname))
+              RAISE.syntaxErrorFault(s"StateMachine '$machinename' state '$statename' references undeclared event '$eventname'.")
+          }
+
+          private def _event_name(guard: SmGuard): Option[String] =
+            guard match {
+              case EventNameGuard(name) => Some(name)
+              case AndGuard(exprs) => exprs.toStream.flatMap(_event_name).headOption
+              case OrGuard(exprs) => exprs.toStream.flatMap(_event_name).headOption
+              case _ => None
+            }
+
+          private def _transition_guard(on: String, guard: Option[String]): SmGuard =
+            guard.filterNot(_.isEmpty) match {
+              case Some(g) => AndGuard(Vector(EventNameGuard(on), CmlExpressionGuard(g)))
+              case None => EventNameGuard(on)
+            }
+
+          private def _transition_to(p: String): TransitionTo =
+            if (p.equalsIgnoreCase(PROP_STATE_FINAL))
+              FinalTransitionTo
+            else if (p.equalsIgnoreCase(PROP_STATE_HISTORY))
+              HistoryTransitionTo()
+            else
+              NameTransitionTo(p)
+
+          private def _activity_from_actions(actions: Seq[String]): Activity =
+            actions.toList match {
+              case Nil => Activity.Empty
+              case x :: Nil => Activity.Opaque(x)
+              case xs => Activity.Opaque(xs.mkString("\n"))
+            }
+
+          private def _key_values(p: String): Vector[(String, String)] = {
+            p.split("\\r?\\n").toVector.flatMap { x =>
+              val s = x.trim
+              if (s.isEmpty)
+                None
+              else {
+                val a = if (s.startsWith("-")) s.drop(1).trim else s
+                val i = a.indexOf("::")
+                if (i <= 0)
+                  None
+                else {
+                  val k = a.substring(0, i).trim.toLowerCase
+                  val v = a.substring(i + 2).trim
+                  if (k.isEmpty || v.isEmpty)
+                    None
+                  else
+                    Some(k -> v)
+                }
+              }
+            }
           }
         }
 
