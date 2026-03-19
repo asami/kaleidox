@@ -38,7 +38,8 @@ import org.goldenport.kaleidox._
  *  version Aug. 21, 2023
  *  version Oct. 15, 2023
  *  version Sep.  6, 2024
- * @version May.  2, 2025
+ *  version May.  2, 2025
+ * @version Mar. 19, 2026
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -93,7 +94,8 @@ object SchemaModel {
   import com.asamioffice.goldenport.text.UString
   import org.goldenport.RAISE
   import org.goldenport.i18n.I18NString
-  import org.goldenport.record.v2.{DataType, Multiplicity, XString, MOne}
+  import org.goldenport.record.v2.{DataType, Multiplicity, XString, MOne, SqlColumn, NullSqlColumn}
+  import org.goldenport.record.sql
 
   case class SchemaClass(
     name: String,
@@ -205,6 +207,9 @@ object SchemaModel {
     val itemName = Vector("項目", "item")
     val valueName = Vector("値", "value")
     val tableName = Vector("テーブル", "表", "table")
+    val dbColumnNameName = Vector("DBカラム名", "dbカラム名", "dbcolumnname", "db_column_name", "db column name", "column_name")
+    val dbColumnTypeName = Vector("DBカラム型", "dbカラム型", "dbcolumntype", "db_column_type", "db column type", "column_type")
+    val externalNameName = Vector("外部連携属性名", "external_name", "external name", "externalName")
     val objectRefName = Vector("オブジェクト参照", "エンティティ", "objectref", "entity")
     val powertypeRefName = Vector("パワータイプ", "区分", "powertyperef", "powertype")
 
@@ -591,7 +596,10 @@ object SchemaModel {
           _datatype(p),
           _multiplicity(p),
           _constraints(p)
-        )
+        ),
+        _db_column_name(p),
+        _db_column_type(p),
+        _external_name(p)
       )
 
       private def _attribute(p: Record) = Attribute(
@@ -601,7 +609,10 @@ object SchemaModel {
           _datatype(p),
           _multiplicity(p),
           _constraints(p)
-        )
+        ),
+        _db_column_name(p),
+        _db_column_type(p),
+        _external_name(p)
       )
 
       private def _association(p: Record) = Association(
@@ -671,6 +682,31 @@ object SchemaModel {
         flatMap(Multiplicity.get).getOrElse(MOne)
 
       private def _constraints(p: Record): List[Constraint] = Nil // TODO
+
+      private def _db_column_name(p: Record): Option[String] =
+        _string_value_flexible(p, dbColumnNameName).orElse(
+          p.getStringCaseInsensitive(dbColumnNameName).map(_.trim).filterNot(_.isEmpty)
+        )
+
+      private def _db_column_type(p: Record): Option[String] =
+        _string_value_flexible(p, dbColumnTypeName).orElse(
+          p.getStringCaseInsensitive(dbColumnTypeName).map(_.trim).filterNot(_.isEmpty)
+        )
+
+      private def _external_name(p: Record): Option[String] =
+        _string_value_flexible(p, externalNameName).orElse(
+          p.getStringCaseInsensitive(externalNameName).map(_.trim).filterNot(_.isEmpty)
+        )
+
+      private def _string_value_flexible(p: Record, keys: Seq[String]): Option[String] = {
+        val normalized = keys.map(_normalize_key).toSet
+        p.fields.collectFirst {
+          case f if normalized.contains(_normalize_key(f.name)) => f.asString
+        }.map(_.trim).filterNot(_.isEmpty)
+      }
+
+      private def _normalize_key(p: String): String =
+        p.toLowerCase.replaceAll("[\\s_\\-　]+", "")
     }
 
     private def _to_features(p: Table): Option[Features] = {
@@ -713,6 +749,9 @@ object SchemaModel {
 
   trait Slot {
     def name: String
+    def dbColumnName: Option[String] = None
+    def dbColumnType: Option[String] = None
+    def externalName: Option[String] = None
     def toColumn: Column
     def unmarshall(p: Any): Consequence[Any]
   }
@@ -720,13 +759,18 @@ object SchemaModel {
   case class Id(
     name: String,
     label: Option[I18NString],
-    domain: ValueDomain
+    domain: ValueDomain,
+    override val dbColumnName: Option[String] = None,
+    override val dbColumnType: Option[String] = None,
+    override val externalName: Option[String] = None
   ) extends Slot {
     def toColumn = Column(
       name,
       domain.datatype,
       domain.multiplicity,
-      i18nLabel = label
+      i18nLabel = label,
+      aliases = externalName.toList,
+      sql = _sql_column(dbColumnName, dbColumnType)
     )
 
     def reconstitute(classname: String, p: Any): EntityId = p match {
@@ -741,7 +785,10 @@ object SchemaModel {
   case class Attribute(
     name: String,
     label: Option[I18NString],
-    domain: ValueDomain
+    domain: ValueDomain,
+    override val dbColumnName: Option[String] = None,
+    override val dbColumnType: Option[String] = None,
+    override val externalName: Option[String] = None
   ) extends Slot {
     def isRequired = domain.isRequired
 
@@ -753,7 +800,9 @@ object SchemaModel {
       name,
       domain.datatype,
       domain.multiplicity,
-      i18nLabel = label
+      i18nLabel = label,
+      aliases = externalName.toList,
+      sql = _sql_column(dbColumnName, dbColumnType)
     )
 
     def unmarshall(p: Any): Consequence[Any] = verify(p)
@@ -843,5 +892,51 @@ object SchemaModel {
     )
 
     def unmarshall(p: Any): Consequence[StateMachineInstance] = statemachine.reconstitute(p)
+  }
+
+  private def _sql_column(
+    dbcolumnname: Option[String],
+    dbcolumntype: Option[String]
+  ): SqlColumn = {
+    val n = dbcolumnname.map(_.trim).filterNot(_.isEmpty)
+    val t = dbcolumntype.flatMap(_to_sql_datatype)
+    if (n.isEmpty && t.isEmpty)
+      NullSqlColumn
+    else
+      SqlColumn(
+        name = n.orNull,
+        datatype = t
+      )
+  }
+
+  private def _to_sql_datatype(p: String): Option[sql.SqlDatatype] = {
+    val trimmed = p.trim
+    if (trimmed.isEmpty)
+      None
+    else {
+      val upper = trimmed.toUpperCase
+      val onearg = """^([A-Z_]+)\((\d+)\)$""".r
+      upper match {
+        case onearg("VARCHAR", length) => Some(sql.VARCHAR(length.toInt))
+        case onearg("NVARCHAR", length) => Some(sql.NVARCHAR(length.toInt))
+        case onearg("CHAR", length) => Some(sql.CHAR(length.toInt))
+        case "INT" => Some(sql.INT())
+        case "INTEGER" => Some(sql.INTEGER())
+        case "BIGINT" => Some(sql.BIGINT())
+        case "REAL" => Some(sql.REAL())
+        case "FLOAT" => Some(sql.FLOAT())
+        case "DOUBLE" => Some(sql.DOUBLE())
+        case "BOOLEAN" => Some(sql.BOOLEAN())
+        case "TEXT" => Some(sql.CLOB())
+        case "DATE" => Some(sql.DATE())
+        case "TIME" => Some(sql.TIME())
+        case "TIMESTAMP" => Some(sql.TIMESTAMP())
+        case "NUMERIC" => Some(sql.NUMERIC())
+        case "DECIMAL" => Some(sql.DECIMAL())
+        case "BLOB" => Some(sql.BLOB())
+        case "CLOB" => Some(sql.CLOB())
+        case _ => None
+      }
+    }
   }
 }
