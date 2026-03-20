@@ -69,7 +69,8 @@ import org.goldenport.kaleidox.model.analysis.AnalysisModel
  *  version Aug.  5, 2024
  *  version Sep.  6, 2024
  *  version Nov. 22, 2024
- * @version May.  2, 2025
+ *  version May.  2, 2025
+ * @version Mar. 21, 2026
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -942,7 +943,7 @@ object Model {
     }
   }
   object EventDivision extends DivisionFactory {
-    override val name_Candidates = Vector("event")
+    override val name_Candidates = Vector("event", "routing", "subscription")
     protected def to_Division(p: LogicalSection): Division = EventDivision(p)
   }
 

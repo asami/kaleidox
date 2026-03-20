@@ -40,7 +40,7 @@ import org.goldenport.kaleidox._
  *  version Oct. 15, 2023
  *  version Sep.  6, 2024
  *  version May.  2, 2025
- * @version Mar. 19, 2026
+ * @version Mar. 21, 2026
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -87,6 +87,7 @@ object SchemaModel {
   val compositionKeys = Set("composition", "compositions", "コンポジション", "合成")
   val powertypeKeys = Set("powertype", "powertypes", "パワータイプ", "区分")
   val statemachineKeys = Set("statemachine", "statemachines", "ステートマシーン", "状態機械", "statechart", "statecharts", "ステートチャート")
+  val eventKeys = Set("event", "events", "イベント")
 
   def apply(p: SchemaClass): SchemaModel = SchemaModel(VectorMap(p.name -> p))
 
@@ -101,7 +102,8 @@ object SchemaModel {
   case class SchemaClass(
     name: String,
     features: SchemaClass.Features,
-    slots: Vector[Slot]
+    slots: Vector[Slot],
+    events: Vector[EventDefinition] = Vector.empty
   ) extends ISchemaClass with Showable.Base {
     lazy val schema: Schema = {
       val columns = slots.map(_.toColumn)
@@ -127,7 +129,11 @@ object SchemaModel {
     def withTableName(p: String) = copy(features = features.withTableName(p))
       def addParentName(p: String) = copy(features = features.addParentName(p))
 
-    def add(p: SchemaClass) = copy(features = features.add(p.features), slots = slots ++ p.slots)
+    def add(p: SchemaClass) = copy(
+      features = features.add(p.features),
+      slots = slots ++ p.slots,
+      events = events ++ p.events
+    )
 
     def attributeRecordForCreate(p: IRecord): Consequence[Record] = {
       case class Z(xs: Consequence[Vector[Field]] = Consequence(Vector.empty)) {
@@ -194,6 +200,36 @@ object SchemaModel {
       p.fields./:(Z())(_+_).r
     }
   }
+
+  case class EventDefinition(
+    name: String,
+    category: String = "NonActionEvent",
+    kind: Option[String] = None,
+    selectors: Map[String, String] = Map.empty,
+    actionName: Option[String] = None,
+    priority: Int = 0
+  )
+
+  case class RoutingDefinition(
+    name: String,
+    when: Option[String] = None,
+    topic: Option[String] = None,
+    service: Option[String] = None,
+    partition: Option[String] = None
+  )
+
+  case class SubscriptionDefinition(
+    name: String,
+    eventName: Option[String] = None,
+    route: Option[String] = None,
+    entityName: Option[String] = None,
+    target: Option[String] = None,
+    targets: Vector[String] = Vector.empty,
+    selector: Option[String] = None,
+    actionName: Option[String] = None,
+    declaredTargetUpperBound: Option[Int] = None,
+    activation: Option[String] = None
+  )
   object SchemaClass {
     // def apply(ps: Iterable[Slot]): SchemaClass = new SchemaClass(ps.toVector)
 
@@ -276,6 +312,7 @@ object SchemaModel {
           compositionTables: Vector[Table] = Vector.empty,
           powertypeTables: Vector[Table] = Vector.empty,
           statemachines: Vector[StateMachineClass] = Vector.empty,
+          events: Vector[EventDefinition] = Vector.empty,
           anonTables: Vector[Table] = Vector.empty
         ) {
           def r = {
@@ -292,7 +329,8 @@ object SchemaModel {
               aggregationTables,
               compositionTables,
               powertypeTables,
-              statemachines
+              statemachines,
+              events
             )
           }
 
@@ -329,6 +367,8 @@ object SchemaModel {
               _powertypes(p)
             else if (_is_statemachines(p))
               _statemachines(p)
+            else if (_is_events(p))
+              _events(p)
             else
               this
 
@@ -352,6 +392,9 @@ object SchemaModel {
 
           private def _is_statemachines(p: LogicalSection) = 
             statemachineKeys.contains(p.keyForModel)
+
+          private def _is_events(p: LogicalSection) =
+            eventKeys.contains(p.keyForModel)
 
           private def _features(p: LogicalSection) = {
             copy(featureTables = featureTables ++ _table_list(p))
@@ -381,6 +424,60 @@ object SchemaModel {
             val xs = p.sections.flatMap(_statemachine)
             copy(statemachines = statemachines ++ xs)
           }
+
+          private def _events(p: LogicalSection) = {
+            val xs = p.sections.map(_event_definition).filter(_.name.nonEmpty)
+            copy(events = events ++ xs)
+          }
+
+          private def _event_definition(p: LogicalSection): EventDefinition = {
+            val kv = _key_values(p.text)
+            val category = kv.collectFirst { case (k, v) if k == "category" => v }.map(_normalize_event_category(_, p.nameForModel)).getOrElse("NonActionEvent")
+            val kind = kv.collectFirst { case (k, v) if k == "kind" => v }.map(_.trim).filterNot(_.isEmpty)
+            val actionname = kv.collectFirst {
+              case (k, v) if k == "actionname" || k == "action_name" => v
+            }.map(_.trim).filterNot(_.isEmpty)
+            val priority = kv.collectFirst { case (k, v) if k == "priority" => _to_int_or_raise(v, p.nameForModel) }.getOrElse(0)
+            val selectors = kv.collect {
+              case (k, v) if k == "selector" =>
+                _selector_pair(v, p.nameForModel)
+            }.toMap
+            EventDefinition(
+              name = p.nameForModel.trim,
+              category = category,
+              kind = kind,
+              selectors = selectors,
+              actionName = actionname,
+              priority = priority
+            )
+          }
+
+          private def _normalize_event_category(p: String, eventname: String): String =
+            p.trim.toLowerCase match {
+              case "actionevent" | "action" => "ActionEvent"
+              case "nonactionevent" | "non-action" | "nonaction" => "NonActionEvent"
+              case s =>
+                RAISE.syntaxErrorFault(s"Event '$eventname' has invalid category: '$s'. Use ActionEvent or NonActionEvent.")
+            }
+
+          private def _selector_pair(p: String, eventname: String): (String, String) = {
+            val i = p.indexOf("=")
+            if (i <= 0)
+              RAISE.syntaxErrorFault(s"Event '$eventname' selector requires key=value format: '$p'.")
+            else {
+              val k = p.substring(0, i).trim
+              val v = p.substring(i + 1).trim
+              if (k.isEmpty || v.isEmpty)
+                RAISE.syntaxErrorFault(s"Event '$eventname' selector requires key=value format: '$p'.")
+              else
+                k -> v
+            }
+          }
+
+          private def _to_int_or_raise(p: String, eventname: String): Int =
+            scala.util.Try(p.trim.toInt).getOrElse(
+              RAISE.syntaxErrorFault(s"Event '$eventname' has invalid priority: '$p'.")
+            )
 
           private def _statemachine(p: LogicalSection): Option[StateMachineClass] = {
             val f = KaleidoxStateMachineLogic.Factory
@@ -590,6 +687,7 @@ object SchemaModel {
           compositionTables: Vector[Table] = Vector.empty,
           powertypeTables: Vector[Table] = Vector.empty,
           statemachines: Vector[StateMachineClass] = Vector.empty,
+          events: Vector[EventDefinition] = Vector.empty,
           anonTables: Vector[Table] = Vector.empty
         ) {
           def r = {
@@ -606,7 +704,8 @@ object SchemaModel {
               aggregationTables,
               compositionTables,
               powertypeTables,
-              statemachines
+              statemachines,
+              events
             )
           }
 
@@ -631,6 +730,8 @@ object SchemaModel {
               _attributes(p)
             else if (_is_statemachines(p))
               _statemachines(p)
+            else if (_is_events(p))
+              _events(p)
             else
               this
 
@@ -640,6 +741,9 @@ object SchemaModel {
           private def _is_statemachines(p: Section) = 
             statemachineKeys.contains(p.keyForModel)
 
+          private def _is_events(p: Section) =
+            eventKeys.contains(p.keyForModel)
+
           private def _attributes(p: Section) =
             copy(attributeTables = attributeTables ++ p.tableList)
 
@@ -647,6 +751,60 @@ object SchemaModel {
             val xs = p.sections.flatMap(_statemachine)
             copy(statemachines = statemachines ++ xs)
           }
+
+          private def _events(p: Section) = {
+            val xs = p.sections.map(_event_definition).filter(_.name.nonEmpty)
+            copy(events = events ++ xs)
+          }
+
+          private def _event_definition(p: Section): EventDefinition = {
+            val kv = _key_values(p.toText)
+            val category = kv.collectFirst { case (k, v) if k == "category" => v }.map(_normalize_event_category(_, p.nameForModel)).getOrElse("NonActionEvent")
+            val kind = kv.collectFirst { case (k, v) if k == "kind" => v }.map(_.trim).filterNot(_.isEmpty)
+            val actionname = kv.collectFirst {
+              case (k, v) if k == "actionname" || k == "action_name" => v
+            }.map(_.trim).filterNot(_.isEmpty)
+            val priority = kv.collectFirst { case (k, v) if k == "priority" => _to_int_or_raise(v, p.nameForModel) }.getOrElse(0)
+            val selectors = kv.collect {
+              case (k, v) if k == "selector" =>
+                _selector_pair(v, p.nameForModel)
+            }.toMap
+            EventDefinition(
+              name = p.nameForModel.trim,
+              category = category,
+              kind = kind,
+              selectors = selectors,
+              actionName = actionname,
+              priority = priority
+            )
+          }
+
+          private def _normalize_event_category(p: String, eventname: String): String =
+            p.trim.toLowerCase match {
+              case "actionevent" | "action" => "ActionEvent"
+              case "nonactionevent" | "non-action" | "nonaction" => "NonActionEvent"
+              case s =>
+                RAISE.syntaxErrorFault(s"Event '$eventname' has invalid category: '$s'. Use ActionEvent or NonActionEvent.")
+            }
+
+          private def _selector_pair(p: String, eventname: String): (String, String) = {
+            val i = p.indexOf("=")
+            if (i <= 0)
+              RAISE.syntaxErrorFault(s"Event '$eventname' selector requires key=value format: '$p'.")
+            else {
+              val k = p.substring(0, i).trim
+              val v = p.substring(i + 1).trim
+              if (k.isEmpty || v.isEmpty)
+                RAISE.syntaxErrorFault(s"Event '$eventname' selector requires key=value format: '$p'.")
+              else
+                k -> v
+            }
+          }
+
+          private def _to_int_or_raise(p: String, eventname: String): Int =
+            scala.util.Try(p.trim.toInt).getOrElse(
+              RAISE.syntaxErrorFault(s"Event '$eventname' has invalid priority: '$p'.")
+            )
 
           private def _statemachine(p: Section): Option[StateMachineClass] = {
             val f = KaleidoxStateMachineLogic.Factory
@@ -865,7 +1023,8 @@ object SchemaModel {
         aggres: Seq[Table],
         compos: Seq[Table],
         powers: Seq[Table],
-        sms: Seq[StateMachineClass]
+        sms: Seq[StateMachineClass],
+        events: Seq[EventDefinition]
       ): Option[SchemaClass] = {
         val name = if (autoCapitalize) UString.capitalize(pname) else pname
         val fs: Option[Features] = _to_features_option(features)
@@ -876,7 +1035,7 @@ object SchemaModel {
         if (fs.isEmpty && xs.isEmpty)
           None
         else
-          Some(SchemaClass(name, fs, xs.toVector))
+          Some(SchemaClass(name, fs getOrElse Features.empty, xs.toVector, events.toVector))
       }
 
       private def _to_features_option(ps: Seq[Table]): Option[Features] =
