@@ -70,7 +70,7 @@ import org.goldenport.kaleidox.model.analysis.AnalysisModel
  *  version Sep.  6, 2024
  *  version Nov. 22, 2024
  *  version May.  2, 2025
- * @version Mar. 21, 2026
+ * @version Mar. 22, 2026
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -100,6 +100,7 @@ case class Model(
   private val _models: Vector[ISubModel] = Vector(
     getPreambleModel,
     getServiceModel,
+    getOperationModel,
     getDataTypeModel,
     getEntityModel,
     getSchemaModel,
@@ -204,6 +205,13 @@ case class Model(
     divisions.collect {
       case m: ServiceDivision => m.makeModel(config)
     }.concatenate.toOption
+
+  lazy val getOperationModel: Option[OperationModel] =
+    divisions.collect {
+      case m: OperationDivision => m.makeModel(config)
+    }.concatenate.toOption
+
+  lazy val takeOperationModel: OperationModel = getOperationModel.orZero
 
   lazy val getDataTypeModel: Option[DataTypeModel] = 
     divisions.collect {
@@ -351,6 +359,7 @@ object Model {
       ValueDivision,
       SlipDivision,
       ServiceDivision,
+      OperationDivision,
       EventDivision,
       StateMachineDivision,
       EntityDivision,
@@ -793,6 +802,21 @@ object Model {
   object ServiceDivision extends DivisionFactory {
     override val name_Candidates = Vector("service")
     protected def to_Division(p: LogicalSection): Division = ServiceDivision(p)
+  }
+
+  case class OperationDivision(section: LogicalSection) extends Division {
+    val name = "operation"
+
+    def makeModel(config: Config): OperationModel =
+      OperationModel.create(config, section)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: OperationDivision => copy(section + m.section)
+    }
+  }
+  object OperationDivision extends DivisionFactory {
+    override val name_Candidates = Vector("operation", "command", "query")
+    protected def to_Division(p: LogicalSection): Division = OperationDivision(p)
   }
 
   case class ValueDivision(section: LogicalSection) extends Division {
