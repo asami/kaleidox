@@ -39,7 +39,7 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Oct. 22, 2023
  *  version Jul. 12, 2024
  *  version May.  2, 2025
- * @version Mar. 18, 2026
+ * @version Mar. 21, 2026
  * @author  ASAMI, Tomoharu
  */
 case class EntityModel(
@@ -79,6 +79,7 @@ case class EntityModel(
 }
 
 object EntityModel {
+  type EntityDef = EntityClass
 //  val empty = EntityModel(VectorMap.empty[String, EntityClass])
   def empty(config: Config): EntityModel = empty(config.entityFactory)
 
@@ -93,6 +94,8 @@ object EntityModel {
     schemaClass: SchemaClass,
     parents: List[EntityClass.ParentRef],
     store: IEntityClass.Store = IEntityClass.Store(),
+    aggregate: Option[SchemaModel.AggregateDefinition] = None,
+    view: Option[SchemaModel.ViewDefinition] = None,
     packageName: String = "domain" // TODO
   ) extends IEntityClass with Showable.Base {
     def print = s"[${label_string}]${print_String}"
@@ -184,7 +187,14 @@ object EntityModel {
         parents <- _parents(hocon)
         store <- _store(hocon)
       } yield {
-        EntityClass(factory, schema, parents, store)
+        EntityClass(
+          factory = factory,
+          schemaClass = schema,
+          parents = parents,
+          store = store,
+          aggregate = schema.aggregate,
+          view = schema.view
+        )
       }
     }
 
@@ -200,7 +210,14 @@ object EntityModel {
         parents <- _parents(hocon)
         store <- _store(hocon)
       } yield {
-        EntityClass(factory, schema, parents, store)
+        EntityClass(
+          factory = factory,
+          schemaClass = schema,
+          parents = parents,
+          store = store,
+          aggregate = schema.aggregate,
+          view = schema.view
+        )
       }
     }
 
@@ -257,7 +274,16 @@ object EntityModel {
     ): EntityClass = {
       val a = for {
         parents <- _parents(hocon)
-      } yield EntityClass(factory, _add_features(s, hocon), parents)
+      } yield {
+        val schema = _add_features(s, hocon)
+        EntityClass(
+          factory = factory,
+          schemaClass = schema,
+          parents = parents,
+          aggregate = schema.aggregate,
+          view = schema.view
+        )
+      }
       a.take
     }
   }
@@ -347,9 +373,10 @@ object EntityModel {
         def r = {
           val ec: Option[EntityClass] = (schema, props) match {
             case (Some(s), Some(p)) => EntityClass.parse(schemaModel, factory, name, s, p).toOption
-            case (Some(s), None) => Some(EntityClass(factory, s, Nil))
+            case (Some(s), None) =>
+              Some(EntityClass(factory, s, Nil, aggregate = s.aggregate, view = s.view))
             case (None, Some(p)) => EntityClass.parse(schemaModel, factory, name, p).toOption
-            case (None, None) => SchemaClass.createOption(p).map(EntityClass(factory, _, Nil)) // TODO
+            case (None, None) => SchemaClass.createOption(p).map(s => EntityClass(factory, s, Nil, aggregate = s.aggregate, view = s.view)) // TODO
           }
           ec.
             map(EntityModel(factory, _)).

@@ -73,6 +73,8 @@ case class SchemaModel(
 }
 
 object SchemaModel {
+  type AggregateDef = AggregateDefinition
+  type ViewDef = ViewDefinition
   val empty = SchemaModel(VectorMap.empty[String, SchemaClass])
 
   implicit object SchemaModelMonoid extends Monoid[SchemaModel] {
@@ -88,6 +90,8 @@ object SchemaModel {
   val powertypeKeys = Set("powertype", "powertypes", "パワータイプ", "区分")
   val statemachineKeys = Set("statemachine", "statemachines", "ステートマシーン", "状態機械", "statechart", "statecharts", "ステートチャート")
   val eventKeys = Set("event", "events", "イベント")
+  val aggregateKeys = Set("aggregate", "aggregates", "集約")
+  val viewKeys = Set("view", "views", "ビュー")
 
   def apply(p: SchemaClass): SchemaModel = SchemaModel(VectorMap(p.name -> p))
 
@@ -103,7 +107,9 @@ object SchemaModel {
     name: String,
     features: SchemaClass.Features,
     slots: Vector[Slot],
-    events: Vector[EventDefinition] = Vector.empty
+    events: Vector[EventDefinition] = Vector.empty,
+    aggregate: Option[AggregateDefinition] = None,
+    view: Option[ViewDefinition] = None
   ) extends ISchemaClass with Showable.Base {
     lazy val schema: Schema = {
       val columns = slots.map(_.toColumn)
@@ -132,7 +138,9 @@ object SchemaModel {
     def add(p: SchemaClass) = copy(
       features = features.add(p.features),
       slots = slots ++ p.slots,
-      events = events ++ p.events
+      events = events ++ p.events,
+      aggregate = p.aggregate.orElse(aggregate),
+      view = p.view.orElse(view)
     )
 
     def attributeRecordForCreate(p: IRecord): Consequence[Record] = {
@@ -208,6 +216,54 @@ object SchemaModel {
     selectors: Map[String, String] = Map.empty,
     actionName: Option[String] = None,
     priority: Int = 0
+  )
+
+  case class AggregateDefinition(
+    commands: Vector[AggregateCommandDefinition] = Vector.empty,
+    state: Vector[AggregateStateDefinition] = Vector.empty,
+    invariants: Vector[AggregateInvariantDefinition] = Vector.empty
+  )
+
+  case class AggregateCommandDefinition(
+    name: String,
+    input: Map[String, String] = Map.empty,
+    validations: Vector[String] = Vector.empty,
+    events: Vector[String] = Vector.empty,
+    newState: Option[String] = None,
+    properties: Map[String, String] = Map.empty
+  )
+
+  case class AggregateStateDefinition(
+    name: String,
+    datatype: Option[String] = None,
+    multiplicity: Option[String] = None,
+    properties: Map[String, String] = Map.empty
+  )
+
+  case class AggregateInvariantDefinition(
+    name: String,
+    expression: Option[String] = None,
+    properties: Map[String, String] = Map.empty
+  )
+
+  case class ViewDefinition(
+    attributes: Vector[ViewAttributeDefinition] = Vector.empty,
+    queries: Vector[ViewQueryDefinition] = Vector.empty,
+    sourceEvents: Vector[String] = Vector.empty,
+    rebuildable: Option[Boolean] = None
+  )
+
+  case class ViewAttributeDefinition(
+    name: String,
+    datatype: Option[String] = None,
+    multiplicity: Option[String] = None,
+    properties: Map[String, String] = Map.empty
+  )
+
+  case class ViewQueryDefinition(
+    name: String,
+    expression: Option[String] = None,
+    properties: Map[String, String] = Map.empty
   )
 
   case class RoutingDefinition(
@@ -313,6 +369,8 @@ object SchemaModel {
           powertypeTables: Vector[Table] = Vector.empty,
           statemachines: Vector[StateMachineClass] = Vector.empty,
           events: Vector[EventDefinition] = Vector.empty,
+          aggregate: Option[AggregateDefinition] = None,
+          view: Option[ViewDefinition] = None,
           anonTables: Vector[Table] = Vector.empty
         ) {
           def r = {
@@ -330,7 +388,9 @@ object SchemaModel {
               compositionTables,
               powertypeTables,
               statemachines,
-              events
+              events,
+              aggregate,
+              view
             )
           }
 
@@ -369,6 +429,10 @@ object SchemaModel {
               _statemachines(p)
             else if (_is_events(p))
               _events(p)
+            else if (_is_aggregate(p))
+              _aggregate(p)
+            else if (_is_view(p))
+              _view(p)
             else
               this
 
@@ -395,6 +459,12 @@ object SchemaModel {
 
           private def _is_events(p: LogicalSection) =
             eventKeys.contains(p.keyForModel)
+
+          private def _is_aggregate(p: LogicalSection) =
+            aggregateKeys.contains(p.keyForModel)
+
+          private def _is_view(p: LogicalSection) =
+            viewKeys.contains(p.keyForModel)
 
           private def _features(p: LogicalSection) = {
             copy(featureTables = featureTables ++ _table_list(p))
@@ -430,8 +500,16 @@ object SchemaModel {
             copy(events = events ++ xs)
           }
 
+          private def _aggregate(p: LogicalSection) =
+            copy(aggregate = Some(_aggregate_definition(p)))
+
+          private def _view(p: LogicalSection) =
+            copy(view = Some(_view_definition(p)))
+
           private def _event_definition(p: LogicalSection): EventDefinition = {
             val kv = _key_values(p.text)
+            if (kv.exists { case (k, _) => k == "view" || k == "viewname" || k == "view_name" })
+              RAISE.syntaxErrorFault(s"Event '${p.nameForModel}' cannot depend on View.")
             val category = kv.collectFirst { case (k, v) if k == "category" => v }.map(_normalize_event_category(_, p.nameForModel)).getOrElse("NonActionEvent")
             val kind = kv.collectFirst { case (k, v) if k == "kind" => v }.map(_.trim).filterNot(_.isEmpty)
             val actionname = kv.collectFirst {
@@ -451,6 +529,153 @@ object SchemaModel {
               priority = priority
             )
           }
+
+          private def _aggregate_definition(p: LogicalSection): AggregateDefinition = {
+            val commandsections = p.sections.filter(x => x.keyForModel == "command" || x.keyForModel == "commands")
+            val statesections = p.sections.filter(x => x.keyForModel == "state" || x.keyForModel == "states")
+            val invariantsections = p.sections.filter(x => x.keyForModel == "invariant" || x.keyForModel == "invariants")
+            val commands = commandsections.toVector.flatMap(_.sections).map(_aggregate_command_definition)
+            val state = statesections.toVector.flatMap(_aggregate_state_definitions)
+            val invariants = invariantsections.toVector.flatMap(_.sections).map(_aggregate_invariant_definition)
+            AggregateDefinition(commands = commands, state = state, invariants = invariants)
+          }
+
+          private def _aggregate_command_definition(
+            p: LogicalSection
+          ): AggregateCommandDefinition = {
+            val kv = _key_values(p.text)
+            val props = kv.toMap
+            val input = kv.collect {
+              case (k, v) if k == "input" || k.startsWith("input.") => k -> v
+            }.toMap
+            val validations = kv.collect {
+              case (k, v) if k == "validate" || k == "validation" || k == "guard" => v
+            }
+            val events = kv.collect {
+              case (k, v) if k == "event" || k == "emit" || k == "events" =>
+                _split_list(v)
+            }.flatten
+            val newstate = kv.collectFirst {
+              case (k, v) if k == "newstate" || k == "new_state" || k == "state" => v
+            }
+            AggregateCommandDefinition(
+              name = p.nameForModel,
+              input = input,
+              validations = validations,
+              events = events,
+              newState = newstate,
+              properties = props
+            )
+          }
+
+          private def _aggregate_state_definitions(
+            p: LogicalSection
+          ): Vector[AggregateStateDefinition] = {
+            val fromTables = _table_list(p).toVector.flatMap(_attribute_rows_for_view_or_aggregate_state).map {
+              case (name, tpe, multi, props) =>
+                AggregateStateDefinition(name, tpe, multi, props)
+            }
+            val fromSections = p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
+              val kv = _key_values(s.text).toMap
+              AggregateStateDefinition(
+                name = s.nameForModel,
+                datatype = kv.get("type"),
+                multiplicity = kv.get("multiplicity"),
+                properties = kv
+              )
+            }
+            fromTables ++ fromSections
+          }
+
+          private def _aggregate_invariant_definition(
+            p: LogicalSection
+          ): AggregateInvariantDefinition = {
+            val kv = _key_values(p.text).toMap
+            AggregateInvariantDefinition(
+              name = p.nameForModel,
+              expression = kv.get("expression").orElse(kv.get("expr")).orElse(kv.get("guard")),
+              properties = kv
+            )
+          }
+
+          private def _view_definition(
+            p: LogicalSection
+          ): ViewDefinition = {
+            if (_contains_view_mutation_marker(p))
+              RAISE.syntaxErrorFault(s"View '${p.nameForModel}' cannot mutate command-side state.")
+            val attributesections = p.sections.filter(x => x.keyForModel == "attribute" || x.keyForModel == "attributes")
+            val querysections = p.sections.filter(x => x.keyForModel == "query" || x.keyForModel == "queries")
+            val attrs = attributesections.toVector.flatMap(_view_attribute_definitions)
+            val queries = querysections.toVector.flatMap(_.sections).map(_view_query_definition)
+            val rootkv = _key_values(p.text).toMap
+            val sourceevents = rootkv.get("events").toVector.flatMap(_split_list) ++ rootkv.get("event").toVector.flatMap(_split_list)
+            val rebuildable = rootkv.get("rebuildable").map(_.equalsIgnoreCase("true"))
+            ViewDefinition(
+              attributes = attrs,
+              queries = queries,
+              sourceEvents = sourceevents.distinct,
+              rebuildable = rebuildable
+            )
+          }
+
+          private def _contains_view_mutation_marker(
+            p: LogicalSection
+          ): Boolean = {
+            def _all(s: LogicalSection): Vector[(String, String)] =
+              _key_values(s.text) ++ s.sections.toVector.flatMap(_all)
+            val keys = _all(p).map(_._1).toSet
+            keys.exists(k => k == "mutates" || k == "mutation" || k == "write" || k == "action")
+          }
+
+          private def _view_attribute_definitions(
+            p: LogicalSection
+          ): Vector[ViewAttributeDefinition] = {
+            val fromTables = _table_list(p).toVector.flatMap(_attribute_rows_for_view_or_aggregate_state).map {
+              case (name, tpe, multi, props) =>
+                ViewAttributeDefinition(name, tpe, multi, props)
+            }
+            val fromSections = p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
+              val kv = _key_values(s.text).toMap
+              ViewAttributeDefinition(
+                name = s.nameForModel,
+                datatype = kv.get("type"),
+                multiplicity = kv.get("multiplicity"),
+                properties = kv
+              )
+            }
+            fromTables ++ fromSections
+          }
+
+          private def _view_query_definition(
+            p: LogicalSection
+          ): ViewQueryDefinition = {
+            val kv = _key_values(p.text).toMap
+            if (kv.contains("mutates") || kv.contains("mutation") || kv.contains("write") || kv.contains("action"))
+              RAISE.syntaxErrorFault(s"View Query '${p.nameForModel}' cannot mutate command-side state.")
+            ViewQueryDefinition(
+              name = p.nameForModel,
+              expression = kv.get("expression").orElse(kv.get("expr")),
+              properties = kv
+            )
+          }
+
+          private def _attribute_rows_for_view_or_aggregate_state(
+            table: Table
+          ): Vector[(String, Option[String], Option[String], Map[String, String])] = {
+            val records = SimpleModelerUtils.toRecords(table).toVector
+            records.flatMap { r =>
+              val name = r.getStringCaseInsensitive(nameName)
+              name.filterNot(_.trim.isEmpty).map { n =>
+                val dtype = r.getStringCaseInsensitive(typeName).map(_.trim).filterNot(_.isEmpty)
+                val mult = r.getStringCaseInsensitive(multiplicityName).map(_.trim).filterNot(_.isEmpty)
+                val props = r.fields.map(f => f.name.toLowerCase -> f.asString).toMap
+                (n, dtype, mult, props)
+              }
+            }
+          }
+
+          private def _split_list(p: String): Vector[String] =
+            p.split(",").toVector.map(_.trim).filterNot(_.isEmpty)
 
           private def _normalize_event_category(p: String, eventname: String): String =
             p.trim.toLowerCase match {
@@ -688,6 +913,8 @@ object SchemaModel {
           powertypeTables: Vector[Table] = Vector.empty,
           statemachines: Vector[StateMachineClass] = Vector.empty,
           events: Vector[EventDefinition] = Vector.empty,
+          aggregate: Option[AggregateDefinition] = None,
+          view: Option[ViewDefinition] = None,
           anonTables: Vector[Table] = Vector.empty
         ) {
           def r = {
@@ -705,7 +932,9 @@ object SchemaModel {
               compositionTables,
               powertypeTables,
               statemachines,
-              events
+              events,
+              aggregate,
+              view
             )
           }
 
@@ -732,6 +961,10 @@ object SchemaModel {
               _statemachines(p)
             else if (_is_events(p))
               _events(p)
+            else if (_is_aggregate(p))
+              _aggregate(p)
+            else if (_is_view(p))
+              _view(p)
             else
               this
 
@@ -743,6 +976,12 @@ object SchemaModel {
 
           private def _is_events(p: Section) =
             eventKeys.contains(p.keyForModel)
+
+          private def _is_aggregate(p: Section) =
+            aggregateKeys.contains(p.keyForModel)
+
+          private def _is_view(p: Section) =
+            viewKeys.contains(p.keyForModel)
 
           private def _attributes(p: Section) =
             copy(attributeTables = attributeTables ++ p.tableList)
@@ -757,8 +996,16 @@ object SchemaModel {
             copy(events = events ++ xs)
           }
 
+          private def _aggregate(p: Section) =
+            copy(aggregate = Some(_aggregate_definition(p)))
+
+          private def _view(p: Section) =
+            copy(view = Some(_view_definition(p)))
+
           private def _event_definition(p: Section): EventDefinition = {
             val kv = _key_values(p.toText)
+            if (kv.exists { case (k, _) => k == "view" || k == "viewname" || k == "view_name" })
+              RAISE.syntaxErrorFault(s"Event '${p.nameForModel}' cannot depend on View.")
             val category = kv.collectFirst { case (k, v) if k == "category" => v }.map(_normalize_event_category(_, p.nameForModel)).getOrElse("NonActionEvent")
             val kind = kv.collectFirst { case (k, v) if k == "kind" => v }.map(_.trim).filterNot(_.isEmpty)
             val actionname = kv.collectFirst {
@@ -778,6 +1025,153 @@ object SchemaModel {
               priority = priority
             )
           }
+
+          private def _aggregate_definition(p: Section): AggregateDefinition = {
+            val commandsections = p.sections.filter(x => x.keyForModel == "command" || x.keyForModel == "commands")
+            val statesections = p.sections.filter(x => x.keyForModel == "state" || x.keyForModel == "states")
+            val invariantsections = p.sections.filter(x => x.keyForModel == "invariant" || x.keyForModel == "invariants")
+            val commands = commandsections.toVector.flatMap(_.sections).map(_aggregate_command_definition)
+            val state = statesections.toVector.flatMap(_aggregate_state_definitions)
+            val invariants = invariantsections.toVector.flatMap(_.sections).map(_aggregate_invariant_definition)
+            AggregateDefinition(commands = commands, state = state, invariants = invariants)
+          }
+
+          private def _aggregate_command_definition(
+            p: Section
+          ): AggregateCommandDefinition = {
+            val kv = _key_values(p.toText)
+            val props = kv.toMap
+            val input = kv.collect {
+              case (k, v) if k == "input" || k.startsWith("input.") => k -> v
+            }.toMap
+            val validations = kv.collect {
+              case (k, v) if k == "validate" || k == "validation" || k == "guard" => v
+            }
+            val events = kv.collect {
+              case (k, v) if k == "event" || k == "emit" || k == "events" =>
+                _split_list(v)
+            }.flatten
+            val newstate = kv.collectFirst {
+              case (k, v) if k == "newstate" || k == "new_state" || k == "state" => v
+            }
+            AggregateCommandDefinition(
+              name = p.nameForModel,
+              input = input,
+              validations = validations,
+              events = events,
+              newState = newstate,
+              properties = props
+            )
+          }
+
+          private def _aggregate_state_definitions(
+            p: Section
+          ): Vector[AggregateStateDefinition] = {
+            val fromTables = p.tableList.toVector.flatMap(_attribute_rows_for_view_or_aggregate_state).map {
+              case (name, tpe, multi, props) =>
+                AggregateStateDefinition(name, tpe, multi, props)
+            }
+            val fromSections = p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
+              val kv = _key_values(s.toText).toMap
+              AggregateStateDefinition(
+                name = s.nameForModel,
+                datatype = kv.get("type"),
+                multiplicity = kv.get("multiplicity"),
+                properties = kv
+              )
+            }
+            fromTables ++ fromSections
+          }
+
+          private def _aggregate_invariant_definition(
+            p: Section
+          ): AggregateInvariantDefinition = {
+            val kv = _key_values(p.toText).toMap
+            AggregateInvariantDefinition(
+              name = p.nameForModel,
+              expression = kv.get("expression").orElse(kv.get("expr")).orElse(kv.get("guard")),
+              properties = kv
+            )
+          }
+
+          private def _view_definition(
+            p: Section
+          ): ViewDefinition = {
+            if (_contains_view_mutation_marker(p))
+              RAISE.syntaxErrorFault(s"View '${p.nameForModel}' cannot mutate command-side state.")
+            val attributesections = p.sections.filter(x => x.keyForModel == "attribute" || x.keyForModel == "attributes")
+            val querysections = p.sections.filter(x => x.keyForModel == "query" || x.keyForModel == "queries")
+            val attrs = attributesections.toVector.flatMap(_view_attribute_definitions)
+            val queries = querysections.toVector.flatMap(_.sections).map(_view_query_definition)
+            val rootkv = _key_values(p.toText).toMap
+            val sourceevents = rootkv.get("events").toVector.flatMap(_split_list) ++ rootkv.get("event").toVector.flatMap(_split_list)
+            val rebuildable = rootkv.get("rebuildable").map(_.equalsIgnoreCase("true"))
+            ViewDefinition(
+              attributes = attrs,
+              queries = queries,
+              sourceEvents = sourceevents.distinct,
+              rebuildable = rebuildable
+            )
+          }
+
+          private def _contains_view_mutation_marker(
+            p: Section
+          ): Boolean = {
+            def _all(s: Section): Vector[(String, String)] =
+              _key_values(s.toText) ++ s.sections.toVector.flatMap(_all)
+            val keys = _all(p).map(_._1).toSet
+            keys.exists(k => k == "mutates" || k == "mutation" || k == "write" || k == "action")
+          }
+
+          private def _view_attribute_definitions(
+            p: Section
+          ): Vector[ViewAttributeDefinition] = {
+            val fromTables = p.tableList.toVector.flatMap(_attribute_rows_for_view_or_aggregate_state).map {
+              case (name, tpe, multi, props) =>
+                ViewAttributeDefinition(name, tpe, multi, props)
+            }
+            val fromSections = p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
+              val kv = _key_values(s.toText).toMap
+              ViewAttributeDefinition(
+                name = s.nameForModel,
+                datatype = kv.get("type"),
+                multiplicity = kv.get("multiplicity"),
+                properties = kv
+              )
+            }
+            fromTables ++ fromSections
+          }
+
+          private def _view_query_definition(
+            p: Section
+          ): ViewQueryDefinition = {
+            val kv = _key_values(p.toText).toMap
+            if (kv.contains("mutates") || kv.contains("mutation") || kv.contains("write") || kv.contains("action"))
+              RAISE.syntaxErrorFault(s"View Query '${p.nameForModel}' cannot mutate command-side state.")
+            ViewQueryDefinition(
+              name = p.nameForModel,
+              expression = kv.get("expression").orElse(kv.get("expr")),
+              properties = kv
+            )
+          }
+
+          private def _attribute_rows_for_view_or_aggregate_state(
+            table: Table
+          ): Vector[(String, Option[String], Option[String], Map[String, String])] = {
+            val records = SimpleModelerUtils.toRecords(table).toVector
+            records.flatMap { r =>
+              val name = r.getStringCaseInsensitive(nameName)
+              name.filterNot(_.trim.isEmpty).map { n =>
+                val dtype = r.getStringCaseInsensitive(typeName).map(_.trim).filterNot(_.isEmpty)
+                val mult = r.getStringCaseInsensitive(multiplicityName).map(_.trim).filterNot(_.isEmpty)
+                val props = r.fields.map(f => f.name.toLowerCase -> f.asString).toMap
+                (n, dtype, mult, props)
+              }
+            }
+          }
+
+          private def _split_list(p: String): Vector[String] =
+            p.split(",").toVector.map(_.trim).filterNot(_.isEmpty)
 
           private def _normalize_event_category(p: String, eventname: String): String =
             p.trim.toLowerCase match {
@@ -1024,7 +1418,9 @@ object SchemaModel {
         compos: Seq[Table],
         powers: Seq[Table],
         sms: Seq[StateMachineClass],
-        events: Seq[EventDefinition]
+        events: Seq[EventDefinition],
+        aggregate: Option[AggregateDefinition],
+        view: Option[ViewDefinition]
       ): Option[SchemaClass] = {
         val name = if (autoCapitalize) UString.capitalize(pname) else pname
         val fs: Option[Features] = _to_features_option(features)
@@ -1035,7 +1431,7 @@ object SchemaModel {
         if (fs.isEmpty && xs.isEmpty)
           None
         else
-          Some(SchemaClass(name, fs getOrElse Features.empty, xs.toVector, events.toVector))
+          Some(SchemaClass(name, fs getOrElse Features.empty, xs.toVector, events.toVector, aggregate, view))
       }
 
       private def _to_features_option(ps: Seq[Table]): Option[Features] =
