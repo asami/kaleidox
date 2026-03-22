@@ -68,6 +68,7 @@ object ComponentSubsystemModel {
 
   final case class ComponentDefinition(
     name: String,
+    packageName: Option[String] = None,
     coordinates: Vector[Coordinate] = Vector.empty,
     componentlets: Vector[String] = Vector.empty,
     extensionPoints: Vector[String] = Vector.empty,
@@ -155,6 +156,7 @@ object ComponentSubsystemModel {
 
     ComponentDefinition(
       name = _require_name(p.nameForModel, "component"),
+      packageName = _value_opt(kv, "package", "componentpackage", "component_package", "component package"),
       coordinates = coordinates,
       componentlets = componentlets,
       extensionPoints = extensionpoints,
