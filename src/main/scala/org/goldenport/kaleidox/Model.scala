@@ -101,6 +101,7 @@ case class Model(
     getPreambleModel,
     getServiceModel,
     getOperationModel,
+    getComponentSubsystemModel,
     getDataTypeModel,
     getEntityModel,
     getSchemaModel,
@@ -212,6 +213,15 @@ case class Model(
     }.concatenate.toOption
 
   lazy val takeOperationModel: OperationModel = getOperationModel.orZero
+
+  lazy val getComponentSubsystemModel: Option[ComponentSubsystemModel] =
+    divisions.collect {
+      case m: ComponentDivision => m.makeModel(config)
+      case m: SubsystemDivision => m.makeModel(config)
+    }.concatenate.toOption
+
+  lazy val takeComponentSubsystemModel: ComponentSubsystemModel =
+    getComponentSubsystemModel.orZero
 
   lazy val getDataTypeModel: Option[DataTypeModel] = 
     divisions.collect {
@@ -360,6 +370,8 @@ object Model {
       SlipDivision,
       ServiceDivision,
       OperationDivision,
+      ComponentDivision,
+      SubsystemDivision,
       EventDivision,
       StateMachineDivision,
       EntityDivision,
@@ -930,6 +942,36 @@ object Model {
   object EntityDivision extends DivisionFactory {
     override val name_Candidates = Vector("entity")
     protected def to_Division(p: LogicalSection): Division = EntityDivision(p)
+  }
+
+  case class ComponentDivision(section: LogicalSection) extends Division {
+    val name = "component"
+
+    def makeModel(config: Config): ComponentSubsystemModel =
+      ComponentSubsystemModel.create(config, section)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: ComponentDivision => copy(section + m.section)
+    }
+  }
+  object ComponentDivision extends DivisionFactory {
+    override val name_Candidates = Vector("component", "componentlet", "extensionpoint")
+    protected def to_Division(p: LogicalSection): Division = ComponentDivision(p)
+  }
+
+  case class SubsystemDivision(section: LogicalSection) extends Division {
+    val name = "subsystem"
+
+    def makeModel(config: Config): ComponentSubsystemModel =
+      ComponentSubsystemModel.create(config, section)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: SubsystemDivision => copy(section + m.section)
+    }
+  }
+  object SubsystemDivision extends DivisionFactory {
+    override val name_Candidates = Vector("subsystem")
+    protected def to_Division(p: LogicalSection): Division = SubsystemDivision(p)
   }
 
   case class EventDivision(section: LogicalSection) extends Division {

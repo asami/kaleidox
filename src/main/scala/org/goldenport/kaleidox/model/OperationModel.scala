@@ -202,9 +202,11 @@ object OperationModel {
     p: Section
   ): OperationDefinition = {
     val kv = _merged_key_values(p)
-    val kind = kv.collectFirst {
+    val kindFromType = kv.collectFirst {
       case (k, v) if k == "type" => OperationKind.parse(v).getOrElse(_raise(s"Operation '${p.nameForModel}' TYPE must be COMMAND or QUERY."))
     }
+    val kindFromMarker = _kind_from_marker_section(p)
+    val kind = kindFromType.orElse(kindFromMarker)
     val input = kv.collectFirst {
       case (k, v) if k == "input" => v.trim
     }.filterNot(Strings.blankp)
@@ -219,6 +221,24 @@ object OperationModel {
       outputType = output,
       parameters = params
     )
+  }
+
+  private def _kind_from_marker_section(
+    p: Section
+  ): Option[OperationKind] = {
+    val markers = p.sections.toVector.flatMap { s =>
+      s.keyForModel match {
+        case "command" => Some(OperationKind.Command)
+        case "query" => Some(OperationKind.Query)
+        case _ => None
+      }
+    }.distinct
+    markers match {
+      case Vector() => None
+      case Vector(one) => Some(one)
+      case _ =>
+        _raise(s"Operation '${p.nameForModel}' cannot define both COMMAND and QUERY markers.")
+    }
   }
 
   private def _parse_value_definition(
