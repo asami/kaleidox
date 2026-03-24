@@ -70,7 +70,7 @@ import org.goldenport.kaleidox.model.analysis.AnalysisModel
  *  version Sep.  6, 2024
  *  version Nov. 22, 2024
  *  version May.  2, 2025
- * @version Mar. 22, 2026
+ * @version Mar. 24, 2026
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -1403,7 +1403,7 @@ object Model {
 
     protected final def dox_properties(p: LogicalSection): IRecord = {
       val s = p.text
-      val hocon = ConfigFactory.parseString(s)
+      val hocon = CmlSectionFormat.parseConfig(s)
       HoconRecord(RichConfig(hocon))
     }
   }

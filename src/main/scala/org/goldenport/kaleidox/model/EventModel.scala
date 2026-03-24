@@ -17,7 +17,7 @@ import org.goldenport.kaleidox._
  *  version Oct. 15, 2023
  *  version Jul. 12, 2024
  *  version Dec. 28, 2024
- * @version Mar. 21, 2026
+ * @version Mar. 24, 2026
  * @author  ASAMI, Tomoharu
  */
 case class EventModel(
@@ -239,25 +239,7 @@ object EventModel {
     }
 
     private def _key_values(p: String): Vector[(String, String)] =
-      p.split("\\r?\\n").toVector.flatMap { x =>
-        val s = x.trim
-        if (s.isEmpty)
-          None
-        else {
-          val a = if (s.startsWith("-")) s.drop(1).trim else s
-          val i = a.indexOf("::")
-          if (i <= 0)
-            None
-          else {
-            val k = a.substring(0, i).trim.toLowerCase
-            val v = a.substring(i + 2).trim
-            if (k.isEmpty || v.isEmpty)
-              None
-            else
-              Some(k -> v)
-          }
-        }
-      }
+      CmlSectionFormat.keyValues(p)
 
     //   createClassOption(p).
     //     map(EventModel.apply).

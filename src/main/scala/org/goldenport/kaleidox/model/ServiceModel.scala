@@ -22,7 +22,7 @@ import org.goldenport.kaleidox._
  *  version Jun. 20, 2021
  *  version Oct.  1, 2022
  *  version Aug. 21, 2023
- * @version Oct. 15, 2023
+ * @version Mar. 24, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
@@ -60,7 +60,8 @@ object ServiceModel {
 
   case class ServiceClass(
     name: String,
-    operations: ServiceClass.Operations
+    operations: ServiceClass.Operations,
+    description: Option[String] = None
   ) {
     def isEmpty = operations.isEmpty
     def toOption: Option[ServiceClass] = if (isEmpty) None else Some(this)
@@ -85,7 +86,8 @@ object ServiceModel {
       name: String,
       input: Input,
       output: Output,
-      method: Method
+      method: Method,
+      description: Option[String] = None
     ) {
       def toFunction: LispFunction = method.toFunction
     }
@@ -350,7 +352,7 @@ object ServiceModel {
         val name = p.nameForModel
         // p.tables
         val xs = p.sections.flatMap(_get_operations(name, _))
-        ServiceClass(name, Operations(xs)).toOption
+        ServiceClass(name, Operations(xs), _description_text(p)).toOption
       }
 
       private def _get_operations(service: String, p: Section): Vector[Operation] =
@@ -373,7 +375,7 @@ object ServiceModel {
         //   Method.ScriptMethod(in, out, script)
         // }
         val method = sections.flatMap(_get_method(service, name, in, out, _)).headOption.getOrElse(Method.UnimplementedMethod)
-        Some(Operation(name, in, out, method))
+        Some(Operation(name, in, out, method, _description_text(p)))
       }
 
       private def _get_operation_in(p: Section): Option[Input] =
@@ -424,6 +426,11 @@ object ServiceModel {
           None
 
       private def _is_method(p: Section) = p.keyForModel == "method"
+
+      private def _description_text(p: Section): Option[String] =
+        p.sections.find(_.keyForModel == "description").
+          map(_.toText.trim).
+          filter(_.nonEmpty)
 
       private def _to_method(
         service: String,

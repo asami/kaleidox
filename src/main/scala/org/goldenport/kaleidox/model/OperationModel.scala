@@ -7,6 +7,7 @@ import org.smartdox.parser.Dox2Parser
 import org.goldenport.RAISE
 import org.goldenport.Strings
 import org.goldenport.context.Showable
+import org.goldenport.kaleidox.CmlSectionFormat
 import org.goldenport.kaleidox.Config
 import org.goldenport.kaleidox.Model
 import org.goldenport.parser.LogicalSection
@@ -14,7 +15,7 @@ import org.goldenport.util.StringUtils
 
 /*
  * @since   Mar. 22, 2026
- * @version Mar. 22, 2026
+ * @version Mar. 24, 2026
  * @author  ASAMI, Tomoharu
  */
 case class OperationModel(
@@ -84,6 +85,7 @@ case class OperationModel(
         inputType = resolvedInputType,
         outputType = output,
         inputValueKind = resolvedValueKind,
+        description = op.description,
         parameters = parameters
       )
     }
@@ -153,6 +155,7 @@ object OperationModel {
     kind: Option[OperationKind] = None,
     inputType: Option[String] = None,
     outputType: Option[String] = None,
+    description: Option[String] = None,
     parameters: Vector[FieldDefinition] = Vector.empty
   )
 
@@ -162,6 +165,7 @@ object OperationModel {
     inputType: String,
     outputType: String,
     inputValueKind: InputValueKind,
+    description: Option[String] = None,
     parameters: Vector[FieldDefinition]
   )
 
@@ -213,12 +217,16 @@ object OperationModel {
     val output = kv.collectFirst {
       case (k, v) if k == "output" || k == "result" => v.trim
     }.filterNot(Strings.blankp)
+    val description = kv.collectFirst {
+      case (k, v) if k == "description" => v.trim
+    }.filterNot(Strings.blankp)
     val params = p.sections.filter(_.keyForModel == "parameter").toVector.flatMap(_parse_parameter_section)
     OperationDefinition(
       name = p.nameForModel.trim,
       kind = kind,
       inputType = input,
       outputType = output,
+      description = description,
       parameters = params
     )
   }
@@ -260,7 +268,7 @@ object OperationModel {
     if (fromTables.nonEmpty)
       fromTables
     else
-      _field_lines(p.toText)
+      _field_lines(_section_body_text(p))
   }
 
   private def _parse_attribute_section(
@@ -270,30 +278,14 @@ object OperationModel {
     if (fromTables.nonEmpty)
       fromTables
     else
-      _field_lines(p.toText)
+      _field_lines(_section_body_text(p))
   }
 
   private def _field_lines(
     p: String
   ): Vector[FieldDefinition] =
-    p.split("\\r?\\n").toVector.flatMap { x =>
-      val s0 = x.trim
-      val s = if (s0.startsWith("-")) s0.drop(1).trim else s0
-      if (s.isEmpty)
-        None
-      else {
-        val i = s.indexOf("::")
-        if (i <= 0)
-          None
-        else {
-          val n = s.substring(0, i).trim
-          val t = s.substring(i + 2).trim
-          if (n.isEmpty || t.isEmpty)
-            None
-          else
-            Some(FieldDefinition(n, t, "1"))
-        }
-      }
+    CmlSectionFormat.fieldDefinitions(p).map { case (n, t, multi) =>
+      FieldDefinition(n, t, multi)
     }
 
   private def _table_fields(
@@ -314,40 +306,37 @@ object OperationModel {
   private def _merged_key_values(
     p: Section
   ): Vector[(String, String)] = {
-    val fromtext = _key_values(p.toText)
+    val fromtext = _key_values(_section_body_text(p))
+    val fromdl = p.dls.toVector.flatMap(x => _key_values(x.toText))
     val fromsections = p.sections.toVector.flatMap { s =>
-      val fromsectiontext = _key_values(s.toText)
-      if (fromsectiontext.nonEmpty)
-        fromsectiontext
+      val fromsectiontext = _key_values(_section_body_text(s))
+      val fromsectiondl = s.dls.toVector.flatMap(x => _key_values(x.toText))
+      val direct = fromsectiontext ++ fromsectiondl
+      if (direct.nonEmpty)
+        direct
       else {
         val key = s.keyForModel.toLowerCase
-        val body = s.toText.linesIterator.map(_.trim).find(_.nonEmpty).getOrElse("")
+        val body = _section_body_text(s).linesIterator.map(_.trim).find(_.nonEmpty).getOrElse("")
         if (key.isEmpty || body.isEmpty) Vector.empty else Vector(key -> body)
       }
     }
-    fromtext ++ fromsections
+    fromtext ++ fromdl ++ fromsections
   }
 
   private def _key_values(p: String): Vector[(String, String)] =
-    p.split("\\r?\\n").toVector.flatMap { x =>
-      val s = x.trim
-      if (s.isEmpty)
-        None
-      else {
-        val a = if (s.startsWith("-")) s.drop(1).trim else s
-        val i = a.indexOf("::")
-        if (i <= 0)
-          None
-        else {
-          val k = a.substring(0, i).trim.toLowerCase
-          val v = a.substring(i + 2).trim
-          if (k.isEmpty || v.isEmpty)
-            None
-          else
-            Some(k -> v)
-        }
-      }
+    CmlSectionFormat.keyValues(p)
+
+  private def _section_body_text(p: Section): String =
+    p.getStringIfOnlyText.map(_.trim).filterNot(_.isEmpty).getOrElse {
+      val s = p.toText.trim
+      if (p.sections.nonEmpty && _looks_like_heading_dump(s))
+        ""
+      else
+        s
     }
+
+  private def _looks_like_heading_dump(p: String): Boolean =
+    p.startsWith("#") || p.linesIterator.exists(x => x.trim.startsWith("###") || x.trim.startsWith("##"))
 
   private def _raise(message: String): Nothing =
     RAISE.syntaxErrorFault(message)

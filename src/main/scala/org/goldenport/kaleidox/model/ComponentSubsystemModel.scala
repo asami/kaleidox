@@ -6,13 +6,14 @@ import org.smartdox.Description
 import org.smartdox.parser.Dox2Parser
 import org.goldenport.RAISE
 import org.goldenport.Strings
+import org.goldenport.kaleidox.CmlSectionFormat
 import org.goldenport.kaleidox.Config
 import org.goldenport.kaleidox.Model
 import org.goldenport.parser.LogicalSection
 
 /*
  * @since   Mar. 22, 2026
- * @version Mar. 22, 2026
+ * @version Mar. 24, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ComponentSubsystemModel(
@@ -72,7 +73,8 @@ object ComponentSubsystemModel {
     coordinates: Vector[Coordinate] = Vector.empty,
     componentlets: Vector[String] = Vector.empty,
     extensionPoints: Vector[String] = Vector.empty,
-    extensionBindings: Map[String, String] = Map.empty
+    extensionBindings: Map[String, String] = Map.empty,
+    description: Option[String] = None
   ) extends NamedDefinition
 
   final case class ComponentletDefinition(
@@ -160,7 +162,8 @@ object ComponentSubsystemModel {
       coordinates = coordinates,
       componentlets = componentlets,
       extensionPoints = extensionpoints,
-      extensionBindings = extensionbindings
+      extensionBindings = extensionbindings,
+      description = _value_opt(kv, "description")
     )
   }
 
@@ -363,37 +366,12 @@ object ComponentSubsystemModel {
   private def _key_values(
     p: String
   ): Vector[(String, String)] =
-    p.split("\\r?\\n").toVector.flatMap { x =>
-      val s0 = x.trim
-      if (s0.isEmpty)
-        None
-      else {
-        val s = if (s0.startsWith("-")) s0.drop(1).trim else s0
-        val i1 = s.indexOf("::")
-        val i2 = s.indexOf("=")
-        val i =
-          if (i1 > 0) i1
-          else if (i2 > 0) i2
-          else -1
-        if (i <= 0)
-          None
-        else {
-          val k = s.substring(0, i).trim.toLowerCase
-          val v = if (i == i1) s.substring(i + 2).trim else s.substring(i + 1).trim
-          if (k.isEmpty || v.isEmpty)
-            None
-          else
-            Some(k -> v)
-        }
-      }
-    }
+    CmlSectionFormat.keyValues(p)
 
   private def _value_lines(
     p: String
   ): Vector[String] =
-    p.split("\\r?\\n").toVector.map(_.trim).map { x =>
-      if (x.startsWith("-")) x.drop(1).trim else x
-    }.filterNot(_.isEmpty)
+    CmlSectionFormat.valueLines(p)
 
   private def _distinct_stable(
     p: Vector[String]

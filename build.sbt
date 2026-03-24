@@ -58,6 +58,8 @@ libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
 
 libraryDependencies += "org.scalaj" %% "scalaj-http" % "2.4.1"
 
+libraryDependencies += "org.yaml" % "snakeyaml" % "2.2"
+
 libraryDependencies += "commons-jxpath" % "commons-jxpath" % "1.3"
 
 libraryDependencies += "cat.inspiracio" % "rhino-js-engine" % "1.7.7.1"

@@ -39,7 +39,7 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Oct. 22, 2023
  *  version Jul. 12, 2024
  *  version May.  2, 2025
- * @version Mar. 21, 2026
+ * @version Mar. 24, 2026
  * @author  ASAMI, Tomoharu
  */
 case class EntityModel(
@@ -398,7 +398,7 @@ object EntityModel {
         private def _section_head(p: String): String =
           p.linesIterator.toStream.headOption.getOrElse("").trim.toLowerCase
 
-        private def _features(p: String) = Some(ConfigFactory.parseString(p))
+        private def _features(p: String) = Some(org.goldenport.kaleidox.CmlSectionFormat.parseConfig(p))
 
         private def _schema(p: LogicalSection) = SchemaClass.createOption(p)
       }
