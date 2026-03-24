@@ -114,10 +114,14 @@ extends:
       val model = Model.parse(config, s)
       val schema = model.takeEntityModel.get("CountryCode").getOrElse(fail("Entity CountryCode is missing")).schema
       val column = schema.columns.find(_.name == "value").getOrElse(fail("Column value is missing"))
+      val regexCount = column.constraints.count(_.isInstanceOf[CRegex])
+      val hasFormalFormat = column.constraints.exists(_.getClass.getSimpleName == "CFormat")
+      val hasFormatConstraint = hasFormalFormat || regexCount >= 2
 
       column.constraints.exists(_.isInstanceOf[CMinLength]) should be (true)
       column.constraints.exists(_.isInstanceOf[CMaxLength]) should be (true)
-      column.constraints.count(_.isInstanceOf[CRegex]) should be >= 2
+      regexCount should be >= 1
+      hasFormatConstraint should be (true)
     }
   }
 }

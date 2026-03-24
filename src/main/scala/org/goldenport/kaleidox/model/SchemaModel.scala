@@ -1610,9 +1610,26 @@ object SchemaModel {
 
       private def _format_constraint(p: String): Option[Constraint] = p.trim.toLowerCase match {
         case "" => None
-        case "email" => Some(org.goldenport.record.v2.CRegex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$".r))
-        case "uuid" => Some(org.goldenport.record.v2.CRegex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$".r))
-        case "uri" | "url" => Some(org.goldenport.record.v2.CRegex("^[a-zA-Z][a-zA-Z0-9+\\-.]*:.*$".r))
+        case "email" | "uuid" | "uri" | "url" => _create_format_constraint(p.trim)
+        case _ => None
+      }
+
+      private def _create_format_constraint(p: String): Option[Constraint] =
+        _create_cformat(p).orElse(_format_regex(p).map(org.goldenport.record.v2.CRegex.apply))
+
+      private def _create_cformat(p: String): Option[Constraint] = try {
+        val companion = Class.forName("org.goldenport.record.v2.CFormat$")
+        val module = companion.getField("MODULE$").get(null)
+        val apply = companion.getMethod("apply", classOf[String])
+        Some(apply.invoke(module, p).asInstanceOf[Constraint])
+      } catch {
+        case _: Throwable => None
+      }
+
+      private def _format_regex(p: String): Option[scala.util.matching.Regex] = p.trim.toLowerCase match {
+        case "email" => Some("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$".r)
+        case "uuid" => Some("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$".r)
+        case "uri" | "url" => Some("^[a-zA-Z][a-zA-Z0-9+\\-.]*:.*$".r)
         case _ => None
       }
     }
