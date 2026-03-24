@@ -34,7 +34,7 @@ import org.goldenport.kaleidox.model.diagram._
  *  version Sep.  6, 2024
  *  version May. 12, 2025
  *  version Sep. 15, 2025
- * @version Mar. 19, 2026
+ * @version Mar. 24, 2026
  * @author  ASAMI, Tomoharu
  */
 object KaleidoxFunction {
@@ -80,7 +80,8 @@ object KaleidoxFunction {
     Modeler.Load,
     Modeler.Diagram,
     Modeler.Vocabulary,
-    Modeler.Scala
+    Modeler.Scala,
+    Modeler.ScalaValue
   )
 
   object Event {
@@ -640,6 +641,37 @@ object KaleidoxFunction {
         for {
           model <- make_model(c, p)
         } yield c.extension.modeler.generateScala(c, model)
+    }
+
+    case object ScalaValue extends KaleidoxEvalFunction {
+      val specification = FunctionSpecification(
+        "modeler-scala-value",
+        param_argument("model"),
+        param_argument_option("save"),
+        param_property_option("charset")
+      )
+
+      def eval(c: Context): CursorResult = for {
+        textormodel <- c.param.textInFileOr(c) {
+          case m: Model => m
+          case m: SModel => m.model
+        }
+        uri <- c.param.getUri('save)
+      } yield {
+        for {
+          m <- textormodel
+          s <- _scala_value(c)(m)
+          o <- uri
+        } yield {
+          o foreach (x => uri_save(c, x, s))
+          s
+        }
+      }
+
+      private def _scala_value(c: Context)(p: Either[String, IModel]): ValidationNel[SError, SExpr] =
+        for {
+          model <- make_model(c, p)
+        } yield c.extension.modeler.generateScalaValue(c, model)
     }
   }
 }
