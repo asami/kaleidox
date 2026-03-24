@@ -3,7 +3,7 @@ package org.goldenport.kaleidox
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest._
-import org.goldenport.record.v2.{CMaxLength, CMinLength, CRegex}
+import org.goldenport.record.v2.{CFormat, CMaxLength, CMinLength, CRegex}
 
 /*
  * @since   Mar. 24, 2026
@@ -114,14 +114,11 @@ extends:
       val model = Model.parse(config, s)
       val schema = model.takeEntityModel.get("CountryCode").getOrElse(fail("Entity CountryCode is missing")).schema
       val column = schema.columns.find(_.name == "value").getOrElse(fail("Column value is missing"))
-      val regexCount = column.constraints.count(_.isInstanceOf[CRegex])
-      val hasFormalFormat = column.constraints.exists(_.getClass.getSimpleName == "CFormat")
-      val hasFormatConstraint = hasFormalFormat || regexCount >= 2
 
       column.constraints.exists(_.isInstanceOf[CMinLength]) should be (true)
       column.constraints.exists(_.isInstanceOf[CMaxLength]) should be (true)
-      regexCount should be >= 1
-      hasFormatConstraint should be (true)
+      column.constraints.exists(_.isInstanceOf[CRegex]) should be (true)
+      column.constraints.exists(_.isInstanceOf[CFormat]) should be (true)
     }
   }
 }
