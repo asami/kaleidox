@@ -1610,7 +1610,10 @@ object SchemaModel {
 
       private def _format_constraint(p: String): Option[Constraint] = p.trim.toLowerCase match {
         case "" => None
-        case "email" | "uuid" | "uri" | "url" => Some(org.goldenport.record.v2.CFormat(p.trim))
+        case "email" | "uuid" | "uri" | "url" |
+             "date" | "time" | "date-time" | "datetime" | "date_time" |
+             "phone" | "tel" | "e164" =>
+          Some(org.goldenport.record.v2.CFormat(p.trim))
         case _ => None
       }
     }

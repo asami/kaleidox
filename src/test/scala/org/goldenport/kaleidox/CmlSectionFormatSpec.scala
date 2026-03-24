@@ -120,5 +120,29 @@ extends:
       column.constraints.exists(_.isInstanceOf[CRegex]) should be (true)
       column.constraints.exists(_.isInstanceOf[CFormat]) should be (true)
     }
+
+    "accept extended format names as CFormat constraints" in {
+      val s = """* ENTITY
+** ContactProfile
+*** ATTRIBUTE
+- name: created_at
+  type: String
+  multiplicity: 1
+  format: date-time
+- name: phone_number
+  type: String
+  multiplicity: 1
+  format: phone
+"""
+      val model = Model.parse(config, s)
+      val schema = model.takeEntityModel.get("ContactProfile").getOrElse(fail("Entity ContactProfile is missing")).schema
+      val createdAt = schema.columns.find(_.name == "created_at").getOrElse(fail("Column created_at is missing"))
+      val phoneNumber = schema.columns.find(_.name == "phone_number").getOrElse(fail("Column phone_number is missing"))
+      val createdAtFormats = createdAt.constraints.collect { case CFormat(f) => f.toLowerCase }
+      val phoneFormats = phoneNumber.constraints.collect { case CFormat(f) => f.toLowerCase }
+
+      createdAtFormats should contain ("date-time")
+      phoneFormats should contain ("phone")
+    }
   }
 }
