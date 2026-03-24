@@ -178,7 +178,7 @@ case class Model(
 
   lazy val getPowertypeModel: Option[PowertypeModel] =
     divisions.collect {
-      case m: PowertypeDivision => m.makeModel
+      case m: PowertypeDivision => m.makeModel(config)
     }.concatenate.toOption
 
   lazy val takePowertypeModel: PowertypeModel = getPowertypeModel.orZero
@@ -702,40 +702,17 @@ object Model {
   }
 
   case class PowertypeDivision(section: LogicalSection) extends Division {
-    val name = "datatype"
+    val name = "powertype"
 
-    def makeModel: PowertypeModel = {
-      val doxconfig = Dox2Parser.Config.default // TODO
-      val dox = Dox2Parser.parse(doxconfig, section)
-      // println(s"PowertypeDivision#makeModel $dox")
-      _make(dox)
-    }
-
-    private def _make(p: Dox): PowertypeModel = {
-      // println(s"PowertypeModel#_make $p")
-      p match {
-        case m: Section =>
-          if (m.keyForModel == "schema") // TODO
-            _make_schemas(m)
-          else
-            PowertypeModel.empty
-        case m => m.elements.foldMap(_make)
-      }
-    }
-
-    private def _make_schemas(p: Section): PowertypeModel = p.sections.foldMap(_make_schema)
-
-    private def _make_schema(p: Section): PowertypeModel =
-      PowertypeModel.PowertypeClass.createOption(p).
-        map(PowertypeModel.apply).
-        getOrElse(PowertypeModel.empty)
+    def makeModel(config: Config): PowertypeModel =
+      PowertypeModel.create(config, section)
 
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: PowertypeDivision => copy(section + m.section)
     }
   }
   object PowertypeDivision extends DivisionFactory {
-    override val name_Candidates = Vector("schema")
+    override val name_Candidates = Vector("powertype", "power-type", "power_type")
     protected def to_Division(p: LogicalSection): Division = PowertypeDivision(p)
   }
 
@@ -1023,7 +1000,7 @@ object Model {
     }
   }
   object StateMachineDivision extends DivisionFactory {
-    override val name_Candidates = Vector("statemachine")
+    override val name_Candidates = Vector("statemachine", "state-machine", "state_machine")
     protected def to_Division(p: LogicalSection): Division = StateMachineDivision(p)
   }
 
