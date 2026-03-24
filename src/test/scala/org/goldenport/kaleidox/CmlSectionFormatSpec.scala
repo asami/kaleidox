@@ -3,10 +3,11 @@ package org.goldenport.kaleidox
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatest._
+import org.goldenport.record.v2.{CMaxLength, CMinLength, CRegex}
 
 /*
  * @since   Mar. 24, 2026
- * @version Mar. 24, 2026
+ * @version Mar. 25, 2026
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -96,6 +97,27 @@ extends:
       val model = Model.parse(config, s)
       val entity = model.takeEntityModel.get("Person").getOrElse(fail("Entity Person is missing"))
       entity.parents.nonEmpty should be (true)
+    }
+
+    "normalize attribute constraint metadata to record constraints" in {
+      val s = """* ENTITY
+** CountryCode
+*** ATTRIBUTE
+- name: value
+  type: String
+  multiplicity: 1
+  min_length: 2
+  max_length: 2
+  pattern: "^[A-Z]{2}$"
+  format: uuid
+"""
+      val model = Model.parse(config, s)
+      val schema = model.takeEntityModel.get("CountryCode").getOrElse(fail("Entity CountryCode is missing")).schema
+      val column = schema.columns.find(_.name == "value").getOrElse(fail("Column value is missing"))
+
+      column.constraints.exists(_.isInstanceOf[CMinLength]) should be (true)
+      column.constraints.exists(_.isInstanceOf[CMaxLength]) should be (true)
+      column.constraints.count(_.isInstanceOf[CRegex]) should be >= 2
     }
   }
 }

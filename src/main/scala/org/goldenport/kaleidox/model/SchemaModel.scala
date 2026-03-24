@@ -24,6 +24,7 @@ import org.goldenport.sm.StateMachineClass
 import org.goldenport.sm.{StateMachine => StateMachineInstance}
 import org.goldenport.sm._
 import org.goldenport.kaleidox._
+import scala.util.Try
 
 /*
  * @since   Feb. 18, 2021
@@ -40,7 +41,7 @@ import org.goldenport.kaleidox._
  *  version Oct. 15, 2023
  *  version Sep.  6, 2024
  *  version May.  2, 2025
- * @version Mar. 24, 2026
+ * @version Mar. 25, 2026
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -303,6 +304,10 @@ object SchemaModel {
     val dbColumnNameName = Vector("DBカラム名", "dbカラム名", "dbcolumnname", "db_column_name", "db column name", "column_name")
     val dbColumnTypeName = Vector("DBカラム型", "dbカラム型", "dbcolumntype", "db_column_type", "db column type", "column_type")
     val externalNameName = Vector("外部連携属性名", "external_name", "external name", "externalName")
+    val minLengthName = Vector("min_length", "minlength", "min length", "最小長", "最小文字数")
+    val maxLengthName = Vector("max_length", "maxlength", "max length", "最大長", "最大文字数")
+    val patternName = Vector("pattern", "regex", "正規表現", "パターン")
+    val formatName = Vector("format", "フォーマット", "書式")
     val objectRefName = Vector("オブジェクト参照", "エンティティ", "objectref", "entity")
     val powertypeRefName = Vector("パワータイプ", "区分", "powertyperef", "powertype")
 
@@ -1567,7 +1572,13 @@ object SchemaModel {
       private def _multiplicity(p: Record): Multiplicity = p.getStringCaseInsensitive(multiplicityName).
         flatMap(Multiplicity.get).getOrElse(MOne)
 
-      private def _constraints(p: Record): List[Constraint] = Nil // TODO
+      private def _constraints(p: Record): List[Constraint] = {
+        val min = _int_value_flexible(p, minLengthName).map(org.goldenport.record.v2.CMinLength.apply).toList
+        val max = _int_value_flexible(p, maxLengthName).map(org.goldenport.record.v2.CMaxLength.apply).toList
+        val pattern = _string_value_flexible(p, patternName).map(x => org.goldenport.record.v2.CRegex(x.r)).toList
+        val format = _string_value_flexible(p, formatName).toList.flatMap(_format_constraint)
+        min ++ max ++ pattern ++ format
+      }
 
       private def _db_column_name(p: Record): Option[String] =
         _string_value_flexible(p, dbColumnNameName).orElse(
@@ -1593,6 +1604,17 @@ object SchemaModel {
 
       private def _normalize_key(p: String): String =
         p.toLowerCase.replaceAll("[\\s_\\-　]+", "")
+
+      private def _int_value_flexible(p: Record, keys: Seq[String]): Option[Int] =
+        _string_value_flexible(p, keys).flatMap(x => Try(x.toInt).toOption)
+
+      private def _format_constraint(p: String): Option[Constraint] = p.trim.toLowerCase match {
+        case "" => None
+        case "email" => Some(org.goldenport.record.v2.CRegex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$".r))
+        case "uuid" => Some(org.goldenport.record.v2.CRegex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$".r))
+        case "uri" | "url" => Some(org.goldenport.record.v2.CRegex("^[a-zA-Z][a-zA-Z0-9+\\-.]*:.*$".r))
+        case _ => None
+      }
     }
 
     private def _to_features(p: Table): Option[Features] = {
@@ -1654,6 +1676,7 @@ object SchemaModel {
       name,
       domain.datatype,
       domain.multiplicity,
+      constraints = domain.constraints,
       i18nLabel = label,
       aliases = externalName.toList,
       sql = _sql_column(dbColumnName, dbColumnType)
@@ -1686,6 +1709,7 @@ object SchemaModel {
       name,
       domain.datatype,
       domain.multiplicity,
+      constraints = domain.constraints,
       i18nLabel = label,
       aliases = externalName.toList,
       sql = _sql_column(dbColumnName, dbColumnType)
