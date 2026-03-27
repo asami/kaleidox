@@ -15,7 +15,7 @@ import org.goldenport.util.StringUtils
 
 /*
  * @since   Mar. 22, 2026
- * @version Mar. 24, 2026
+ * @version Mar. 27, 2026
  * @author  ASAMI, Tomoharu
  */
 case class OperationModel(
@@ -82,6 +82,7 @@ case class OperationModel(
       NormalizedOperationDefinition(
         name = op.name,
         kind = kind,
+        execution = op.execution,
         inputType = resolvedInputType,
         outputType = output,
         inputValueKind = resolvedValueKind,
@@ -153,6 +154,7 @@ object OperationModel {
   case class OperationDefinition(
     name: String,
     kind: Option[OperationKind] = None,
+    execution: Option[String] = None,
     inputType: Option[String] = None,
     outputType: Option[String] = None,
     description: Option[String] = None,
@@ -162,6 +164,7 @@ object OperationModel {
   case class NormalizedOperationDefinition(
     name: String,
     kind: OperationKind,
+    execution: Option[String],
     inputType: String,
     outputType: String,
     inputValueKind: InputValueKind,
@@ -214,6 +217,9 @@ object OperationModel {
     val input = kv.collectFirst {
       case (k, v) if k == "input" => v.trim
     }.filterNot(Strings.blankp)
+    val execution = kv.collectFirst {
+      case (k, v) if k == "execution" || k == "directive" => v.trim
+    }.filterNot(Strings.blankp)
     val output = kv.collectFirst {
       case (k, v) if k == "output" || k == "result" => v.trim
     }.filterNot(Strings.blankp)
@@ -224,6 +230,7 @@ object OperationModel {
     OperationDefinition(
       name = p.nameForModel.trim,
       kind = kind,
+      execution = execution,
       inputType = input,
       outputType = output,
       description = description,
