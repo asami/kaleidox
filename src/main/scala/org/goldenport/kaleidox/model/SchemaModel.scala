@@ -387,7 +387,7 @@ object SchemaModel {
               p.nameForModel,
               featureTables,
               props,
-              attributeTables,
+              attributeTables.toVector.flatMap(SimpleModelerUtils.toRecords),
               associationTables,
               aggregationTables,
               compositionTables,
@@ -893,7 +893,7 @@ object SchemaModel {
         case class Z(
           featureTables: Vector[Table] = Vector.empty,
           propertyTables: Vector[Table] = Vector.empty,
-          attributeTables: Vector[Table] = Vector.empty,
+          attributeSlots: Vector[Record] = Vector.empty,
           associationTables: Vector[Table] = Vector.empty,
           aggregationTables: Vector[Table] = Vector.empty,
           compositionTables: Vector[Table] = Vector.empty,
@@ -913,7 +913,7 @@ object SchemaModel {
               p.nameForModel,
               featureTables,
               props,
-              attributeTables,
+              attributeSlots,
               associationTables,
               aggregationTables,
               compositionTables,
@@ -928,7 +928,7 @@ object SchemaModel {
           def +(rhs: Dox) = rhs match {
             case m: Table => _table(m)
             case m: Section => _section(m)
-            case m: Paragraph => RAISE.notImplementedYetDefect // TODO features by property
+            case m: Paragraph => this
           }
 
           private def _table(m: Table) =
@@ -971,7 +971,84 @@ object SchemaModel {
             viewKeys.contains(p.keyForModel)
 
           private def _attributes(p: Section) =
-            copy(attributeTables = attributeTables ++ p.tableList)
+            copy(attributeSlots = this.attributeSlots ++ _attribute_records(p))
+
+          private def _attribute_records(p: Section): Vector[Record] = {
+            val fromTables = p.tableList.toVector.flatMap(SimpleModelerUtils.toRecords)
+            val fromItems = _attribute_records_from_items(p)
+            val fromText = _attribute_records_from_text(p.toText)
+            val xs = if (fromItems.nonEmpty) fromItems else fromText
+            fromTables ++ xs
+          }
+
+          private def _attribute_records_from_items(p: Section): Vector[Record] = {
+            val fromUl = p.uls.toVector.flatMap { ul =>
+              ul.contents.toVector.flatMap { li =>
+                _attribute_record(li.toText)
+              }
+            }
+            val fromDl = p.dls.toVector.flatMap { dl =>
+              dl.contents.toVector.flatMap {
+                case (dt, dd) =>
+                  _attribute_record(s"${dt.toText}\n${dd.toText}")
+              }
+            }
+            fromUl ++ fromDl
+          }
+
+          private def _attribute_records_from_text(p: String): Vector[Record] = {
+            val pairs = _attribute_pairs(p)
+            if (pairs.isEmpty)
+              Vector.empty
+            else {
+              val records = _attribute_pair_records(pairs)
+              records.map(_to_record)
+            }
+          }
+
+          private def _attribute_record(p: String): Option[Record] = {
+            val xs = _attribute_pairs(p)
+            if (xs.isEmpty)
+              None
+            else
+              Some(_to_record(xs))
+          }
+
+          private def _attribute_pair_records(pairs: Vector[(String, String)]): Vector[Vector[(String, String)]] = {
+            case class Z(
+              xs: Vector[Vector[(String, String)]],
+              current: Vector[(String, String)]
+            ) {
+              def +(rhs: (String, String)): Z = {
+                val key = rhs._1.trim.toLowerCase
+                if (key == "name" && current.nonEmpty)
+                  copy(xs = xs :+ current, current = Vector(rhs))
+                else
+                  copy(current = current :+ rhs)
+              }
+              def result: Vector[Vector[(String, String)]] =
+                if (current.isEmpty) xs else xs :+ current
+            }
+            pairs.foldLeft(Z(Vector.empty, Vector.empty))(_ + _).result.filter(_.nonEmpty)
+          }
+
+          private val _attribute_key_value_pattern =
+            """(?i)(?:^|[\s\-\*])([A-Za-z_][A-Za-z0-9_.-]*)\s*(?:::|:|=)\s*(".*?"|'.*?'|[^\s]+)""".r
+
+          private def _attribute_pairs(p: String): Vector[(String, String)] = {
+            val xs = _attribute_key_value_pattern.findAllMatchIn(Option(p).getOrElse("")).toVector.map { m =>
+              val k = m.group(1).trim.toLowerCase
+              val v = m.group(2).trim
+              k -> v
+            }
+            if (xs.nonEmpty)
+              xs
+            else
+              CmlSectionFormat.keyValues(p)
+          }
+
+          private def _to_record(p: Vector[(String, String)]): Record =
+            Record(p.map { case (k, v) => Field.create(k, v) })
 
           private def _statemachines(p: Section) = {
             val xs = p.sections.flatMap(_statemachine)
@@ -1381,7 +1458,7 @@ object SchemaModel {
         pname: String,
         features: Seq[Table],
         props: Seq[Table],
-        attrs: Seq[Table],
+        attrs: Seq[Record],
         assocs: Seq[Table],
         aggres: Seq[Table],
         compos: Seq[Table],
@@ -1411,9 +1488,8 @@ object SchemaModel {
         rs.flatMap(_slot)
       }
 
-      private def _to_attrs(ps: Seq[Table]): Seq[Slot] = { // Attribute | Id
-        val rs = ps.toVector.foldMap(SimpleModelerUtils.toRecords)
-        rs.map(_attribute_or_id)
+      private def _to_attrs(ps: Seq[Record]): Seq[Slot] = { // Attribute | Id
+        ps.map(_attribute_or_id)
       }
 
       private def _to_assocs(ps: Seq[Table]): Seq[Association] = {

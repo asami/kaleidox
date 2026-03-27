@@ -122,13 +122,24 @@ object PowertypeModel {
     ): T = PowertypeModel.empty
 
     private val _narrative_keys = Set(
+      "headline",
+      "brief",
+      "summary",
+      "description",
+      "lead",
+      "content",
+      "abstract",
+      "remarks",
+      "tooltip",
       "overview",
       "background",
       "mapping",
       "note",
       "notes",
       "narrative",
-      "description"
+      "example",
+      "validation",
+      "rationale"
     )
 
     private def _is_powertype_class_section(p: LogicalSection): Boolean =

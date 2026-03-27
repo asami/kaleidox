@@ -56,7 +56,7 @@ import org.goldenport.util.StringUtils
  *  version Sep.  6, 2024
  *  version Oct. 13, 2024
  *  version May. 11, 2025
- * @version Sep. 12, 2025
+ * @version Mar. 25, 2026
  * @author  ASAMI, Tomoharu
  */
 case class Kaleidox(
@@ -207,7 +207,7 @@ case class Kaleidox(
     ).flatten.distinct.filter(_.exists)
   }
 
-  private val _suffixes = List("kld", "kdox", "cozy")
+  private val _suffixes = List("kld", "kdox", "cozy", "cml")
 
   private def _implicit_model_files: List[File] = {
     val homedir = config.homeDirectory

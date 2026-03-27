@@ -70,7 +70,7 @@ import org.goldenport.kaleidox.model.analysis.AnalysisModel
  *  version Sep.  6, 2024
  *  version Nov. 22, 2024
  *  version May.  2, 2025
- * @version Mar. 24, 2026
+ * @version Mar. 25, 2026
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -438,7 +438,16 @@ object Model {
       Strings.notblankp(p.text) option /*ImportedModel.Locator*/Locator.create(p.text.trim)
 
     private def _section(p: LogicalSection): Vector[/*ImportedModel.Locator*/Locator] =
-      RAISE.notImplementedYetDefect
+      p.sections.flatMap { s =>
+        _make_locators(s)
+      }.toVector
+
+    private def _make_locators(p: LogicalSection): Vector[/*ImportedModel.Locator*/Locator] =
+      p.blocks.blocks.flatMap {
+        case m: LogicalParagraph => m.lines.lines.flatMap(_get_in_line)
+        case m: LogicalSection => _section(m)
+        case _ => Vector.empty
+      }.toVector
 
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
       case m: ImportDivision => copy(section + m.section)
@@ -484,9 +493,10 @@ object Model {
     }
 
     private def _to_hocon(p: LogicalBlock): RichConfig = p match {
-      case m: LogicalSection => RAISE.notImplementedYetDefect
+      case m: LogicalSection =>
+        m.blocks.blocks.map(_to_hocon).concatenate
       case m: LogicalParagraph => m.lines.lines.map(x => HoconUtils.parse(x.text)).concatenate
-      case _ => RAISE.notImplementedYetDefect
+      case _ => RichConfig.empty
     }
 
     def create(p: IRecord): EnvironmentDivision = EnvironmentDivision(
@@ -810,6 +820,17 @@ object Model {
 
   case class ValueDivision(section: LogicalSection) extends Division {
     val name = "value"
+    private val _narrative_keys = Set(
+      "headline",
+      "brief",
+      "summary",
+      "description",
+      "lead",
+      "content",
+      "abstract",
+      "remarks",
+      "tooltip"
+    )
 
     def makeModel: ValueModel = {
       val doxconfig = Dox2Parser.Config.default // TODO
@@ -825,12 +846,13 @@ object Model {
           if (m.keyForModel == "value") // TODO
             _make_values(m)
           else
-            ValueModel.empty
+            m.sections.foldMap(_make)
         case m => m.elements.foldMap(_make)
       }
     }
 
-    private def _make_values(p: Section): ValueModel = p.sections.foldMap(_make_value)
+    private def _make_values(p: Section): ValueModel =
+      p.sections.filterNot(s => _narrative_keys.contains(s.keyForModel.toLowerCase)).foldMap(_make_value)
 
     private def _make_value(p: Section): ValueModel = ValueModel.create(p)
 

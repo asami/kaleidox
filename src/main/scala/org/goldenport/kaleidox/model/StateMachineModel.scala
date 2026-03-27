@@ -58,6 +58,27 @@ object StateMachineModel {
   //   Builder(config).createClassOption(p)
 
   case class Builder(config: Config) {
+    private val _narrative_keys = Set(
+      "headline",
+      "brief",
+      "summary",
+      "description",
+      "lead",
+      "content",
+      "abstract",
+      "remarks",
+      "tooltip",
+      "overview",
+      "background",
+      "mapping",
+      "note",
+      "notes",
+      "narrative",
+      "example",
+      "validation",
+      "rationale"
+    )
+
     def build(p: LogicalSection): StateMachineModel = {
       val xs = p.sections
       if (xs.isEmpty)
@@ -72,7 +93,7 @@ object StateMachineModel {
     }
 
     private def _subsections(ps: Seq[LogicalSection]) = {
-      val stms = ps.flatMap(_create_subsection)
+      val stms = ps.filterNot(x => _narrative_keys.contains(x.keyForModel.toLowerCase)).flatMap(_create_subsection)
       _to_model(stms)
     }
 
