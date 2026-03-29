@@ -41,7 +41,7 @@ import scala.util.Try
  *  version Oct. 15, 2023
  *  version Sep.  6, 2024
  *  version May.  2, 2025
- * @version Mar. 25, 2026
+ * @version Mar. 30, 2026
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -220,9 +220,19 @@ object SchemaModel {
   )
 
   case class AggregateDefinition(
+    members: Vector[AggregateMemberDefinition] = Vector.empty,
     commands: Vector[AggregateCommandDefinition] = Vector.empty,
     state: Vector[AggregateStateDefinition] = Vector.empty,
     invariants: Vector[AggregateInvariantDefinition] = Vector.empty
+  )
+
+  case class AggregateMemberDefinition(
+    name: String,
+    entity: String,
+    kind: String = "composition",
+    multiplicity: Option[String] = None,
+    joinField: Option[String] = None,
+    properties: Map[String, String] = Map.empty
   )
 
   case class AggregateCommandDefinition(
@@ -536,13 +546,36 @@ object SchemaModel {
           }
 
           private def _aggregate_definition(p: LogicalSection): AggregateDefinition = {
+            val membersections = p.sections.filter(x => x.keyForModel == "member" || x.keyForModel == "members")
             val commandsections = p.sections.filter(x => x.keyForModel == "command" || x.keyForModel == "commands")
             val statesections = p.sections.filter(x => x.keyForModel == "state" || x.keyForModel == "states")
             val invariantsections = p.sections.filter(x => x.keyForModel == "invariant" || x.keyForModel == "invariants")
+            val members = membersections.toVector.flatMap(_aggregate_member_definitions)
             val commands = commandsections.toVector.flatMap(_.sections).map(_aggregate_command_definition)
             val state = statesections.toVector.flatMap(_aggregate_state_definitions)
             val invariants = invariantsections.toVector.flatMap(_.sections).map(_aggregate_invariant_definition)
-            AggregateDefinition(commands = commands, state = state, invariants = invariants)
+            AggregateDefinition(members = members, commands = commands, state = state, invariants = invariants)
+          }
+
+          private def _aggregate_member_definitions(
+            p: LogicalSection
+          ): Vector[AggregateMemberDefinition] = {
+            val fromTables = _table_list(p).toVector.flatMap(_aggregate_member_rows).map {
+              case (name, entity, kind, multi, joinField, props) =>
+                AggregateMemberDefinition(name, entity, kind, multi, joinField, props)
+            }
+            val fromSections = p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
+              val kv = _key_values(s.text).toMap
+              AggregateMemberDefinition(
+                name = s.nameForModel,
+                entity = kv.getOrElse("entity", kv.getOrElse("objectref", "")),
+                kind = kv.getOrElse("kind", "composition"),
+                multiplicity = kv.get("multiplicity"),
+                joinField = kv.get("join_field").orElse(kv.get("joinfield")),
+                properties = kv
+              )
+            }.filter(_.entity.nonEmpty)
+            fromTables ++ fromSections
           }
 
           private def _aggregate_command_definition(
@@ -675,6 +708,26 @@ object SchemaModel {
                 val mult = r.getStringCaseInsensitive(multiplicityName).map(_.trim).filterNot(_.isEmpty)
                 val props = r.fields.map(f => f.name.toLowerCase -> f.asString).toMap
                 (n, dtype, mult, props)
+              }
+            }
+          }
+
+          private def _aggregate_member_rows(
+            table: Table
+          ): Vector[(String, String, String, Option[String], Option[String], Map[String, String])] = {
+            val records = SimpleModelerUtils.toRecords(table).toVector
+            records.flatMap { r =>
+              val name = r.getStringCaseInsensitive(nameName).map(_.trim).filterNot(_.isEmpty)
+              val entity = r.getStringCaseInsensitive(objectRefName).map(_.trim).filterNot(_.isEmpty)
+              (name, entity) match {
+                case (Some(n), Some(e)) =>
+                  val kind = r.getStringCaseInsensitive(Vector("kind")).map(_.trim).filterNot(_.isEmpty).getOrElse("composition")
+                  val mult = r.getStringCaseInsensitive(multiplicityName).map(_.trim).filterNot(_.isEmpty)
+                  val joinfield = r.getStringCaseInsensitive(Vector("join_field", "joinfield")).map(_.trim).filterNot(_.isEmpty)
+                  val props = r.fields.map(f => f.name.toLowerCase -> f.asString).toMap
+                  Some((n, e, kind, mult, joinfield, props))
+                case _ =>
+                  None
               }
             }
           }
@@ -1091,13 +1144,36 @@ object SchemaModel {
           }
 
           private def _aggregate_definition(p: Section): AggregateDefinition = {
+            val membersections = p.sections.filter(x => x.keyForModel == "member" || x.keyForModel == "members")
             val commandsections = p.sections.filter(x => x.keyForModel == "command" || x.keyForModel == "commands")
             val statesections = p.sections.filter(x => x.keyForModel == "state" || x.keyForModel == "states")
             val invariantsections = p.sections.filter(x => x.keyForModel == "invariant" || x.keyForModel == "invariants")
+            val members = membersections.toVector.flatMap(_aggregate_member_definitions)
             val commands = commandsections.toVector.flatMap(_.sections).map(_aggregate_command_definition)
             val state = statesections.toVector.flatMap(_aggregate_state_definitions)
             val invariants = invariantsections.toVector.flatMap(_.sections).map(_aggregate_invariant_definition)
-            AggregateDefinition(commands = commands, state = state, invariants = invariants)
+            AggregateDefinition(members = members, commands = commands, state = state, invariants = invariants)
+          }
+
+          private def _aggregate_member_definitions(
+            p: Section
+          ): Vector[AggregateMemberDefinition] = {
+            val fromTables = p.tableList.toVector.flatMap(_aggregate_member_rows).map {
+              case (name, entity, kind, multi, joinField, props) =>
+                AggregateMemberDefinition(name, entity, kind, multi, joinField, props)
+            }
+            val fromSections = p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
+              val kv = _key_values(s.toText).toMap
+              AggregateMemberDefinition(
+                name = s.nameForModel,
+                entity = kv.getOrElse("entity", kv.getOrElse("objectref", "")),
+                kind = kv.getOrElse("kind", "composition"),
+                multiplicity = kv.get("multiplicity"),
+                joinField = kv.get("join_field").orElse(kv.get("joinfield")),
+                properties = kv
+              )
+            }.filter(_.entity.nonEmpty)
+            fromTables ++ fromSections
           }
 
           private def _aggregate_command_definition(
@@ -1230,6 +1306,26 @@ object SchemaModel {
                 val mult = r.getStringCaseInsensitive(multiplicityName).map(_.trim).filterNot(_.isEmpty)
                 val props = r.fields.map(f => f.name.toLowerCase -> f.asString).toMap
                 (n, dtype, mult, props)
+              }
+            }
+          }
+
+          private def _aggregate_member_rows(
+            table: Table
+          ): Vector[(String, String, String, Option[String], Option[String], Map[String, String])] = {
+            val records = SimpleModelerUtils.toRecords(table).toVector
+            records.flatMap { r =>
+              val name = r.getStringCaseInsensitive(nameName).map(_.trim).filterNot(_.isEmpty)
+              val entity = r.getStringCaseInsensitive(objectRefName).map(_.trim).filterNot(_.isEmpty)
+              (name, entity) match {
+                case (Some(n), Some(e)) =>
+                  val kind = r.getStringCaseInsensitive(Vector("kind")).map(_.trim).filterNot(_.isEmpty).getOrElse("composition")
+                  val mult = r.getStringCaseInsensitive(multiplicityName).map(_.trim).filterNot(_.isEmpty)
+                  val joinfield = r.getStringCaseInsensitive(Vector("join_field", "joinfield")).map(_.trim).filterNot(_.isEmpty)
+                  val props = r.fields.map(f => f.name.toLowerCase -> f.asString).toMap
+                  Some((n, e, kind, mult, joinfield, props))
+                case _ =>
+                  None
               }
             }
           }
