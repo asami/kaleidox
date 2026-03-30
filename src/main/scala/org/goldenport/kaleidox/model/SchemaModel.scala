@@ -41,7 +41,7 @@ import scala.util.Try
  *  version Oct. 15, 2023
  *  version Sep.  6, 2024
  *  version May.  2, 2025
- * @version Mar. 30, 2026
+ * @version Mar. 31, 2026
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -1673,6 +1673,7 @@ object SchemaModel {
           _multiplicity(p),
           _constraints(p)
         ),
+        p.getStringCaseInsensitive(typeName).map(_.trim).filterNot(_.isEmpty),
         _db_column_name(p),
         _db_column_type(p),
         _external_name(p)
@@ -1868,6 +1869,7 @@ object SchemaModel {
     name: String,
     label: Option[I18NString],
     domain: ValueDomain,
+    rawTypeName: Option[String] = None,
     override val dbColumnName: Option[String] = None,
     override val dbColumnType: Option[String] = None,
     override val externalName: Option[String] = None
