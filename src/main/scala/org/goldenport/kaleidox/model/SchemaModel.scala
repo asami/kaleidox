@@ -230,6 +230,8 @@ object SchemaModel {
     name: String,
     entity: String,
     kind: String = "composition",
+    boundary: String = "internal",
+    join: Option[String] = None,
     multiplicity: Option[String] = None,
     joinField: Option[String] = None,
     properties: Map[String, String] = Map.empty
@@ -561,8 +563,17 @@ object SchemaModel {
             p: LogicalSection
           ): Vector[AggregateMemberDefinition] = {
             val fromTables = _table_list(p).toVector.flatMap(_aggregate_member_rows).map {
-              case (name, entity, kind, multi, joinField, props) =>
-                AggregateMemberDefinition(name, entity, kind, multi, joinField, props)
+              case (name, entity, kind, join, multi, joinField, props) =>
+                AggregateMemberDefinition(
+                  name = name,
+                  entity = entity,
+                  kind = kind,
+                  boundary = props.getOrElse("boundary", props.getOrElse("scope", "internal")),
+                  join = join.orElse(props.get("join")).orElse(props.get("join_strategy")).orElse(props.get("joinstrategy")).orElse(props.get("join_kind")).orElse(props.get("joinkind")),
+                  multiplicity = multi,
+                  joinField = joinField,
+                  properties = props
+                )
             }
             val fromSections = p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
               val kv = _key_values(s.text).toMap
@@ -570,6 +581,8 @@ object SchemaModel {
                 name = s.nameForModel,
                 entity = kv.getOrElse("entity", kv.getOrElse("objectref", "")),
                 kind = kv.getOrElse("kind", "composition"),
+                boundary = kv.getOrElse("boundary", kv.getOrElse("scope", "internal")),
+                join = kv.get("join").orElse(kv.get("join_strategy")).orElse(kv.get("joinstrategy")).orElse(kv.get("join_kind")).orElse(kv.get("joinkind")),
                 multiplicity = kv.get("multiplicity"),
                 joinField = kv.get("join_field").orElse(kv.get("joinfield")),
                 properties = kv
@@ -714,7 +727,7 @@ object SchemaModel {
 
           private def _aggregate_member_rows(
             table: Table
-          ): Vector[(String, String, String, Option[String], Option[String], Map[String, String])] = {
+          ): Vector[(String, String, String, Option[String], Option[String], Option[String], Map[String, String])] = {
             val records = SimpleModelerUtils.toRecords(table).toVector
             records.flatMap { r =>
               val name = r.getStringCaseInsensitive(nameName).map(_.trim).filterNot(_.isEmpty)
@@ -722,10 +735,11 @@ object SchemaModel {
               (name, entity) match {
                 case (Some(n), Some(e)) =>
                   val kind = r.getStringCaseInsensitive(Vector("kind")).map(_.trim).filterNot(_.isEmpty).getOrElse("composition")
+                  val join = r.getStringCaseInsensitive(Vector("join", "join_strategy", "joinstrategy", "join_kind", "joinkind")).map(_.trim).filterNot(_.isEmpty)
                   val mult = r.getStringCaseInsensitive(multiplicityName).map(_.trim).filterNot(_.isEmpty)
                   val joinfield = r.getStringCaseInsensitive(Vector("join_field", "joinfield")).map(_.trim).filterNot(_.isEmpty)
                   val props = r.fields.map(f => f.name.toLowerCase -> f.asString).toMap
-                  Some((n, e, kind, mult, joinfield, props))
+                  Some((n, e, kind, join, mult, joinfield, props))
                 case _ =>
                   None
               }
@@ -1159,8 +1173,17 @@ object SchemaModel {
             p: Section
           ): Vector[AggregateMemberDefinition] = {
             val fromTables = p.tableList.toVector.flatMap(_aggregate_member_rows).map {
-              case (name, entity, kind, multi, joinField, props) =>
-                AggregateMemberDefinition(name, entity, kind, multi, joinField, props)
+              case (name, entity, kind, join, multi, joinField, props) =>
+                AggregateMemberDefinition(
+                  name = name,
+                  entity = entity,
+                  kind = kind,
+                  boundary = props.getOrElse("boundary", props.getOrElse("scope", "internal")),
+                  join = join.orElse(props.get("join")).orElse(props.get("join_strategy")).orElse(props.get("joinstrategy")).orElse(props.get("join_kind")).orElse(props.get("joinkind")),
+                  multiplicity = multi,
+                  joinField = joinField,
+                  properties = props
+                )
             }
             val fromSections = p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
               val kv = _key_values(s.toText).toMap
@@ -1168,6 +1191,8 @@ object SchemaModel {
                 name = s.nameForModel,
                 entity = kv.getOrElse("entity", kv.getOrElse("objectref", "")),
                 kind = kv.getOrElse("kind", "composition"),
+                boundary = kv.getOrElse("boundary", kv.getOrElse("scope", "internal")),
+                join = kv.get("join").orElse(kv.get("join_strategy")).orElse(kv.get("joinstrategy")).orElse(kv.get("join_kind")).orElse(kv.get("joinkind")),
                 multiplicity = kv.get("multiplicity"),
                 joinField = kv.get("join_field").orElse(kv.get("joinfield")),
                 properties = kv
@@ -1312,7 +1337,7 @@ object SchemaModel {
 
           private def _aggregate_member_rows(
             table: Table
-          ): Vector[(String, String, String, Option[String], Option[String], Map[String, String])] = {
+          ): Vector[(String, String, String, Option[String], Option[String], Option[String], Map[String, String])] = {
             val records = SimpleModelerUtils.toRecords(table).toVector
             records.flatMap { r =>
               val name = r.getStringCaseInsensitive(nameName).map(_.trim).filterNot(_.isEmpty)
@@ -1320,10 +1345,11 @@ object SchemaModel {
               (name, entity) match {
                 case (Some(n), Some(e)) =>
                   val kind = r.getStringCaseInsensitive(Vector("kind")).map(_.trim).filterNot(_.isEmpty).getOrElse("composition")
+                  val join = r.getStringCaseInsensitive(Vector("join", "join_strategy", "joinstrategy", "join_kind", "joinkind")).map(_.trim).filterNot(_.isEmpty)
                   val mult = r.getStringCaseInsensitive(multiplicityName).map(_.trim).filterNot(_.isEmpty)
                   val joinfield = r.getStringCaseInsensitive(Vector("join_field", "joinfield")).map(_.trim).filterNot(_.isEmpty)
                   val props = r.fields.map(f => f.name.toLowerCase -> f.asString).toMap
-                  Some((n, e, kind, mult, joinfield, props))
+                  Some((n, e, kind, join, mult, joinfield, props))
                 case _ =>
                   None
               }
