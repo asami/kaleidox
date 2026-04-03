@@ -10,7 +10,8 @@ import org.goldenport.record.v2.{CFormat, CMaxLength, CMinLength, CRegex}
 
 /*
  * @since   Mar. 24, 2026
- * @version Mar. 25, 2026
+ *  version Mar. 25, 2026
+ * @version Apr.  3, 2026
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -162,6 +163,41 @@ extends:
 
       createdAtFormats should contain ("date-time")
       phoneFormats should contain ("phone")
+    }
+
+    "merge ATTRIBUTE table rows with subsection metadata by name" in {
+      val s = """# ENTITY
+                 |
+                 |## Person
+                 |
+                 |### ATTRIBUTE
+                 |
+                 || name  | type   | multiplicity |
+                 ||-------+--------+--------------|
+                 || name  | name   | 1            |
+                 || title | string | 1            |
+                 |
+                 |#### name
+                 |
+                 |##### DESCRIPTION
+                 |
+                 |Primary display name.
+                 |
+                 |#### title
+                 |
+                 |##### DESCRIPTION
+                 |
+                 |Job title shown in UI.
+                 |""".stripMargin
+      val model = Model.parse(config, s)
+      val entity = model.takeEntityModel.get("Person").getOrElse(fail("Entity Person is missing"))
+      val name = entity.schemaClass.attributeMap.get("name").getOrElse(fail("Attribute name is missing"))
+      val title = entity.schemaClass.attributeMap.get("title").getOrElse(fail("Attribute title is missing"))
+
+      name.rawTypeName shouldBe Some("name")
+      title.rawTypeName shouldBe Some("string")
+      name.descriptionText shouldBe Some("Primary display name.")
+      title.descriptionText shouldBe Some("Job title shown in UI.")
     }
 
 

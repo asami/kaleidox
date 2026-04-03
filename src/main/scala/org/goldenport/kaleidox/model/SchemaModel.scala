@@ -41,7 +41,8 @@ import scala.util.Try
  *  version Oct. 15, 2023
  *  version Sep.  6, 2024
  *  version May.  2, 2025
- * @version Mar. 31, 2026
+ *  version Mar. 31, 2026
+ * @version Apr.  3, 2026
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -381,6 +382,7 @@ object SchemaModel {
           featureTables: Vector[Table] = Vector.empty,
           propertyTables: Vector[Table] = Vector.empty,
           attributeTables: Vector[Table] = Vector.empty,
+          attributeSlots: Vector[Record] = Vector.empty,
           associationTables: Vector[Table] = Vector.empty,
           aggregationTables: Vector[Table] = Vector.empty,
           compositionTables: Vector[Table] = Vector.empty,
@@ -400,7 +402,7 @@ object SchemaModel {
               p.nameForModel,
               featureTables,
               props,
-              attributeTables.toVector.flatMap(SimpleModelerUtils.toRecords).map(_normalize_attribute_record),
+              _merge_attribute_records(attributeTables.toVector.flatMap(SimpleModelerUtils.toRecords).map(_normalize_attribute_record) ++ attributeSlots),
               associationTables,
               aggregationTables,
               compositionTables,
@@ -504,7 +506,53 @@ object SchemaModel {
           }
 
           private def _attributes(p: LogicalSection) = {
-            copy(attributeTables = attributeTables ++ _table_list(p))
+            copy(
+              attributeTables = attributeTables ++ _table_list(p),
+              attributeSlots = attributeSlots ++ _attribute_records_from_sections(p)
+            )
+          }
+
+          private def _attribute_records_from_sections(p: LogicalSection): Vector[Record] =
+            p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
+              val kv = _key_values(s.text).toMap
+              val description = s.sections.find(_.keyForModel.equalsIgnoreCase("description")).map(_.text.trim).filterNot(_.isEmpty).orElse(Option(s.text).map(_.trim).filterNot(_.isEmpty))
+              val summary = s.sections.find(_.keyForModel.equalsIgnoreCase("summary")).map(_.text.trim).filterNot(_.isEmpty)
+              val label = s.sections.find(_.keyForModel.equalsIgnoreCase("label")).map(_.text.trim).filterNot(_.isEmpty)
+              val fields = Vector(
+                Some("name" -> s.nameForModel),
+                kv.get("type").map("type" -> _),
+                kv.get("datatype").map("type" -> _),
+                kv.get("multiplicity").map("multiplicity" -> _),
+                kv.get("label").orElse(label).map("label" -> _),
+                kv.get("summary").orElse(summary).map("summary" -> _),
+                kv.get("description").orElse(description).map("description" -> _)
+              ).flatten
+              Record.create(fields)
+            }
+
+          private def _merge_attribute_records(records: Vector[Record]): Vector[Record] = {
+            case class Z(xs: Vector[(String, Record)], anon: Vector[Record]) {
+              def +(rhs: Record): Z =
+                rhs.getStringCaseInsensitive(nameName).map(_.trim).filterNot(_.isEmpty) match {
+                  case Some(name) =>
+                    val key = name.toLowerCase
+                    xs.indexWhere(_._1 == key) match {
+                      case -1 => copy(xs = xs :+ (key -> rhs))
+                      case i => copy(xs = xs.updated(i, key -> _merge_attribute_record(xs(i)._2, rhs)))
+                    }
+                  case None => copy(anon = anon :+ rhs)
+                }
+              def result: Vector[Record] = xs.map(_._2) ++ anon
+            }
+            records.foldLeft(Z(Vector.empty, Vector.empty))(_ + _).result
+          }
+
+          private def _merge_attribute_record(lhs: Record, rhs: Record): Record = {
+            val names = (lhs.fields.map(_.name) ++ rhs.fields.map(_.name)).distinct
+            val fields = names.flatMap { key =>
+              rhs.fields.find(_.name == key).orElse(lhs.fields.find(_.name == key)).map(x => Field.create(key, x.asString))
+            }
+            Record(fields)
           }
 
           private def _associations(p: LogicalSection) = {
@@ -1064,8 +1112,9 @@ object SchemaModel {
             val fromTables = p.tableList.toVector.flatMap(SimpleModelerUtils.toRecords).map(_normalize_attribute_record)
             val fromItems = _attribute_records_from_items(p)
             val fromText = _attribute_records_from_text(p.toText)
+            val fromSections = _attribute_records_from_sections(p)
             val xs = if (fromItems.nonEmpty) fromItems else fromText
-            fromTables ++ xs
+            _merge_attribute_records(fromTables ++ xs ++ fromSections)
           }
 
           private def _normalize_attribute_record(p: Record): Record = {
@@ -1096,6 +1145,52 @@ object SchemaModel {
               }
             }
             fromUl ++ fromDl
+          }
+
+          private def _attribute_records_from_sections(p: Section): Vector[Record] =
+            p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
+              val kv = _key_values(s.toText).toMap
+              val description = s.sections.find(_.keyForModel.equalsIgnoreCase("description")).map(_.toText.trim).filterNot(_.isEmpty).orElse(Option(s.toText).map(_.trim).filterNot(_.isEmpty))
+              val summary = s.sections.find(_.keyForModel.equalsIgnoreCase("summary")).map(_.toText.trim).filterNot(_.isEmpty)
+              val label = s.sections.find(_.keyForModel.equalsIgnoreCase("label")).map(_.toText.trim).filterNot(_.isEmpty)
+              val fields = Vector(
+                Some("name" -> s.nameForModel),
+                kv.get("type").map("type" -> _),
+                kv.get("datatype").map("type" -> _),
+                kv.get("multiplicity").map("multiplicity" -> _),
+                kv.get("label").orElse(label).map("label" -> _),
+                kv.get("summary").orElse(summary).map("summary" -> _),
+                kv.get("description").orElse(description).map("description" -> _)
+              ).flatten
+              Record.create(fields)
+            }
+
+          private def _merge_attribute_records(records: Vector[Record]): Vector[Record] = {
+            case class Z(xs: Vector[(String, Record)], anon: Vector[Record]) {
+              def +(rhs: Record): Z =
+                rhs.getStringCaseInsensitive(nameName).map(_.trim).filterNot(_.isEmpty) match {
+                  case Some(name) =>
+                    val key = name.toLowerCase
+                    xs.indexWhere(_._1 == key) match {
+                      case -1 => copy(xs = xs :+ (key -> rhs))
+                      case i =>
+                        val merged = _merge_attribute_record(xs(i)._2, rhs)
+                        copy(xs = xs.updated(i, key -> merged))
+                    }
+                  case None =>
+                    copy(anon = anon :+ rhs)
+                }
+              def result: Vector[Record] = xs.map(_._2) ++ anon
+            }
+            records.foldLeft(Z(Vector.empty, Vector.empty))(_ + _).result
+          }
+
+          private def _merge_attribute_record(lhs: Record, rhs: Record): Record = {
+            val names = (lhs.fields.map(_.name) ++ rhs.fields.map(_.name)).distinct
+            val fields = names.flatMap { key =>
+              rhs.fields.find(_.name == key).orElse(lhs.fields.find(_.name == key)).map(x => Field.create(key, x.asString))
+            }
+            Record(fields)
           }
 
           private def _attribute_records_from_text(p: String): Vector[Record] = {
@@ -1738,6 +1833,7 @@ object SchemaModel {
           _multiplicity(p),
           _constraints(p)
         ),
+        p.getStringCaseInsensitive(Vector("description")).map(_.trim).filterNot(_.isEmpty),
         p.getStringCaseInsensitive(typeName).map(_.trim).filterNot(_.isEmpty),
         _db_column_name(p),
         _db_column_type(p),
@@ -1941,6 +2037,7 @@ object SchemaModel {
     name: String,
     label: Option[I18NString],
     domain: ValueDomain,
+    descriptionText: Option[String] = None,
     rawTypeName: Option[String] = None,
     override val dbColumnName: Option[String] = None,
     override val dbColumnType: Option[String] = None,
