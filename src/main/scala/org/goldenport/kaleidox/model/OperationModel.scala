@@ -15,7 +15,8 @@ import org.goldenport.util.StringUtils
 
 /*
  * @since   Mar. 22, 2026
- * @version Mar. 28, 2026
+ *  version Mar. 28, 2026
+ * @version Apr.  3, 2026
  * @author  ASAMI, Tomoharu
  */
 case class OperationModel(
@@ -321,20 +322,61 @@ object OperationModel {
     p: Section
   ): Vector[FieldDefinition] = {
     val fromTables = p.tableList.toVector.flatMap(_table_fields)
-    if (fromTables.nonEmpty)
-      fromTables
-    else
-      _field_lines(_section_body_text(p))
+    val fromSections = _named_field_sections(p)
+    val fromText =
+      if (fromTables.isEmpty && fromSections.isEmpty)
+        _field_lines(_section_body_text(p))
+      else
+        Vector.empty
+    _merge_fields(fromTables ++ fromSections ++ fromText)
   }
 
   private def _parse_attribute_section(
     p: Section
   ): Vector[FieldDefinition] = {
     val fromTables = p.tableList.toVector.flatMap(_table_fields)
-    if (fromTables.nonEmpty)
-      fromTables
-    else
-      _field_lines(_section_body_text(p))
+    val fromSections = _named_field_sections(p)
+    val fromText =
+      if (fromTables.isEmpty && fromSections.isEmpty)
+        _field_lines(_section_body_text(p))
+      else
+        Vector.empty
+    _merge_fields(fromTables ++ fromSections ++ fromText)
+  }
+
+  private def _named_field_sections(
+    p: Section
+  ): Vector[FieldDefinition] =
+    p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
+      val kv = _merged_key_values(s).toMap
+      FieldDefinition(
+        s.nameForModel,
+        kv.getOrElse("type", kv.getOrElse("datatype", "")),
+        kv.getOrElse("multiplicity", "1")
+      )
+    }.filter(_.datatype.nonEmpty)
+
+  private def _merge_fields(
+    ps: Vector[FieldDefinition]
+  ): Vector[FieldDefinition] = {
+    case class Z(xs: Vector[(String, FieldDefinition)]) {
+      def +(rhs: FieldDefinition): Z = {
+        val key = rhs.name.trim.toLowerCase
+        xs.indexWhere(_._1 == key) match {
+          case -1 => copy(xs = xs :+ (key -> rhs))
+          case i =>
+            val lhs = xs(i)._2
+            val merged = FieldDefinition(
+              name = lhs.name,
+              datatype = if (rhs.datatype.nonEmpty) rhs.datatype else lhs.datatype,
+              multiplicity = if (rhs.multiplicity.nonEmpty) rhs.multiplicity else lhs.multiplicity
+            )
+            copy(xs = xs.updated(i, key -> merged))
+        }
+      }
+      def result: Vector[FieldDefinition] = xs.map(_._2)
+    }
+    ps.foldLeft(Z(Vector.empty))(_ + _).result
   }
 
   private def _field_lines(
@@ -384,11 +426,9 @@ object OperationModel {
 
   private def _section_body_text(p: Section): String =
     p.getStringIfOnlyText.map(_.trim).filterNot(_.isEmpty).getOrElse {
-      val s = p.toText.trim
-      if (p.sections.nonEmpty && _looks_like_heading_dump(s))
-        ""
-      else
-        s
+      val lines = p.toText.linesIterator.toVector
+      val body = lines.dropWhile(x => x.trim.startsWith("#")).takeWhile(x => !x.trim.startsWith("#")).mkString("\n").trim
+      if (body.nonEmpty) body else p.toText.trim
     }
 
   private def _looks_like_heading_dump(p: String): Boolean =

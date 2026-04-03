@@ -7,10 +7,14 @@ import org.yaml.snakeyaml.Yaml
 
 /*
  * @since   Mar. 24, 2026
- * @version Mar. 24, 2026
+ *  version Mar. 24, 2026
+ * @version Apr.  3, 2026
  * @author  ASAMI, Tomoharu
  */
 object CmlSectionFormat {
+  def recordMaps(p: String): Vector[Map[String, String]] =
+    _parse_structured(p).map(_to_record_maps).getOrElse(Vector.empty)
+
   def keyValues(p: String): Vector[(String, String)] = {
     val dl = _key_values_dl(p)
     if (dl.nonEmpty)
@@ -145,6 +149,43 @@ object CmlSectionFormat {
           case _ =>
             Vector.empty
         }
+      case _ =>
+        Vector.empty
+    }
+
+  private def _to_record_maps(p: Any): Vector[Map[String, String]] =
+    p match {
+      case m: java.util.List[_] =>
+        m.asScala.toVector.flatMap(_to_record_map)
+      case m: java.util.Map[_, _] =>
+        val single = _to_record_map(m)
+        if (single.nonEmpty)
+          single
+        else
+          m.asScala.toVector.flatMap {
+            case (k, v) =>
+              val nested = _to_record_map(v)
+              if (nested.nonEmpty)
+                nested.map { x =>
+                  if (x.contains("name"))
+                    x
+                  else
+                    x + ("name" -> k.toString.trim)
+                }
+              else
+                _to_scalar_string(v).map(s => Map("name" -> k.toString.trim, "value" -> s)).toVector
+          }
+      case _ =>
+        Vector.empty
+    }
+
+  private def _to_record_map(p: Any): Vector[Map[String, String]] =
+    p match {
+      case m: java.util.Map[_, _] =>
+        val fields = m.asScala.toVector.flatMap { case (k, v) =>
+          _to_scalar_string(v).map(k.toString.trim.toLowerCase -> _)
+        }.toMap
+        if (fields.isEmpty) Vector.empty else Vector(fields)
       case _ =>
         Vector.empty
     }

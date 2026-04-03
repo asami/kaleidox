@@ -699,7 +699,14 @@ object SchemaModel {
                 properties = kv
               )
             }
-            fromTables ++ fromSections
+            _merge_named_logical(fromTables ++ fromSections)(_.name) { (lhs, rhs) =>
+              AggregateStateDefinition(
+                name = lhs.name,
+                datatype = rhs.datatype.orElse(lhs.datatype),
+                multiplicity = rhs.multiplicity.orElse(lhs.multiplicity),
+                properties = lhs.properties ++ rhs.properties
+              )
+            }
           }
 
           private def _aggregate_invariant_definition(
@@ -760,7 +767,14 @@ object SchemaModel {
                 properties = kv
               )
             }
-            fromTables ++ fromSections
+            _merge_named_logical(fromTables ++ fromSections)(_.name) { (lhs, rhs) =>
+              ViewAttributeDefinition(
+                name = lhs.name,
+                datatype = rhs.datatype.orElse(lhs.datatype),
+                multiplicity = rhs.multiplicity.orElse(lhs.multiplicity),
+                properties = lhs.properties ++ rhs.properties
+              )
+            }
           }
 
           private def _view_query_definition(
@@ -814,6 +828,22 @@ object SchemaModel {
 
           private def _split_list(p: String): Vector[String] =
             p.split(",").toVector.map(_.trim).filterNot(_.isEmpty)
+
+          private def _merge_named_logical[A](
+            ps: Vector[A]
+          )(name: A => String)(merge: (A, A) => A): Vector[A] = {
+            case class Z(xs: Vector[(String, A)]) {
+              def +(rhs: A): Z = {
+                val key = name(rhs).trim.toLowerCase
+                xs.indexWhere(_._1 == key) match {
+                  case -1 => copy(xs = xs :+ (key -> rhs))
+                  case i => copy(xs = xs.updated(i, key -> merge(xs(i)._2, rhs)))
+                }
+              }
+              def result: Vector[A] = xs.map(_._2)
+            }
+            ps.foldLeft(Z(Vector.empty))(_ + _).result
+          }
 
           private def _normalize_event_category(p: String, eventname: String): String =
             p.trim.toLowerCase match {
@@ -1111,10 +1141,9 @@ object SchemaModel {
           private def _attribute_records(p: Section): Vector[Record] = {
             val fromTables = p.tableList.toVector.flatMap(SimpleModelerUtils.toRecords).map(_normalize_attribute_record)
             val fromItems = _attribute_records_from_items(p)
-            val fromText = _attribute_records_from_text(p.toText)
+            val fromText = _attribute_records_from_text(_section_body_text(p))
             val fromSections = _attribute_records_from_sections(p)
-            val xs = if (fromItems.nonEmpty) fromItems else fromText
-            _merge_attribute_records(fromTables ++ xs ++ fromSections)
+            _merge_attribute_records(fromTables ++ fromItems ++ fromText ++ fromSections)
           }
 
           private def _normalize_attribute_record(p: Record): Record = {
@@ -1149,7 +1178,7 @@ object SchemaModel {
 
           private def _attribute_records_from_sections(p: Section): Vector[Record] =
             p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
-              val kv = _key_values(s.toText).toMap
+              val kv = _merged_key_values(s).toMap
               val description = s.sections.find(_.keyForModel.equalsIgnoreCase("description")).map(_.toText.trim).filterNot(_.isEmpty).orElse(Option(s.toText).map(_.trim).filterNot(_.isEmpty))
               val summary = s.sections.find(_.keyForModel.equalsIgnoreCase("summary")).map(_.toText.trim).filterNot(_.isEmpty)
               val label = s.sections.find(_.keyForModel.equalsIgnoreCase("label")).map(_.toText.trim).filterNot(_.isEmpty)
@@ -1194,12 +1223,17 @@ object SchemaModel {
           }
 
           private def _attribute_records_from_text(p: String): Vector[Record] = {
-            val pairs = _attribute_pairs(p)
-            if (pairs.isEmpty)
-              Vector.empty
+            val structured = CmlSectionFormat.recordMaps(p).map(x => _to_record(x.toVector))
+            if (structured.nonEmpty)
+              structured
             else {
-              val records = _attribute_pair_records(pairs)
-              records.map(_to_record)
+              val pairs = _attribute_pairs(p)
+              if (pairs.isEmpty)
+                Vector.empty
+              else {
+                val records = _attribute_pair_records(pairs)
+                records.map(_to_record)
+              }
             }
           }
 
@@ -1316,7 +1350,7 @@ object SchemaModel {
                 )
             }
             val fromSections = p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
-              val kv = _key_values(s.toText).toMap
+              val kv = _merged_key_values(s).toMap
               AggregateMemberDefinition(
                 name = s.nameForModel,
                 entity = kv.getOrElse("entity", kv.getOrElse("objectref", "")),
@@ -1328,13 +1362,24 @@ object SchemaModel {
                 properties = kv
               )
             }.filter(_.entity.nonEmpty)
-            fromTables ++ fromSections
+            _merge_named(fromTables ++ fromSections)(_.name) { (lhs, rhs) =>
+              AggregateMemberDefinition(
+                name = lhs.name,
+                entity = if (rhs.entity.nonEmpty) rhs.entity else lhs.entity,
+                kind = if (rhs.kind.nonEmpty) rhs.kind else lhs.kind,
+                boundary = if (rhs.boundary.nonEmpty) rhs.boundary else lhs.boundary,
+                join = rhs.join.orElse(lhs.join),
+                multiplicity = rhs.multiplicity.orElse(lhs.multiplicity),
+                joinField = rhs.joinField.orElse(lhs.joinField),
+                properties = lhs.properties ++ rhs.properties
+              )
+            }
           }
 
           private def _aggregate_command_definition(
             p: Section
           ): AggregateCommandDefinition = {
-            val kv = _key_values(p.toText)
+            val kv = _merged_key_values(p)
             val props = kv.toMap
             val input = kv.collect {
               case (k, v) if k == "input" || k.startsWith("input.") => k -> v
@@ -1366,8 +1411,11 @@ object SchemaModel {
               case (name, tpe, multi, props) =>
                 AggregateStateDefinition(name, tpe, multi, props)
             }
+            val fromText = CmlSectionFormat.fieldDefinitions(_section_body_text(p)).map {
+              case (name, tpe, multi) => AggregateStateDefinition(name, Some(tpe), Some(multi), Map.empty)
+            }
             val fromSections = p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
-              val kv = _key_values(s.toText).toMap
+              val kv = _merged_key_values(s).toMap
               AggregateStateDefinition(
                 name = s.nameForModel,
                 datatype = kv.get("type"),
@@ -1375,13 +1423,20 @@ object SchemaModel {
                 properties = kv
               )
             }
-            fromTables ++ fromSections
+            _merge_named(fromTables ++ fromText ++ fromSections)(_.name) { (lhs, rhs) =>
+              AggregateStateDefinition(
+                name = lhs.name,
+                datatype = rhs.datatype.orElse(lhs.datatype),
+                multiplicity = rhs.multiplicity.orElse(lhs.multiplicity),
+                properties = lhs.properties ++ rhs.properties
+              )
+            }
           }
 
           private def _aggregate_invariant_definition(
             p: Section
           ): AggregateInvariantDefinition = {
-            val kv = _key_values(p.toText).toMap
+            val kv = _merged_key_values(p).toMap
             AggregateInvariantDefinition(
               name = p.nameForModel,
               expression = kv.get("expression").orElse(kv.get("expr")).orElse(kv.get("guard")),
@@ -1398,7 +1453,7 @@ object SchemaModel {
             val querysections = p.sections.filter(x => x.keyForModel == "query" || x.keyForModel == "queries")
             val attrs = attributesections.toVector.flatMap(_view_attribute_definitions)
             val queries = querysections.toVector.flatMap(_.sections).map(_view_query_definition)
-            val rootkv = _key_values(p.toText).toMap
+            val rootkv = _merged_key_values(p).toMap
             val sourceevents = rootkv.get("events").toVector.flatMap(_split_list) ++ rootkv.get("event").toVector.flatMap(_split_list)
             val rebuildable = rootkv.get("rebuildable").map(_.equalsIgnoreCase("true"))
             val viewnames = rootkv.get("views").toVector.flatMap(_split_list) ++ rootkv.get("view").toVector.flatMap(_split_list) ++ rootkv.get("viewname").toVector.flatMap(_split_list) ++ rootkv.get("view_name").toVector.flatMap(_split_list)
@@ -1415,7 +1470,7 @@ object SchemaModel {
             p: Section
           ): Boolean = {
             def _all(s: Section): Vector[(String, String)] =
-              _key_values(s.toText) ++ s.sections.toVector.flatMap(_all)
+              _merged_key_values(s) ++ s.sections.toVector.flatMap(_all)
             val keys = _all(p).map(_._1).toSet
             keys.exists(k => k == "mutates" || k == "mutation" || k == "write" || k == "action")
           }
@@ -1427,8 +1482,11 @@ object SchemaModel {
               case (name, tpe, multi, props) =>
                 ViewAttributeDefinition(name, tpe, multi, props)
             }
+            val fromText = CmlSectionFormat.fieldDefinitions(_section_body_text(p)).map {
+              case (name, tpe, multi) => ViewAttributeDefinition(name, Some(tpe), Some(multi), Map.empty)
+            }
             val fromSections = p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
-              val kv = _key_values(s.toText).toMap
+              val kv = _merged_key_values(s).toMap
               ViewAttributeDefinition(
                 name = s.nameForModel,
                 datatype = kv.get("type"),
@@ -1436,13 +1494,20 @@ object SchemaModel {
                 properties = kv
               )
             }
-            fromTables ++ fromSections
+            _merge_named(fromTables ++ fromText ++ fromSections)(_.name) { (lhs, rhs) =>
+              ViewAttributeDefinition(
+                name = lhs.name,
+                datatype = rhs.datatype.orElse(lhs.datatype),
+                multiplicity = rhs.multiplicity.orElse(lhs.multiplicity),
+                properties = lhs.properties ++ rhs.properties
+              )
+            }
           }
 
           private def _view_query_definition(
             p: Section
           ): ViewQueryDefinition = {
-            val kv = _key_values(p.toText).toMap
+            val kv = _merged_key_values(p).toMap
             if (kv.contains("mutates") || kv.contains("mutation") || kv.contains("write") || kv.contains("action"))
               RAISE.syntaxErrorFault(s"View Query '${p.nameForModel}' cannot mutate command-side state.")
             ViewQueryDefinition(
@@ -1450,6 +1515,31 @@ object SchemaModel {
               expression = kv.get("expression").orElse(kv.get("expr")),
               properties = kv
             )
+          }
+
+          private def _section_body_text(p: Section): String =
+            p.getStringIfOnlyText.map(_.trim).filterNot(_.isEmpty).getOrElse {
+              val lines = p.toText.linesIterator.toVector
+              val body = lines.dropWhile(x => x.trim.startsWith("#")).takeWhile(x => !x.trim.startsWith("#")).mkString("\n").trim
+              if (body.nonEmpty) body else p.toText.trim
+            }
+
+          private def _merged_key_values(p: Section): Vector[(String, String)] = {
+            val fromtext = _key_values(_section_body_text(p))
+            val fromdl = p.dls.toVector.flatMap(x => _key_values(x.toText))
+            val fromsections = p.sections.toVector.flatMap { s =>
+              val fromsectiontext = _key_values(_section_body_text(s))
+              val fromsectiondl = s.dls.toVector.flatMap(x => _key_values(x.toText))
+              val direct = fromsectiontext ++ fromsectiondl
+              if (direct.nonEmpty)
+                direct
+              else {
+                val key = s.keyForModel.toLowerCase
+                val body = _section_body_text(s).linesIterator.map(_.trim).find(_.nonEmpty).getOrElse("")
+                if (key.isEmpty || body.isEmpty) Vector.empty else Vector(key -> body)
+              }
+            }
+            fromtext ++ fromdl ++ fromsections
           }
 
           private def _attribute_rows_for_view_or_aggregate_state(
@@ -1490,6 +1580,22 @@ object SchemaModel {
 
           private def _split_list(p: String): Vector[String] =
             p.split(",").toVector.map(_.trim).filterNot(_.isEmpty)
+
+          private def _merge_named[A](
+            ps: Vector[A]
+          )(name: A => String)(merge: (A, A) => A): Vector[A] = {
+            case class Z(xs: Vector[(String, A)]) {
+              def +(rhs: A): Z = {
+                val key = name(rhs).trim.toLowerCase
+                xs.indexWhere(_._1 == key) match {
+                  case -1 => copy(xs = xs :+ (key -> rhs))
+                  case i => copy(xs = xs.updated(i, key -> merge(xs(i)._2, rhs)))
+                }
+              }
+              def result: Vector[A] = xs.map(_._2)
+            }
+            ps.foldLeft(Z(Vector.empty))(_ + _).result
+          }
 
           private def _normalize_event_category(p: String, eventname: String): String =
             p.trim.toLowerCase match {

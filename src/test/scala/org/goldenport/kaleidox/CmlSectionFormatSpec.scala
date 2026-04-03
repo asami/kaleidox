@@ -200,6 +200,130 @@ extends:
       title.descriptionText shouldBe Some("Job title shown in UI.")
     }
 
+    "accept yaml attribute record maps as base metadata" in {
+      val s = """name: title
+                 |type: string
+                 |multiplicity: 1
+                 |""".stripMargin
+      val records = CmlSectionFormat.recordMaps(s)
+
+      records should have size 1
+      records.head.get("name") shouldBe Some("title")
+      records.head.get("type") shouldBe Some("string")
+      records.head.get("multiplicity") shouldBe Some("1")
+    }
+
+    "merge VIEW ATTRIBUTE table rows with subsection metadata by name" in {
+      val s = """# ENTITY
+                 |
+                 |## Person
+                 |
+                 |### ATTRIBUTE
+                 |
+                 || name | type     | multiplicity |
+                 ||------+----------+--------------|
+                 || id   | entityid | 1            |
+                 |
+                 |### VIEW
+                 |
+                 |#### ATTRIBUTE
+                 |
+                 || name | type   | multiplicity |
+                 ||------+--------+--------------|
+                 || city | string | 1            |
+                 |
+                 |##### city
+                 |
+                 |type: text
+                 |summary: City for list display.
+                 |""".stripMargin
+      val model = Model.parse(config, s)
+      val entity = model.takeEntityModel.get("Person").getOrElse(fail("Entity Person is missing"))
+      val view = entity.view.getOrElse(fail("View definition is missing"))
+      val city = view.attributes.find(_.name == "city").getOrElse(fail("View attribute city is missing"))
+
+      city.datatype shouldBe Some("text")
+      city.properties.get("summary") shouldBe Some("City for list display.")
+    }
+
+    "merge VIEW ATTRIBUTE hocon rows with subsection metadata by name" in {
+      val s = """# ENTITY
+                 |
+                 |## Person
+                 |
+                 |### ATTRIBUTE
+                 |
+                 || name | type     | multiplicity |
+                 ||------+----------+--------------|
+                 || id   | entityid | 1            |
+                 |
+                 |### VIEW
+                 |
+                 |#### ATTRIBUTE
+                 |
+                 |city {
+                 |  type = string
+                 |  multiplicity = 1
+                 |}
+                 |
+                 |##### city
+                 |
+                 |type: text
+                 |summary: City for list display.
+                 |""".stripMargin
+      val model = Model.parse(config, s)
+      val entity = model.takeEntityModel.get("Person").getOrElse(fail("Entity Person is missing"))
+      val view = entity.view.getOrElse(fail("View definition is missing"))
+      val city = view.attributes.find(_.name == "city").getOrElse(fail("View attribute city is missing"))
+
+      city.datatype shouldBe Some("text")
+      city.properties.get("summary") shouldBe Some("City for list display.")
+    }
+
+    "merge OPERATION ATTRIBUTE table rows with subsection metadata by name" in {
+      val s = """# COMMAND
+                 |
+                 |## SavePerson
+                 |
+                 |### ATTRIBUTE
+                 |
+                 || name  | type   | multiplicity |
+                 ||-------+--------+--------------|
+                 || title | string | 1            |
+                 |
+                 |#### title
+                 |
+                 |type: text
+                 |""".stripMargin
+      val model = Model.parse(config, s)
+      val opmodel = model.takeOperationModel
+      val value = opmodel.values.find(_.name == "SavePerson").getOrElse(fail("SavePerson value is missing"))
+      val title = value.fields.find(_.name == "title").getOrElse(fail("title field is missing"))
+
+      title.datatype shouldBe "text"
+    }
+
+    "merge OPERATION ATTRIBUTE dl rows with subsection metadata by name" in {
+      val s = """# COMMAND
+                 |
+                 |## SavePerson
+                 |
+                 |### ATTRIBUTE
+                 |
+                 |- title :: string
+                 |
+                 |#### title
+                 |
+                 |type: text
+                 |""".stripMargin
+      val model = Model.parse(config, s)
+      val opmodel = model.takeOperationModel
+      val value = opmodel.values.find(_.name == "SavePerson").getOrElse(fail("SavePerson value is missing"))
+      val title = value.fields.find(_.name == "title").getOrElse(fail("title field is missing"))
+
+      title.datatype shouldBe "text"
+    }
+
 
 
     "accept named view aliases in VIEW metadata" in {
