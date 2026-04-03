@@ -82,10 +82,15 @@ case class OperationModel(
       NormalizedOperationDefinition(
         name = op.name,
         kind = kind,
+        summary = op.summary,
         execution = op.execution,
         implementation = op.implementation,
         inputType = resolvedInputType,
+        inputSummary = op.inputSummary,
+        inputDescription = op.inputDescription,
         outputType = output,
+        outputSummary = op.outputSummary,
+        outputDescription = op.outputDescription,
         inputValueKind = resolvedValueKind,
         description = op.description,
         parameters = parameters
@@ -155,10 +160,15 @@ object OperationModel {
   case class OperationDefinition(
     name: String,
     kind: Option[OperationKind] = None,
+    summary: Option[String] = None,
     execution: Option[String] = None,
     implementation: Option[String] = None,
     inputType: Option[String] = None,
+    inputSummary: Option[String] = None,
+    inputDescription: Option[String] = None,
     outputType: Option[String] = None,
+    outputSummary: Option[String] = None,
+    outputDescription: Option[String] = None,
     description: Option[String] = None,
     parameters: Vector[FieldDefinition] = Vector.empty
   )
@@ -166,10 +176,15 @@ object OperationModel {
   case class NormalizedOperationDefinition(
     name: String,
     kind: OperationKind,
+    summary: Option[String],
     execution: Option[String],
     implementation: Option[String],
     inputType: String,
+    inputSummary: Option[String] = None,
+    inputDescription: Option[String] = None,
     outputType: String,
+    outputSummary: Option[String] = None,
+    outputDescription: Option[String] = None,
     inputValueKind: InputValueKind,
     description: Option[String] = None,
     parameters: Vector[FieldDefinition]
@@ -212,22 +227,27 @@ object OperationModel {
     p: Section
   ): OperationDefinition = {
     val kv = _merged_key_values(p)
+    val inputspec = _io_spec(p, "input")
+    val outputspec = _io_spec(p, "output")
     val kindFromType = kv.collectFirst {
       case (k, v) if k == "type" => OperationKind.parse(v).getOrElse(_raise(s"Operation '${p.nameForModel}' TYPE must be COMMAND or QUERY."))
     }
     val kindFromMarker = _kind_from_marker_section(p)
     val kind = kindFromType.orElse(kindFromMarker)
-    val input = kv.collectFirst {
+    val input = inputspec.tpe.orElse(kv.collectFirst {
       case (k, v) if k == "input" => v.trim
-    }.filterNot(Strings.blankp)
+    }.filterNot(Strings.blankp))
     val execution = kv.collectFirst {
       case (k, v) if k == "execution" || k == "directive" => v.trim
     }.filterNot(Strings.blankp)
     val implementation = kv.collectFirst {
       case (k, v) if k == "implementation" => v.trim
     }.filterNot(Strings.blankp)
-    val output = kv.collectFirst {
+    val output = outputspec.tpe.orElse(kv.collectFirst {
       case (k, v) if k == "output" || k == "result" => v.trim
+    }.filterNot(Strings.blankp))
+    val summary = kv.collectFirst {
+      case (k, v) if k == "summary" => v.trim
     }.filterNot(Strings.blankp)
     val description = kv.collectFirst {
       case (k, v) if k == "description" => v.trim
@@ -236,14 +256,36 @@ object OperationModel {
     OperationDefinition(
       name = p.nameForModel.trim,
       kind = kind,
+      summary = summary,
       execution = execution,
       implementation = implementation,
       inputType = input,
+      inputSummary = inputspec.summary,
+      inputDescription = inputspec.description,
       outputType = output,
+      outputSummary = outputspec.summary,
+      outputDescription = outputspec.description,
       description = description,
       parameters = params
     )
   }
+
+  private case class IoSpec(
+    tpe: Option[String] = None,
+    summary: Option[String] = None,
+    description: Option[String] = None
+  )
+
+  private def _io_spec(
+    p: Section,
+    key: String
+  ): IoSpec =
+    p.sections.find(_.keyForModel == key).fold(IoSpec()) { s =>
+      val tpe = s.sections.find(_.keyForModel == "type").flatMap(x => _section_body_text(x).linesIterator.map(_.trim).find(_.nonEmpty)).filterNot(Strings.blankp)
+      val summary = s.sections.find(_.keyForModel == "summary").flatMap(x => _section_body_text(x).linesIterator.map(_.trim).find(_.nonEmpty)).filterNot(Strings.blankp)
+      val description = s.sections.find(_.keyForModel == "description").flatMap(x => _section_body_text(x).linesIterator.map(_.trim).find(_.nonEmpty)).filterNot(Strings.blankp)
+      IoSpec(tpe, summary, description)
+    }
 
   private def _kind_from_marker_section(
     p: Section

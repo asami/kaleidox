@@ -1,8 +1,10 @@
 package org.goldenport.kaleidox
 
 import org.junit.runner.RunWith
-import org.scalatest.junit.JUnitRunner
-import org.scalatest._
+import org.scalatest.GivenWhenThen
+import org.scalatest.wordspec.AnyWordSpec
+import org.scalatest.matchers.should.Matchers
+import org.scalatestplus.junit.JUnitRunner
 import org.scalatest.matchers._
 import scala.util.matching.Regex
 import org.goldenport.RAISE
@@ -23,7 +25,7 @@ import org.goldenport.kaleidox.interpreter.Interpreter
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
-class TryoutSpec extends WordSpec with Matchers with GivenWhenThen with SpecEnvironment {
+class TryoutSpec extends AnyWordSpec with Matchers with GivenWhenThen with SpecEnvironment {
   import LiteralSpec.matchers._
 
   override def logLevel = LogLevel.Trace

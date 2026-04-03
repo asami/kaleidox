@@ -1,8 +1,10 @@
 package org.goldenport.kaleidox.model.business
 
 import org.junit.runner.RunWith
-import org.scalatest.junit.JUnitRunner
-import org.scalatest._
+import org.scalatest.GivenWhenThen
+import org.scalatest.wordspec.AnyWordSpec
+import org.scalatest.matchers.should.Matchers
+import org.scalatestplus.junit.JUnitRunner
 import org.scalatest.matchers.{BeMatcher, MatchResult}
 import org.goldenport.parser.LogicalSection
 import org.goldenport.sexpr.SScript
@@ -19,7 +21,7 @@ import org.goldenport.kaleidox.model.EventModel
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
-class BusinessModelSpec extends WordSpec with Matchers with GivenWhenThen with test.BusinessModelMatchers {
+class BusinessModelSpec extends AnyWordSpec with Matchers with GivenWhenThen with test.BusinessModelMatchers {
   val config = {
     Config.log.debug // trace // warn // debug
   }

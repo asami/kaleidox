@@ -92,7 +92,9 @@ libraryDependencies += "org.apache.spark" %% "spark-sql" % "2.4.8" exclude("org.
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.19" % "test"
 
-libraryDependencies += "junit" % "junit" % "4.10" % "test"
+libraryDependencies += "org.scalatestplus" %% "junit-4-13" % "3.2.19.0" % "test"
+
+libraryDependencies += "junit" % "junit" % "4.13.2" % "test"
 
 libraryDependencies ++= Seq(
   "org.scala-lang.modules" %% "scala-xml" % "2.1.0",

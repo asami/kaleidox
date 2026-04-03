@@ -1,8 +1,10 @@
 package org.goldenport.kaleidox
 
 import org.junit.runner.RunWith
-import org.scalatest.junit.JUnitRunner
-import org.scalatest._
+import org.scalatest.GivenWhenThen
+import org.scalatest.wordspec.AnyWordSpec
+import org.scalatest.matchers.should.Matchers
+import org.scalatestplus.junit.JUnitRunner
 import scalaz._, Scalaz._
 import org.goldenport.RAISE
 import org.goldenport.cli.Environment
@@ -26,7 +28,7 @@ import org.goldenport.kaleidox.interpreter.Interpreter
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
-class EngineSpec extends WordSpec with Matchers with GivenWhenThen {
+class EngineSpec extends AnyWordSpec with Matchers with GivenWhenThen {
   val mocklogic = MockUnitOfWorkLogic.build(
     "http://www.yahoo.com" -> "OK"
   )

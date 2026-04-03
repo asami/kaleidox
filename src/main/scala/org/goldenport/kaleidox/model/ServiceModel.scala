@@ -2,7 +2,8 @@ package org.goldenport.kaleidox.model
 
 import scalaz._, Scalaz._
 import org.smartdox._
-import org.goldenport.RAISE
+import org.smartdox.parser.Dox2Parser
+import org.goldenport.{RAISE, Strings}
 import org.goldenport.context._
 import org.goldenport.i18n.I18NString
 import org.goldenport.record.v2.{Schema, DataType, Multiplicity}
@@ -13,6 +14,8 @@ import org.goldenport.sexpr.{SExpr, SScript, SNil}
 import org.goldenport.sexpr.eval.LispFunction
 import org.goldenport.sexpr.eval.LispContext
 import org.goldenport.kaleidox._
+import org.goldenport.kaleidox.model.ValueModel.ValueClass
+import org.goldenport.parser.LogicalSection
 
 /*
  * @since   Mar. 13, 2021
@@ -87,13 +90,19 @@ object ServiceModel {
       input: Input,
       output: Output,
       method: Method,
+      kind: Option[OperationModel.OperationKind] = None,
+      summary: Option[String] = None,
       description: Option[String] = None
     ) {
       def toFunction: LispFunction = method.toFunction
     }
 
     case class Input(
-      parameters: Parameters
+      parameters: Parameters,
+      tpe: Option[String] = None,
+      value: Option[ValueClass] = None,
+      summary: Option[String] = None,
+      description: Option[String] = None
     ) {
       def resolve(u: LispContext, ps: List[SExpr]): ValidationNel[ArgumentFault, List[SExpr]] = parameters.resolve(u, ps)
     }
@@ -191,7 +200,11 @@ object ServiceModel {
     }
 
     case class Output(
-      result: Result
+      result: Result,
+      tpe: Option[String] = None,
+      value: Option[ValueClass] = None,
+      summary: Option[String] = None,
+      description: Option[String] = None
     ) {
       def resolve(u: LispContext, p: SExpr): ValidationNel[ResultFault, SExpr] = result.resolve(u, p)
     }
@@ -333,6 +346,16 @@ object ServiceModel {
     def createOption(config: Config, p: Section): Option[ServiceClass] =
       new Builder(config).createOption(p)
 
+    def createOption(config: Config, p: LogicalSection): Option[ServiceClass] = {
+      val dox = Dox2Parser.parse(config.doxConfig, p)
+      _find_section(dox, p.nameForModel).flatMap(new Builder(config).createOption)
+    }
+
+    private def _find_section(p: Dox, name: String): Option[Section] = p match {
+      case m: Section if m.nameForModel == name => Some(m)
+      case m => m.elements.view.flatMap(_find_section(_, name)).headOption
+    }
+
     protected final def take_name(p: Map[String, String]): String =
       p.get("名前").getOrElse("")
 
@@ -367,15 +390,23 @@ object ServiceModel {
         val name = p.nameForModel
         val sections = p.sections
         val features = p.tables.headOption
-        val in = sections.flatMap(_get_operation_in).headOption.getOrElse(RAISE.syntaxErrorFault("No in"))
-        val out = sections.flatMap(_get_operation_out).headOption.getOrElse(RAISE.syntaxErrorFault("No out"))
+        val in = sections.flatMap(_get_operation_in).headOption.getOrElse(RAISE.syntaxErrorFault("No input"))
+        val out = sections.flatMap(_get_operation_out).headOption.getOrElse(RAISE.syntaxErrorFault("No output"))
         // val method = Method.UnimplementedMethod
         // val method = {
         //   val script = SScript("arg1 + arg2") // TODO
         //   Method.ScriptMethod(in, out, script)
         // }
         val method = sections.flatMap(_get_method(service, name, in, out, _)).headOption.getOrElse(Method.UnimplementedMethod)
-        Some(Operation(name, in, out, method, _description_text(p)))
+        Some(Operation(
+          name = name,
+          input = in,
+          output = out,
+          method = method,
+          kind = _kind_opt(p),
+          summary = _summary_text(p),
+          description = _description_text(p)
+        ))
       }
 
       private def _get_operation_in(p: Section): Option[Input] =
@@ -384,11 +415,21 @@ object ServiceModel {
         else
           None
 
-      private def _is_in(p: Section) = p.keyForModel == "in"
+      private def _is_in(p: Section) = {
+        val k = p.keyForModel
+        k == "in" || k == "input"
+      }
 
       private def _to_operation_in(p: Section) = {
         val params = p.tables.headOption.map(_to_params).getOrElse(Parameters.empty)
-        Input(params)
+        val value = _inline_value(p)
+        Input(
+          parameters = params,
+          tpe = _type_text(p).orElse(value.map(_.name)),
+          value = value,
+          summary = _summary_text(p),
+          description = _description_text(p)
+        )
       }
 
       private def _to_params(p: Table): Parameters = {
@@ -402,12 +443,22 @@ object ServiceModel {
         else
           None
 
-      private def _is_out(p: Section) = p.keyForModel == "out"
+      private def _is_out(p: Section) = {
+        val k = p.keyForModel
+        k == "out" || k == "output"
+      }
 
       private def _to_operation_out(p: Section) = {
         p.tables.headOption
         val result = p.tables.headOption.map(_to_result).getOrElse(Result.empty)
-        Output(result)
+        val value = _inline_value(p)
+        Output(
+          result = result,
+          tpe = _type_text(p).orElse(value.map(_.name)),
+          value = value,
+          summary = _summary_text(p),
+          description = _description_text(p)
+        )
       }
 
       private def _to_result(p: Table): Result =
@@ -431,6 +482,30 @@ object ServiceModel {
         p.sections.find(_.keyForModel == "description").
           map(_.toText.trim).
           filter(_.nonEmpty)
+
+      private def _summary_text(p: Section): Option[String] =
+        p.sections.find(_.keyForModel == "summary").
+          flatMap(_section_body_text)
+
+      private def _type_text(p: Section): Option[String] =
+        p.sections.find(_.keyForModel == "type").
+          flatMap(_section_body_text)
+
+      private def _kind_opt(p: Section): Option[OperationModel.OperationKind] =
+        p.sections.find(_.keyForModel == "type").
+          flatMap(_section_body_text).
+          flatMap(OperationModel.OperationKind.parse)
+
+      private def _inline_value(p: Section): Option[ValueClass] =
+        p.sections.find(_.keyForModel == "value").
+          flatMap(_.sections.headOption).
+          flatMap(SchemaModel.SchemaClass.createOption).
+          map(ValueClass(_))
+
+      private def _section_body_text(p: Section): Option[String] =
+        Option(p.toText.trim).
+          map(_.linesIterator.map(_.trim).find(_.nonEmpty).orNull).
+          filterNot(Strings.blankp)
 
       private def _to_method(
         service: String,

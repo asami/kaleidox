@@ -769,21 +769,11 @@ object Model {
 
     def makeModel(config: Config): ServiceModel = {
       val doxconfig = Dox2Parser.Config.default // TODO
-      val dox = Dox2Parser.parse(doxconfig, section)
-      // println(s"ServiceDivision#makeModel $dox")
-      _make(config, dox)
-    }
-
-    private def _make(config: Config, p: Dox): ServiceModel = {
-      // println(s"ServiceModel#_make $p")
-      p match {
-        case m: Section =>
-          if (m.keyForModel == "service") // TODO
-            _make_services(config, m)
-          else
-            ServiceModel.empty
-        case m => m.elements.foldMap(_make(config, _))
-      }
+      val dox = Dox2Parser.parseSection(doxconfig, section)
+      if (dox.keyForModel == "service")
+        _make_services(config, dox)
+      else
+        ServiceModel.empty
     }
 
     private def _make_services(config: Config, p: Section): ServiceModel =

@@ -14,7 +14,7 @@ import org.goldenport.kaleidox._
  *  version Jun. 27, 2021
  *  version Aug. 21, 2023
  *  version Oct. 15, 2023
- * @version Sep.  6, 2024
+ * @version Apr.  3, 2026
  * @author  ASAMI, Tomoharu
  */
 case class StateMachineModel(
@@ -110,11 +110,99 @@ object StateMachineModel {
     }
 
     private def _create_subsection(p: LogicalSection): Option[StateMachineClass] = {
-      val name = p.nameForModel
-      val s = p.text
-      val r = StateMachineClass.parseBody(_factory, name, s)
-      r.toOption // TODO
+      if (_has_state_sections(p))
+        _create_subsection_cml(p)
+      else {
+        val name = p.nameForModel
+        val s = p.text
+        val r = StateMachineClass.parseBody(_factory, name, s)
+        r.toOption // TODO
+      }
     }
+
+    private def _has_state_sections(p: LogicalSection): Boolean =
+      p.sections.exists(_.keyForModel.equalsIgnoreCase("state"))
+
+    private def _create_subsection_cml(p: LogicalSection): Option[StateMachineClass] = {
+      val statesection = p.sections.find(_.keyForModel.equalsIgnoreCase("state"))
+      statesection.flatMap { ss =>
+        val states = ss.sections.toList.zipWithIndex.map {
+          case (s, i) => _state_from_section(p.nameForModel, s, i)
+        }
+        if (states.isEmpty)
+          None
+        else {
+          val rule = StateMachineRule(
+            name = Some(p.nameForModel),
+            kind = StateMachineKind.Plain,
+            states = states
+          )
+          Some(StateMachineClass(p.nameForModel, rule, _factory.create(rule)))
+        }
+      }
+    }
+
+    private def _state_from_section(
+      machinename: String,
+      p: LogicalSection,
+      index: Int
+    ): StateClass = {
+      val ts = p.sections.filter(_.keyForModel.equalsIgnoreCase("transition")).map(_transition_from_section(machinename, p.nameForModel, _))
+      StateClass(
+        name = p.nameForModel,
+        value = _state_value(p, index),
+        stateMachinePath = None,
+        transitions = Transitions.call(ts)
+      )
+    }
+
+    private def _state_value(p: LogicalSection, index: Int): Int =
+      _key_values(p.text).collectFirst {
+        case (k, v) if k == "value" => v.trim.stripPrefix("\"").stripSuffix("\"").toInt
+      }.getOrElse(index + 1)
+
+    private def _transition_from_section(
+      machinename: String,
+      statename: String,
+      p: LogicalSection
+    ): Transition = {
+      val kv = _key_values(p.text)
+      val to = _required_transition_key(kv, "to", machinename, statename)
+      val on = _required_transition_key(kv, "on", machinename, statename)
+      Transition(
+        guard = EventNameGuard(on),
+        to = NameTransitionTo(to),
+        effect = Activity.Empty
+      )
+    }
+
+    private def _required_transition_key(
+      kv: Vector[(String, String)],
+      key: String,
+      machinename: String,
+      statename: String
+    ): String =
+      kv.collectFirst {
+        case (k, v) if k == key => v
+      }.getOrElse {
+        throw new IllegalArgumentException(s"StateMachine '$machinename' state '$statename' transition requires '$key'.")
+      }
+
+    private def _key_values(p: String): Vector[(String, String)] =
+      p.linesIterator.toVector.flatMap { line =>
+        val s = line.trim
+        if (s.isEmpty)
+          None
+        else
+          s.indexOf(':') match {
+            case -1 =>
+              s.indexOf('=') match {
+                case -1 => None
+                case n => Some(s.take(n).trim.toLowerCase -> s.drop(n + 1).trim)
+              }
+            case n => Some(s.take(n).trim.toLowerCase -> s.drop(n + 1).trim)
+          }
+      }
 
     // def build(p: Section): StateMachineModel = {
     //   val stms = p.sectionsShallow.flatMap(createClassOption)

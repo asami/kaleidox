@@ -1,8 +1,10 @@
 package org.goldenport.kaleidox
 
 import org.junit.runner.RunWith
-import org.scalatest.junit.JUnitRunner
-import org.scalatest._
+import org.scalatest.GivenWhenThen
+import org.scalatest.wordspec.AnyWordSpec
+import org.scalatest.matchers.should.Matchers
+import org.scalatestplus.junit.JUnitRunner
 import org.goldenport.parser.LogicalSection
 import org.goldenport.sexpr.SScript
 import org.goldenport.kaleidox.Model._
@@ -19,7 +21,7 @@ import org.goldenport.kaleidox.Model._
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
-class ModelSpec extends WordSpec with Matchers with GivenWhenThen {
+class ModelSpec extends AnyWordSpec with Matchers with GivenWhenThen {
   val config = {
     Config.log.debug // trace // warn // debug
   }

@@ -263,7 +263,8 @@ object SchemaModel {
     attributes: Vector[ViewAttributeDefinition] = Vector.empty,
     queries: Vector[ViewQueryDefinition] = Vector.empty,
     sourceEvents: Vector[String] = Vector.empty,
-    rebuildable: Option[Boolean] = None
+    rebuildable: Option[Boolean] = None,
+    viewNames: Vector[String] = Vector.empty
   )
 
   case class ViewAttributeDefinition(
@@ -399,7 +400,7 @@ object SchemaModel {
               p.nameForModel,
               featureTables,
               props,
-              attributeTables.toVector.flatMap(SimpleModelerUtils.toRecords),
+              attributeTables.toVector.flatMap(SimpleModelerUtils.toRecords).map(_normalize_attribute_record),
               associationTables,
               aggregationTables,
               compositionTables,
@@ -428,6 +429,21 @@ object SchemaModel {
               copy(anonTables = anonTables :+ m)
             else
               this
+
+          private def _normalize_attribute_record(p: Record): Record = {
+            if (p.getStringCaseInsensitive(nameName).isDefined)
+              p
+            else {
+              val fields = Vector(
+                p.getString("1").map("name" -> _),
+                p.getString("2").map("type" -> _),
+                p.getString("3").map("multiplicity" -> _),
+                p.getString("4").map("label" -> _),
+                p.getString("5").map("description" -> _)
+              ).flatten
+              if (fields.isEmpty) p else Record.create(fields)
+            }
+          }
 
           private def _section(p: LogicalSection) =
             if (_is_features(p))
@@ -661,11 +677,13 @@ object SchemaModel {
             val rootkv = _key_values(p.text).toMap
             val sourceevents = rootkv.get("events").toVector.flatMap(_split_list) ++ rootkv.get("event").toVector.flatMap(_split_list)
             val rebuildable = rootkv.get("rebuildable").map(_.equalsIgnoreCase("true"))
+            val viewnames = rootkv.get("views").toVector.flatMap(_split_list) ++ rootkv.get("view").toVector.flatMap(_split_list) ++ rootkv.get("viewname").toVector.flatMap(_split_list) ++ rootkv.get("view_name").toVector.flatMap(_split_list)
             ViewDefinition(
               attributes = attrs,
               queries = queries,
               sourceEvents = sourceevents.distinct,
-              rebuildable = rebuildable
+              rebuildable = rebuildable,
+              viewNames = viewnames.map(_.trim).filterNot(_.isEmpty).distinct
             )
           }
 
@@ -821,14 +839,16 @@ object SchemaModel {
             val ts = p.sections.filter(_.keyForModel.equalsIgnoreCase("transition")).map(_transition_from_section(machinename, p.nameForModel, _))
             StateClass(
               name = p.nameForModel,
-              value = _state_value_auto(p.nameForModel, index),
+              value = _state_value(p, index),
               stateMachinePath = None,
               transitions = Transitions.call(ts)
             ).withEntryActivity(entry).withExitActivity(exit)
           }
 
-          private def _state_value_auto(name: String, index: Int): Int =
-            StateClass.predefinedStateValues.getOrElse(name, STATE_VALUE_UNDEFINED - index)
+          private def _state_value(p: LogicalSection, index: Int): Int =
+            _key_values(p.text).collectFirst {
+              case (k, v) if k == "value" => v.trim.stripPrefix("\"").stripSuffix("\"").toInt
+            }.getOrElse(index + 1)
 
           private def _collect_action_lines(p: LogicalSection, key: String): Vector[String] = {
             p.sections.filter(_.keyForModel.equalsIgnoreCase(key)).flatMap { x =>
@@ -1041,11 +1061,26 @@ object SchemaModel {
             copy(attributeSlots = this.attributeSlots ++ _attribute_records(p))
 
           private def _attribute_records(p: Section): Vector[Record] = {
-            val fromTables = p.tableList.toVector.flatMap(SimpleModelerUtils.toRecords)
+            val fromTables = p.tableList.toVector.flatMap(SimpleModelerUtils.toRecords).map(_normalize_attribute_record)
             val fromItems = _attribute_records_from_items(p)
             val fromText = _attribute_records_from_text(p.toText)
             val xs = if (fromItems.nonEmpty) fromItems else fromText
             fromTables ++ xs
+          }
+
+          private def _normalize_attribute_record(p: Record): Record = {
+            if (p.getStringCaseInsensitive(nameName).isDefined)
+              p
+            else {
+              val fields = Vector(
+                p.getString("1").map("name" -> _),
+                p.getString("2").map("type" -> _),
+                p.getString("3").map("multiplicity" -> _),
+                p.getString("4").map("label" -> _),
+                p.getString("5").map("description" -> _)
+              ).flatten
+              if (fields.isEmpty) p else Record.create(fields)
+            }
           }
 
           private def _attribute_records_from_items(p: Section): Vector[Record] = {
@@ -1271,11 +1306,13 @@ object SchemaModel {
             val rootkv = _key_values(p.toText).toMap
             val sourceevents = rootkv.get("events").toVector.flatMap(_split_list) ++ rootkv.get("event").toVector.flatMap(_split_list)
             val rebuildable = rootkv.get("rebuildable").map(_.equalsIgnoreCase("true"))
+            val viewnames = rootkv.get("views").toVector.flatMap(_split_list) ++ rootkv.get("view").toVector.flatMap(_split_list) ++ rootkv.get("viewname").toVector.flatMap(_split_list) ++ rootkv.get("view_name").toVector.flatMap(_split_list)
             ViewDefinition(
               attributes = attrs,
               queries = queries,
               sourceEvents = sourceevents.distinct,
-              rebuildable = rebuildable
+              rebuildable = rebuildable,
+              viewNames = viewnames.map(_.trim).filterNot(_.isEmpty).distinct
             )
           }
 
@@ -1431,7 +1468,7 @@ object SchemaModel {
             val ts = p.sections.filter(_.keyForModel.equalsIgnoreCase("transition")).map(_transition_from_section(machinename, p.nameForModel, _))
             StateClass(
               name = p.nameForModel,
-              value = _state_value_auto(p.nameForModel, index),
+              value = _state_value(p, index),
               stateMachinePath = None,
               transitions = Transitions.call(ts)
             ).withEntryActivity(entry).withExitActivity(exit)
@@ -1466,8 +1503,10 @@ object SchemaModel {
             )
           }
 
-          private def _state_value_auto(name: String, index: Int): Int =
-            StateClass.predefinedStateValues.getOrElse(name, STATE_VALUE_UNDEFINED - index)
+          private def _state_value(p: Section, index: Int): Int =
+            _key_values(p.toText).collectFirst {
+              case (k, v) if k == "value" => v.trim.stripPrefix("\"").stripSuffix("\"").toInt
+            }.getOrElse(index + 1)
 
           private def _required_transition_key(
             kv: Vector[(String, String)],
@@ -1740,7 +1779,9 @@ object SchemaModel {
         //   StateMachine(p, None)
         // }
 
-      private def _name(p: Record): String = p.getStringCaseInsensitive(nameName).getOrElse {
+      private def _name(p: Record): String = p.getStringCaseInsensitive(nameName).
+        orElse(_field_value(p, 0)).
+        getOrElse {
         RAISE.syntaxErrorFault("No name in table.")
       }
 
@@ -1756,6 +1797,7 @@ object SchemaModel {
         )
 
       private def _datatype(p: Record): DataType = p.getStringCaseInsensitive(typeName).
+        orElse(_field_value(p, 1)).
         flatMap(DataType.get).getOrElse(XString)
 
       private def _objectref(p: Record): ObjectRef =
@@ -1769,6 +1811,7 @@ object SchemaModel {
         )
 
       private def _multiplicity(p: Record): Multiplicity = p.getStringCaseInsensitive(multiplicityName).
+        orElse(_field_value(p, 2)).
         flatMap(Multiplicity.get).getOrElse(MOne)
 
       private def _constraints(p: Record): List[Constraint] = {
@@ -1803,6 +1846,9 @@ object SchemaModel {
 
       private def _normalize_key(p: String): String =
         p.toLowerCase.replaceAll("[\\s_\\-　]+", "")
+
+      private def _field_value(p: Record, index: Int): Option[String] =
+        p.fields.lift(index).flatMap(_.getValue).map(_.toString).map(_.trim).filterNot(_.isEmpty)
 
       private def _int_value_flexible(p: Record, keys: Seq[String]): Option[Int] =
         _string_value_flexible(p, keys).flatMap(x => Try(x.toInt).toOption)

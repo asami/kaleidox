@@ -1,0 +1,43 @@
+# SERVICE
+
+## Greeting
+
+### OPERATION
+
+#### greeting
+
+##### TYPE
+
+QUERY
+
+##### INPUT
+
+###### VALUE
+
+####### GreetingQuery
+
+######## EXTENDS
+
+QueryAction
+
+######## ATTRIBUTE
+
+| name | type | multiplicity |
+|------+------|--------------|
+| name | name | 1            |
+
+##### OUTPUT
+
+###### VALUE
+
+####### GreetingResult
+
+######## EXTENDS
+
+OperationResult
+
+######## ATTRIBUTE
+
+| message | type   | multiplicity |
+|---------+--------+--------------|
+| message | string | 1            |
