@@ -13,10 +13,19 @@ import org.goldenport.parser.LogicalSection
 
 /*
  * @since   Mar. 22, 2026
- * @version Mar. 24, 2026
+ *  version Mar. 24, 2026
+ * @version Apr.  6, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ComponentSubsystemModel(
+  visions: Vector[ComponentSubsystemModel.VisionDefinition] = Vector.empty,
+  contexts: Vector[ComponentSubsystemModel.ContextDefinition] = Vector.empty,
+  systemContexts: Vector[ComponentSubsystemModel.SystemContextDefinition] = Vector.empty,
+  contextMaps: Vector[ComponentSubsystemModel.ContextMapDefinition] = Vector.empty,
+  useCases: Vector[ComponentSubsystemModel.UseCaseDefinition] = Vector.empty,
+  capabilities: Vector[ComponentSubsystemModel.CapabilityDefinition] = Vector.empty,
+  qualities: Vector[ComponentSubsystemModel.QualityDefinition] = Vector.empty,
+  constraints: Vector[ComponentSubsystemModel.ConstraintDefinition] = Vector.empty,
   components: Vector[ComponentSubsystemModel.ComponentDefinition] = Vector.empty,
   componentlets: Vector[ComponentSubsystemModel.ComponentletDefinition] = Vector.empty,
   extensionPoints: Vector[ComponentSubsystemModel.ExtensionPointDefinition] = Vector.empty,
@@ -24,7 +33,15 @@ case class ComponentSubsystemModel(
   description: Description = Description.name("component-subsystem")
 ) extends Model.ISubModel {
   protected def display_String: String =
-    (components.map(_.name) ++ subsystems.map(_.name)).mkString(",")
+    ((if (visions.nonEmpty) Vector("vision") else Vector.empty) ++
+      (if (contexts.nonEmpty) Vector("context") else Vector.empty) ++
+      (if (systemContexts.nonEmpty) Vector("systemcontext") else Vector.empty) ++
+      (if (contextMaps.nonEmpty) Vector("contextmap") else Vector.empty) ++
+      (if (useCases.nonEmpty) Vector("usecase") else Vector.empty) ++
+      (if (capabilities.nonEmpty) Vector("capability") else Vector.empty) ++
+      (if (qualities.nonEmpty) Vector("quality") else Vector.empty) ++
+      (if (constraints.nonEmpty) Vector("constraint") else Vector.empty) ++
+      components.map(_.name) ++ subsystems.map(_.name)).mkString(",")
 
   protected def print_String: String =
     display_String
@@ -33,13 +50,21 @@ case class ComponentSubsystemModel(
     display_String
 
   def isEmpty: Boolean =
-    components.isEmpty && componentlets.isEmpty && extensionPoints.isEmpty && subsystems.isEmpty
+    visions.isEmpty && contexts.isEmpty && systemContexts.isEmpty && contextMaps.isEmpty && useCases.isEmpty && capabilities.isEmpty && qualities.isEmpty && constraints.isEmpty && components.isEmpty && componentlets.isEmpty && extensionPoints.isEmpty && subsystems.isEmpty
 
   def toOption: Option[ComponentSubsystemModel] =
     if (isEmpty) None else Some(this)
 
   def +(rhs: ComponentSubsystemModel): ComponentSubsystemModel =
     copy(
+      visions = _dedupeByName(visions ++ rhs.visions),
+      contexts = _dedupeByName(contexts ++ rhs.contexts),
+      systemContexts = _dedupeByName(systemContexts ++ rhs.systemContexts),
+      contextMaps = _dedupeByName(contextMaps ++ rhs.contextMaps),
+      useCases = _dedupeByName(useCases ++ rhs.useCases),
+      capabilities = _dedupeByName(capabilities ++ rhs.capabilities),
+      qualities = _dedupeByName(qualities ++ rhs.qualities),
+      constraints = _dedupeByName(constraints ++ rhs.constraints),
       components = _dedupeByName(components ++ rhs.components),
       componentlets = _dedupeByName(componentlets ++ rhs.componentlets),
       extensionPoints = _dedupeByName(extensionPoints ++ rhs.extensionPoints),
@@ -74,7 +99,91 @@ object ComponentSubsystemModel {
     componentlets: Vector[String] = Vector.empty,
     extensionPoints: Vector[String] = Vector.empty,
     extensionBindings: Map[String, String] = Map.empty,
+    description: Option[String] = None,
+    useCases: Vector[UseCaseDefinition] = Vector.empty
+  ) extends NamedDefinition
+
+  final case class VisionDefinition(
+    name: String,
+    summary: Option[String] = None,
+    description: Option[String] = None,
+    goal: Option[String] = None,
+    precondition: Option[String] = None,
+    postcondition: Option[String] = None
+  ) extends NamedDefinition
+
+  final case class ContextDefinition(
+    name: String,
+    summary: Option[String] = None,
     description: Option[String] = None
+  ) extends NamedDefinition
+
+  final case class SystemContextDefinition(
+    name: String,
+    summary: Option[String] = None,
+    description: Option[String] = None
+  ) extends NamedDefinition
+
+  final case class ContextMapDefinition(
+    name: String,
+    summary: Option[String] = None,
+    description: Option[String] = None
+  ) extends NamedDefinition
+
+  final case class UseCaseDefinition(
+    name: String,
+    summary: Option[String] = None,
+    description: Option[String] = None,
+    actor: Option[String] = None,
+    primaryActor: Option[String] = None,
+    secondaryActor: Option[String] = None,
+    supportingActor: Option[String] = None,
+    stakeholder: Option[String] = None,
+    goal: Option[String] = None,
+    precondition: Option[String] = None,
+    postcondition: Option[String] = None,
+    scenarios: Vector[UseCaseScenario] = Vector.empty
+  ) extends NamedDefinition
+
+  final case class UseCaseScenario(
+    name: String,
+    summary: Option[String] = None,
+    description: Option[String] = None,
+    steps: Vector[String] = Vector.empty,
+    alternates: Vector[String] = Vector.empty,
+    exceptions: Vector[String] = Vector.empty
+  )
+
+  final case class CapabilityDefinition(
+    name: String,
+    summary: Option[String] = None,
+    description: Option[String] = None,
+    actor: Option[String] = None,
+    primaryActor: Option[String] = None,
+    secondaryActor: Option[String] = None,
+    supportingActor: Option[String] = None,
+    stakeholder: Option[String] = None,
+    goal: Option[String] = None,
+    precondition: Option[String] = None,
+    postcondition: Option[String] = None
+  ) extends NamedDefinition
+
+  final case class QualityDefinition(
+    name: String,
+    summary: Option[String] = None,
+    description: Option[String] = None,
+    goal: Option[String] = None,
+    precondition: Option[String] = None,
+    postcondition: Option[String] = None
+  ) extends NamedDefinition
+
+  final case class ConstraintDefinition(
+    name: String,
+    summary: Option[String] = None,
+    description: Option[String] = None,
+    goal: Option[String] = None,
+    precondition: Option[String] = None,
+    postcondition: Option[String] = None
   ) extends NamedDefinition
 
   final case class ComponentletDefinition(
@@ -134,6 +243,38 @@ object ComponentSubsystemModel {
         ComponentSubsystemModel(
           componentlets = p.sections.toVector.map(_parse_componentlet_definition)
         )
+      case "vision" =>
+        ComponentSubsystemModel(
+          visions = p.sections.toVector.map(_parse_vision_definition)
+        )
+      case "context" =>
+        ComponentSubsystemModel(
+          contexts = p.sections.toVector.map(_parse_context_definition)
+        )
+      case key if _is_system_context_key(key) =>
+        ComponentSubsystemModel(
+          systemContexts = p.sections.toVector.map(_parse_system_context_definition)
+        )
+      case key if _is_context_map_key(key) =>
+        ComponentSubsystemModel(
+          contextMaps = p.sections.toVector.map(_parse_context_map_definition)
+        )
+      case key if _is_use_case_key(key) =>
+        ComponentSubsystemModel(
+          useCases = p.sections.toVector.map(_parse_use_case_definition)
+        )
+      case "capability" =>
+        ComponentSubsystemModel(
+          capabilities = p.sections.toVector.map(_parse_capability_definition)
+        )
+      case "quality" =>
+        ComponentSubsystemModel(
+          qualities = p.sections.toVector.map(_parse_quality_definition)
+        )
+      case "constraint" =>
+        ComponentSubsystemModel(
+          constraints = p.sections.toVector.map(_parse_constraint_definition)
+        )
       case "extensionpoint" =>
         ComponentSubsystemModel(
           extensionPoints = p.sections.toVector.map(_parse_extension_point_definition)
@@ -163,7 +304,22 @@ object ComponentSubsystemModel {
       componentlets = componentlets,
       extensionPoints = extensionpoints,
       extensionBindings = extensionbindings,
-      description = _value_opt(kv, "description")
+      description = _value_opt(kv, "description"),
+      useCases = _use_case_definitions(p)
+    )
+  }
+
+  private def _parse_vision_definition(
+    p: Section
+  ): VisionDefinition = {
+    val kv = _merged_key_values(p)
+    VisionDefinition(
+      name = _require_name(p.nameForModel, "vision"),
+      summary = _value_opt(kv, "summary"),
+      description = _value_opt(kv, "description"),
+      goal = _value_opt(kv, "goal"),
+      precondition = _value_opt(kv, "precondition", "pre-condition"),
+      postcondition = _value_opt(kv, "postcondition", "post-condition")
     )
   }
 
@@ -175,6 +331,39 @@ object ComponentSubsystemModel {
       name = _require_name(p.nameForModel, "componentlet"),
       component = _value_opt(kv, "component"),
       kind = _value_opt(kv, "kind")
+    )
+  }
+
+  private def _parse_context_definition(
+    p: Section
+  ): ContextDefinition = {
+    val kv = _merged_key_values(p)
+    ContextDefinition(
+      name = _require_name(p.nameForModel, "context"),
+      summary = _value_opt(kv, "summary"),
+      description = _value_opt(kv, "description")
+    )
+  }
+
+  private def _parse_system_context_definition(
+    p: Section
+  ): SystemContextDefinition = {
+    val kv = _merged_key_values(p)
+    SystemContextDefinition(
+      name = _require_name(p.nameForModel, "system context"),
+      summary = _value_opt(kv, "summary"),
+      description = _value_opt(kv, "description")
+    )
+  }
+
+  private def _parse_context_map_definition(
+    p: Section
+  ): ContextMapDefinition = {
+    val kv = _merged_key_values(p)
+    ContextMapDefinition(
+      name = _require_name(p.nameForModel, "context map"),
+      summary = _value_opt(kv, "summary"),
+      description = _value_opt(kv, "description")
     )
   }
 
@@ -276,6 +465,166 @@ object ComponentSubsystemModel {
     val fromkv = _value_multi(kv, "coordinate", "coordinates", "dependency", "dependencies")
     val fromsections = _values_in_sections(p, Set("coordinate", "coordinates", "dependency", "dependencies"))
     _distinct_stable(fromkv ++ fromsections).map(_parse_coordinate(_, p.nameForModel))
+  }
+
+  private def _use_case_definitions(
+    p: Section
+  ): Vector[UseCaseDefinition] =
+    p.sections.toVector.filter(s => _is_use_case_key(s.keyForModel)).flatMap { s =>
+      s.sections.toVector.map(_parse_use_case_definition)
+    }
+
+  private def _parse_use_case_definition(
+    p: Section
+  ): UseCaseDefinition = {
+    val kv = _merged_key_values(p)
+    UseCaseDefinition(
+      name = _require_name(p.nameForModel, "use case"),
+      summary = _value_opt(kv, "summary"),
+      description = _value_opt(kv, "description"),
+      actor = _value_opt(kv, "actor"),
+      primaryActor = _value_opt(kv, "primary actor", "primaryactor", "primary_actor"),
+      secondaryActor = _value_opt(kv, "secondary actor", "secondaryactor", "secondary_actor"),
+      supportingActor = _value_opt(kv, "supporting actor", "supportingactor", "supporting_actor"),
+      stakeholder = _value_opt(kv, "stakeholder", "stakeholders"),
+      goal = _value_opt(kv, "goal"),
+      precondition = _value_opt(kv, "precondition", "pre-condition"),
+      postcondition = _value_opt(kv, "postcondition", "post-condition"),
+      scenarios = _use_case_scenarios(p)
+    )
+  }
+
+  private def _parse_capability_definition(
+    p: Section
+  ): CapabilityDefinition = {
+    val kv = _merged_key_values(p)
+    CapabilityDefinition(
+      name = _require_name(p.nameForModel, "capability"),
+      summary = _value_opt(kv, "summary"),
+      description = _value_opt(kv, "description"),
+      actor = _value_opt(kv, "actor"),
+      primaryActor = _value_opt(kv, "primary_actor", "primary actor"),
+      secondaryActor = _value_opt(kv, "secondary_actor", "secondary actor"),
+      supportingActor = _value_opt(kv, "supporting_actor", "supporting actor"),
+      stakeholder = _value_opt(kv, "stakeholder"),
+      goal = _value_opt(kv, "goal"),
+      precondition = _value_opt(kv, "precondition", "pre-condition"),
+      postcondition = _value_opt(kv, "postcondition", "post-condition")
+    )
+  }
+
+  private def _parse_quality_definition(
+    p: Section
+  ): QualityDefinition = {
+    val kv = _merged_key_values(p)
+    QualityDefinition(
+      name = _require_name(p.nameForModel, "quality"),
+      summary = _value_opt(kv, "summary"),
+      description = _value_opt(kv, "description"),
+      goal = _value_opt(kv, "goal"),
+      precondition = _value_opt(kv, "precondition", "pre-condition"),
+      postcondition = _value_opt(kv, "postcondition", "post-condition")
+    )
+  }
+
+  private def _parse_constraint_definition(
+    p: Section
+  ): ConstraintDefinition = {
+    val kv = _merged_key_values(p)
+    ConstraintDefinition(
+      name = _require_name(p.nameForModel, "constraint"),
+      summary = _value_opt(kv, "summary"),
+      description = _value_opt(kv, "description"),
+      goal = _value_opt(kv, "goal"),
+      precondition = _value_opt(kv, "precondition", "pre-condition"),
+      postcondition = _value_opt(kv, "postcondition", "post-condition")
+    )
+  }
+
+  private def _use_case_scenarios(
+    p: Section
+  ): Vector[UseCaseScenario] =
+    p.sections.toVector.filter(_.keyForModel.equalsIgnoreCase("scenario")).flatMap { s =>
+      s.sections.toVector.map(_parse_use_case_scenario)
+    }
+
+  private def _is_use_case_key(p: String): Boolean = {
+    val s = Option(p).map(_.trim.toLowerCase).getOrElse("")
+    s == "use case" || s == "usecase"
+  }
+
+  private def _is_system_context_key(p: String): Boolean = {
+    val s = Option(p).map(_.trim.toLowerCase).getOrElse("")
+    s == "system context" || s == "systemcontext"
+  }
+
+  private def _is_context_map_key(p: String): Boolean = {
+    val s = Option(p).map(_.trim.toLowerCase).getOrElse("")
+    s == "context map" || s == "contextmap"
+  }
+
+  private def _parse_use_case_scenario(
+    p: Section
+  ): UseCaseScenario = {
+    val kv = _merged_key_values(p)
+    val steps = _scenario_steps(p)
+    UseCaseScenario(
+      name = _require_name(p.nameForModel, "use case scenario"),
+      summary = _value_opt(kv, "summary"),
+      description = _value_opt(kv, "description"),
+      steps = steps,
+      alternates = _scenario_value_sections(p, "alternate"),
+      exceptions = _scenario_value_sections(p, "exception")
+    )
+  }
+
+  private def _scenario_steps(
+    p: Section
+  ): Vector[String] = {
+    val explicit = _scenario_value_sections(p, "step")
+    if (explicit.nonEmpty)
+      explicit
+    else {
+      val lines = p.toText.linesIterator.map(_.trim).filterNot(_.isEmpty).toVector
+      val xs =
+        if (lines.size > 1)
+          lines.flatMap(_split_scenario_steps)
+        else
+          lines.headOption.map(_split_scenario_steps).getOrElse(Vector.empty)
+      if (xs.nonEmpty) xs else lines
+    }
+  }
+
+  private def _scenario_value_sections(
+    p: Section,
+    key: String
+  ): Vector[String] =
+    p.sections.toVector.filter(_.keyForModel.equalsIgnoreCase(key)).flatMap { s =>
+      val lines = s.toText.linesIterator.map(_.trim).filterNot(_.isEmpty).toVector
+      val xs =
+        if (lines.size > 1)
+          lines.flatMap(_split_scenario_steps)
+        else
+          lines.headOption.map(_split_scenario_steps).getOrElse(Vector.empty)
+      if (xs.nonEmpty) xs else lines
+    }
+
+  private def _split_scenario_steps(
+    p: String
+  ): Vector[String] = {
+    val s = p.trim
+    val numbered = "(?=\\d+\\.\\s+)".r.split(s).toVector.map(_.trim).filterNot(_.isEmpty)
+    if (numbered.size > 1)
+      numbered
+    else
+      _split_sentence_steps(s)
+  }
+
+  private def _split_sentence_steps(
+    p: String
+  ): Vector[String] = {
+    val xs = "(?<=[.!?])(?=[A-Z])".r.split(p).toVector.map(_.trim).filterNot(_.isEmpty)
+    if (xs.size > 1) xs else Vector(p)
   }
 
   private def _line_value(

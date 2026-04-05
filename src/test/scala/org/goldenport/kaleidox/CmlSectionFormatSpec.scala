@@ -11,7 +11,7 @@ import org.goldenport.record.v2.{CFormat, CMaxLength, CMinLength, CRegex}
 /*
  * @since   Mar. 24, 2026
  *  version Mar. 25, 2026
- * @version Apr.  3, 2026
+ * @version Apr.  6, 2026
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -102,6 +102,358 @@ profile: prod
       cs.subsystems.map(_.name) should contain ("identity")
       cs.components.head.coordinates.size should be (1)
       cs.subsystems.head.config.get("profile") should be (Some("prod"))
+    }
+
+    "accept USE CASE sections in COMPONENT" in {
+      val s = """# COMPONENT
+                |
+                |## user-account
+                |
+                |### PACKAGE
+                |
+                |org.example.useraccount
+                |
+                |### USE CASE
+                |
+                |#### provisional_onboarding
+                |
+                |##### SUMMARY
+                |
+                |Create a provisional user account.
+                |
+                |##### ACTOR
+                |
+                |User registration context
+                |
+                |##### PRIMARY ACTOR
+                |
+                |EndUser
+                |
+                |##### SECONDARY ACTOR
+                |
+                |IdentityOperator
+                |
+                |##### SUPPORTING ACTOR
+                |
+                |MailService
+                |
+                |##### STAKEHOLDER
+                |
+                |BusinessOwner
+                |
+                |##### GOAL
+                |
+                |Capture a lightweight lead.
+                |
+                |##### PRECONDITION
+                |
+                |The user is not registered.
+                |
+                |##### POSTCONDITION
+                |
+                |A provisional account exists.
+                |
+                |##### SCENARIO
+                |
+                |###### happy_path
+                |
+                |1. User enters email and password.
+                |2. System creates a provisional account.
+                |
+                |###### duplicate_email
+                |
+                |1. User enters an existing email.
+                |2. System rejects the request.
+                |""".stripMargin
+      val model = Model.parse(config, s)
+      val component = model.takeComponentSubsystemModel.components.headOption.getOrElse(fail("Component is missing"))
+      val usecase = component.useCases.headOption.getOrElse(fail("Use case is missing"))
+
+      usecase.name should be ("provisional_onboarding")
+      usecase.summary should be (Some("Create a provisional user account."))
+      usecase.actor should be (Some("User registration context"))
+      usecase.primaryActor should be (Some("EndUser"))
+      usecase.secondaryActor should be (Some("IdentityOperator"))
+      usecase.supportingActor should be (Some("MailService"))
+      usecase.stakeholder should be (Some("BusinessOwner"))
+      usecase.goal should be (Some("Capture a lightweight lead."))
+      usecase.precondition should be (Some("The user is not registered."))
+      usecase.postcondition should be (Some("A provisional account exists."))
+      usecase.scenarios.map(_.name) should contain allOf ("happy_path", "duplicate_email")
+      usecase.scenarios.find(_.name == "happy_path").flatMap(_.steps.headOption).getOrElse("") should include ("User enters email")
+    }
+
+    "accept top-level USE CASE sections" in {
+      val s = """# USE CASE
+                |
+                |## domain_identity_lifecycle
+                |
+                |### SUMMARY
+                |
+                |Cover the domain-wide identity lifecycle.
+                |
+                |### PRIMARY ACTOR
+                |
+                |EndUser
+                |
+                |### GOAL
+                |
+                |Provide a shared domain use-case definition above component scope.
+                |""".stripMargin
+      val model = Model.parse(config, s)
+      val usecase = model.takeComponentSubsystemModel.useCases.headOption.getOrElse(fail("Top-level use case is missing"))
+
+      usecase.name should be ("domain_identity_lifecycle")
+      usecase.summary should be (Some("Cover the domain-wide identity lifecycle."))
+      usecase.primaryActor should be (Some("EndUser"))
+      usecase.goal should be (Some("Provide a shared domain use-case definition above component scope."))
+    }
+
+    "accept top-level CAPABILITY sections" in {
+      val s = """# CAPABILITY
+                |
+                |## Authentication
+                |
+                |### SUMMARY
+                |
+                |Provide authentication capability.
+                |
+                |### PRIMARY ACTOR
+                |
+                |EndUser
+                |
+                |### GOAL
+                |
+                |Allow a user to authenticate.
+                |""".stripMargin
+      val model = Model.parse(config, s)
+      val capability = model.takeComponentSubsystemModel.capabilities.headOption.getOrElse(fail("Top-level capability is missing"))
+
+      capability.name should be ("Authentication")
+      capability.summary should be (Some("Provide authentication capability."))
+      capability.primaryActor should be (Some("EndUser"))
+      capability.goal should be (Some("Allow a user to authenticate."))
+    }
+
+    "accept top-level VISION sections" in {
+      val s = """# VISION
+                |
+                |## TrustedIdentity
+                |
+                |### SUMMARY
+                |
+                |Provide a trusted identity foundation for Textus.
+                |
+                |### GOAL
+                |
+                |Enable coherent user identity as a domain capability.
+                |""".stripMargin
+      val model = Model.parse(config, s)
+      val vision = model.takeComponentSubsystemModel.visions.headOption.getOrElse(fail("Top-level vision is missing"))
+
+      vision.name should be ("TrustedIdentity")
+      vision.summary should be (Some("Provide a trusted identity foundation for Textus."))
+      vision.goal should be (Some("Enable coherent user identity as a domain capability."))
+    }
+
+    "accept top-level QUALITY sections" in {
+      val s = """# QUALITY
+                |
+                |## AuthenticationLatency
+                |
+                |### SUMMARY
+                |
+                |Authentication should respond quickly.
+                |
+                |### GOAL
+                |
+                |Keep authentication response latency within an acceptable range.
+                |""".stripMargin
+      val model = Model.parse(config, s)
+      val quality = model.takeComponentSubsystemModel.qualities.headOption.getOrElse(fail("Top-level quality is missing"))
+
+      quality.name should be ("AuthenticationLatency")
+      quality.summary should be (Some("Authentication should respond quickly."))
+      quality.goal should be (Some("Keep authentication response latency within an acceptable range."))
+    }
+
+    "accept top-level CONSTRAINT sections" in {
+      val s = """# CONSTRAINT
+                |
+                |## LegacyOperatingSystem
+                |
+                |### SUMMARY
+                |
+                |The system must run on Windows 95.
+                |
+                |### GOAL
+                |
+                |Respect the required legacy operating environment.
+                |""".stripMargin
+      val model = Model.parse(config, s)
+      val constraint = model.takeComponentSubsystemModel.constraints.headOption.getOrElse(fail("Top-level constraint is missing"))
+
+      constraint.name should be ("LegacyOperatingSystem")
+      constraint.summary should be (Some("The system must run on Windows 95."))
+      constraint.goal should be (Some("Respect the required legacy operating environment."))
+    }
+
+    "accept USE CASE sections in SERVICE" in {
+      val s = """# SERVICE
+                |
+                |## User
+                |
+                |### DESCRIPTION
+                |
+                |Public user-facing operations.
+                |
+                |### USE CASE
+                |
+                |#### regular_registration
+                |
+                |##### SUMMARY
+                |
+                |Create a standard user account.
+                |
+                |##### ACTOR
+                |
+                |Self-service registration
+                |
+                |##### PRIMARY ACTOR
+                |
+                |EndUser
+                |
+                |##### SUPPORTING ACTOR
+                |
+                |NotificationService
+                |
+                |##### STAKEHOLDER
+                |
+                |CustomerSupport
+                |
+                |##### GOAL
+                |
+                |Register through the normal self-service path.
+                |
+                |##### SCENARIO
+                |
+                |###### happy_path
+                |
+                |1. User enters account information.
+                |2. System creates a regular account.
+                |
+                |### OPERATION
+                |
+                |#### register
+                |
+                |##### INPUT
+                |
+                |Register input.
+                |
+                |###### TYPE
+                |
+                |RegisterInput
+                |
+                |##### OUTPUT
+                |
+                |Register result.
+                |
+                |###### TYPE
+                |
+                |RegisterResult
+                |""".stripMargin
+      val model = Model.parse(config, s)
+      val service = model.getServiceModel.flatMap(_.classes.get("User")).getOrElse(fail("Service is missing"))
+      val usecase = service.useCases.headOption.getOrElse(fail("Use case is missing"))
+
+      usecase.name should be ("regular_registration")
+      usecase.summary should be (Some("Create a standard user account."))
+      usecase.actor should be (Some("Self-service registration"))
+      usecase.primaryActor should be (Some("EndUser"))
+      usecase.supportingActor should be (Some("NotificationService"))
+      usecase.stakeholder should be (Some("CustomerSupport"))
+      usecase.goal should be (Some("Register through the normal self-service path."))
+      usecase.scenarios.map(_.name) should contain ("happy_path")
+      usecase.scenarios.head.steps should contain ("System creates a regular account.")
+    }
+
+    "split concatenated SCENARIO steps in USE CASE" in {
+      val s = """# COMPONENT
+                |
+                |## account
+                |
+                |### USE CASE
+                |
+                |#### onboarding
+                |
+                |##### SCENARIO
+                |
+                |###### happy_path
+                |
+                |A user submits a request.The system creates an account.The system returns the result.
+                |""".stripMargin
+      val model = Model.parse(config, s)
+      val component = model.takeComponentSubsystemModel.components.headOption.getOrElse(fail("Component is missing"))
+      val scenario = component.useCases.headOption.flatMap(_.scenarios.headOption).getOrElse(fail("Scenario is missing"))
+
+      scenario.steps should be (
+        Vector(
+          "A user submits a request.",
+          "The system creates an account.",
+          "The system returns the result."
+        )
+      )
+    }
+
+    "accept explicit STEP ALTERNATE and EXCEPTION in USE CASE SCENARIO" in {
+      val s = """# COMPONENT
+                |
+                |## account
+                |
+                |### USE CASE
+                |
+                |#### onboarding
+                |
+                |##### SCENARIO
+                |
+                |###### happy_path
+                |
+                |####### STEP
+                |
+                |User submits a request.
+                |
+                |####### STEP
+                |
+                |System creates an account.
+                |
+                |####### ALTERNATE
+                |
+                |System asks for additional confirmation before account creation.
+                |
+                |####### EXCEPTION
+                |
+                |Datastore is unavailable and the request fails.
+                |""".stripMargin
+      val model = Model.parse(config, s)
+      val component = model.takeComponentSubsystemModel.components.headOption.getOrElse(fail("Component is missing"))
+      val scenario = component.useCases.headOption.flatMap(_.scenarios.headOption).getOrElse(fail("Scenario is missing"))
+
+      scenario.steps should be (
+        Vector(
+          "User submits a request.",
+          "System creates an account."
+        )
+      )
+      scenario.alternates should be (
+        Vector(
+          "System asks for additional confirmation before account creation."
+        )
+      )
+      scenario.exceptions should be (
+        Vector(
+          "Datastore is unavailable and the request fails."
+        )
+      )
     }
 
     "accept YAML in FEATURES section" in {

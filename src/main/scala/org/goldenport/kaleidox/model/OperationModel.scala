@@ -16,7 +16,7 @@ import org.goldenport.util.StringUtils
 /*
  * @since   Mar. 22, 2026
  *  version Mar. 28, 2026
- * @version Apr.  3, 2026
+ * @version Apr.  6, 2026
  * @author  ASAMI, Tomoharu
  */
 case class OperationModel(
@@ -94,6 +94,9 @@ case class OperationModel(
         outputDescription = op.outputDescription,
         inputValueKind = resolvedValueKind,
         description = op.description,
+        precondition = op.precondition,
+        postcondition = op.postcondition,
+        rules = op.rules,
         parameters = parameters
       )
     }
@@ -171,6 +174,9 @@ object OperationModel {
     outputSummary: Option[String] = None,
     outputDescription: Option[String] = None,
     description: Option[String] = None,
+    precondition: Option[String] = None,
+    postcondition: Option[String] = None,
+    rules: Vector[String] = Vector.empty,
     parameters: Vector[FieldDefinition] = Vector.empty
   )
 
@@ -188,6 +194,9 @@ object OperationModel {
     outputDescription: Option[String] = None,
     inputValueKind: InputValueKind,
     description: Option[String] = None,
+    precondition: Option[String] = None,
+    postcondition: Option[String] = None,
+    rules: Vector[String] = Vector.empty,
     parameters: Vector[FieldDefinition]
   )
 
@@ -253,6 +262,13 @@ object OperationModel {
     val description = kv.collectFirst {
       case (k, v) if k == "description" => v.trim
     }.filterNot(Strings.blankp)
+    val precondition = kv.collectFirst {
+      case (k, v) if k == "precondition" || k == "pre-condition" => v.trim
+    }.filterNot(Strings.blankp)
+    val postcondition = kv.collectFirst {
+      case (k, v) if k == "postcondition" || k == "post-condition" => v.trim
+    }.filterNot(Strings.blankp)
+    val rules = _rule_lines(p)
     val params = p.sections.filter(_.keyForModel == "parameter").toVector.flatMap(_parse_parameter_section)
     OperationDefinition(
       name = p.nameForModel.trim,
@@ -267,6 +283,9 @@ object OperationModel {
       outputSummary = outputspec.summary,
       outputDescription = outputspec.description,
       description = description,
+      precondition = precondition,
+      postcondition = postcondition,
+      rules = rules,
       parameters = params
     )
   }
@@ -317,6 +336,13 @@ object OperationModel {
       fields = fields
     )
   }
+
+  private def _rule_lines(
+    p: Section
+  ): Vector[String] =
+    p.sections.find(_.keyForModel == "rule").toVector.flatMap { s =>
+      CmlSectionFormat.valueLines(s.toText)
+    }
 
   private def _parse_parameter_section(
     p: Section

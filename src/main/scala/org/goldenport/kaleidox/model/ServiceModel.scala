@@ -14,18 +14,20 @@ import org.goldenport.sexpr.{SExpr, SScript, SNil}
 import org.goldenport.sexpr.eval.LispFunction
 import org.goldenport.sexpr.eval.LispContext
 import org.goldenport.kaleidox._
+import org.goldenport.kaleidox.CmlSectionFormat
 import org.goldenport.kaleidox.model.ValueModel.ValueClass
 import org.goldenport.parser.LogicalSection
 
 /*
  * @since   Mar. 13, 2021
+ *  version Mar. 24, 2026
  *  version Mar. 27, 2021
  *  version Apr. 29, 2021
  *  version May. 27, 2021
  *  version Jun. 20, 2021
  *  version Oct.  1, 2022
  *  version Aug. 21, 2023
- * @version Mar. 24, 2026
+ * @version Apr.  6, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
@@ -64,7 +66,8 @@ object ServiceModel {
   case class ServiceClass(
     name: String,
     operations: ServiceClass.Operations,
-    description: Option[String] = None
+    description: Option[String] = None,
+    useCases: Vector[ServiceClass.UseCaseDefinition] = Vector.empty
   ) {
     def isEmpty = operations.isEmpty
     def toOption: Option[ServiceClass] = if (isEmpty) None else Some(this)
@@ -74,6 +77,30 @@ object ServiceModel {
   }
 
   object ServiceClass {
+    case class UseCaseDefinition(
+      name: String,
+      summary: Option[String] = None,
+      description: Option[String] = None,
+      actor: Option[String] = None,
+      primaryActor: Option[String] = None,
+      secondaryActor: Option[String] = None,
+      supportingActor: Option[String] = None,
+      stakeholder: Option[String] = None,
+      goal: Option[String] = None,
+      precondition: Option[String] = None,
+      postcondition: Option[String] = None,
+      scenarios: Vector[UseCaseScenario] = Vector.empty
+    )
+
+    case class UseCaseScenario(
+      name: String,
+      summary: Option[String] = None,
+      description: Option[String] = None,
+      steps: Vector[String] = Vector.empty,
+      alternates: Vector[String] = Vector.empty,
+      exceptions: Vector[String] = Vector.empty
+    )
+
     case class Operations(operations: VectorMap[String, Operation] = VectorMap.empty) {
       def isEmpty = operations.isEmpty
       def getOperation(name: String): Option[Operation] = operations.get(name)
@@ -92,7 +119,10 @@ object ServiceModel {
       method: Method,
       kind: Option[OperationModel.OperationKind] = None,
       summary: Option[String] = None,
-      description: Option[String] = None
+      description: Option[String] = None,
+      precondition: Option[String] = None,
+      postcondition: Option[String] = None,
+      rules: Vector[String] = Vector.empty
     ) {
       def toFunction: LispFunction = method.toFunction
     }
@@ -375,7 +405,7 @@ object ServiceModel {
         val name = p.nameForModel
         // p.tables
         val xs = p.sections.flatMap(_get_operations(name, _))
-        ServiceClass(name, Operations(xs), _description_text(p)).toOption
+        ServiceClass(name, Operations(xs), _description_text(p), _use_case_definitions(p)).toOption
       }
 
       private def _get_operations(service: String, p: Section): Vector[Operation] =
@@ -405,7 +435,10 @@ object ServiceModel {
           method = method,
           kind = _kind_opt(p),
           summary = _summary_text(p),
-          description = _description_text(p)
+          description = _description_text(p),
+          precondition = _precondition_text(p),
+          postcondition = _postcondition_text(p),
+          rules = _rule_lines(p)
         ))
       }
 
@@ -483,9 +516,60 @@ object ServiceModel {
           map(_.toText.trim).
           filter(_.nonEmpty)
 
+      private def _use_case_definitions(p: Section): Vector[UseCaseDefinition] =
+        p.sections.toVector.filter(s => _is_use_case_key(s.keyForModel)).flatMap { s =>
+          s.sections.toVector.map(_parse_use_case_definition)
+        }
+
+      private def _parse_use_case_definition(p: Section): UseCaseDefinition = {
+        val kv = _merged_key_values(p)
+        UseCaseDefinition(
+          name = p.nameForModel.trim,
+          summary = _value_opt(kv, "summary"),
+          description = _description_text(p),
+          actor = _value_opt(kv, "actor"),
+          primaryActor = _value_opt(kv, "primary actor", "primaryactor", "primary_actor"),
+          secondaryActor = _value_opt(kv, "secondary actor", "secondaryactor", "secondary_actor"),
+          supportingActor = _value_opt(kv, "supporting actor", "supportingactor", "supporting_actor"),
+          stakeholder = _value_opt(kv, "stakeholder", "stakeholders"),
+          goal = _value_opt(kv, "goal"),
+          precondition = _value_opt(kv, "precondition", "pre-condition"),
+          postcondition = _value_opt(kv, "postcondition", "post-condition"),
+          scenarios = _use_case_scenarios(p)
+        )
+      }
+
+      private def _use_case_scenarios(p: Section): Vector[UseCaseScenario] =
+        p.sections.toVector.filter(_.keyForModel.equalsIgnoreCase("scenario")).flatMap { s =>
+          s.sections.toVector.map(_parse_use_case_scenario)
+        }
+
+      private def _parse_use_case_scenario(p: Section): UseCaseScenario = {
+        val kv = _merged_key_values(p)
+        UseCaseScenario(
+          name = p.nameForModel.trim,
+          summary = _value_opt(kv, "summary"),
+          description = _description_text(p),
+          steps = _scenario_steps(p),
+          alternates = _scenario_value_sections(p, "alternate"),
+          exceptions = _scenario_value_sections(p, "exception")
+        )
+      }
+
       private def _summary_text(p: Section): Option[String] =
         p.sections.find(_.keyForModel == "summary").
           flatMap(_section_body_text)
+
+      private def _precondition_text(p: Section): Option[String] =
+        p.sections.find(s => s.keyForModel == "precondition" || s.keyForModel == "pre-condition").
+          flatMap(_section_body_text)
+
+      private def _postcondition_text(p: Section): Option[String] =
+        p.sections.find(s => s.keyForModel == "postcondition" || s.keyForModel == "post-condition").
+          flatMap(_section_body_text)
+
+      private def _rule_lines(p: Section): Vector[String] =
+        p.sections.find(_.keyForModel == "rule").toVector.flatMap(s => CmlSectionFormat.valueLines(s.toText))
 
       private def _type_text(p: Section): Option[String] =
         p.sections.find(_.keyForModel == "type").
@@ -506,6 +590,95 @@ object ServiceModel {
         Option(p.toText.trim).
           map(_.linesIterator.map(_.trim).find(_.nonEmpty).orNull).
           filterNot(Strings.blankp)
+
+      private def _value_opt(
+        kv: Vector[(String, String)],
+        ks: String*
+      ): Option[String] =
+        kv.collectFirst {
+          case (k, v) if ks.contains(k) => v.trim
+        }.filterNot(Strings.blankp)
+
+      private def _merged_key_values(
+        p: Section
+      ): Vector[(String, String)] = {
+        val fromtext = _key_values(p.toText)
+        val fromsections = p.sections.toVector.flatMap { s =>
+          val fromsectiontext = _key_values(s.toText)
+          if (fromsectiontext.nonEmpty)
+            fromsectiontext
+          else {
+            val key = s.keyForModel.toLowerCase
+            val body = s.toText.linesIterator.map(_.trim).find(_.nonEmpty).getOrElse("")
+            if (key.isEmpty || body.isEmpty) Vector.empty else Vector(key -> body)
+          }
+        }
+        fromtext ++ fromsections
+      }
+
+      private def _key_values(
+        p: String
+      ): Vector[(String, String)] =
+        CmlSectionFormat.keyValues(p)
+
+      private def _value_lines(
+        p: String
+      ): Vector[String] =
+        CmlSectionFormat.valueLines(p)
+
+      private def _scenario_steps(
+        p: Section
+      ): Vector[String] = {
+        val explicit = _scenario_value_sections(p, "step")
+        if (explicit.nonEmpty)
+          explicit
+        else {
+          val lines = p.toText.linesIterator.map(_.trim).filterNot(_.isEmpty).toVector
+          val xs =
+            if (lines.size > 1)
+              lines.flatMap(_split_scenario_steps)
+            else
+              lines.headOption.map(_split_scenario_steps).getOrElse(Vector.empty)
+          if (xs.nonEmpty) xs else lines
+        }
+      }
+
+      private def _scenario_value_sections(
+        p: Section,
+        key: String
+      ): Vector[String] =
+        p.sections.toVector.filter(_.keyForModel.equalsIgnoreCase(key)).flatMap { s =>
+          val lines = s.toText.linesIterator.map(_.trim).filterNot(_.isEmpty).toVector
+          val xs =
+            if (lines.size > 1)
+              lines.flatMap(_split_scenario_steps)
+            else
+              lines.headOption.map(_split_scenario_steps).getOrElse(Vector.empty)
+          if (xs.nonEmpty) xs else lines
+        }
+
+      private def _split_scenario_steps(
+        p: String
+      ): Vector[String] = {
+        val s = p.trim
+        val numbered = "(?=\\d+\\.\\s+)".r.split(s).toVector.map(_.trim).filterNot(_.isEmpty)
+        if (numbered.size > 1)
+          numbered
+        else
+          _split_sentence_steps(s)
+      }
+
+      private def _split_sentence_steps(
+        p: String
+      ): Vector[String] = {
+        val xs = "(?<=[.!?])(?=[A-Z])".r.split(p).toVector.map(_.trim).filterNot(_.isEmpty)
+        if (xs.size > 1) xs else Vector(p)
+      }
+
+      private def _is_use_case_key(p: String): Boolean = {
+        val s = Option(p).map(_.trim.toLowerCase).getOrElse("")
+        s == "use case" || s == "usecase"
+      }
 
       private def _to_method(
         service: String,

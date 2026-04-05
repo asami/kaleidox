@@ -41,6 +41,7 @@ import org.goldenport.kaleidox.model.analysis.AnalysisModel
 
 /*
  * @since   Sep. 24, 2018
+ *  version Mar. 25, 2026
  *  version Oct. 27, 2018
  *  version Feb. 16, 2019
  *  version Mar. 24, 2019
@@ -70,7 +71,7 @@ import org.goldenport.kaleidox.model.analysis.AnalysisModel
  *  version Sep.  6, 2024
  *  version Nov. 22, 2024
  *  version May.  2, 2025
- * @version Mar. 25, 2026
+ * @version Apr.  6, 2026
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -216,7 +217,15 @@ case class Model(
 
   lazy val getComponentSubsystemModel: Option[ComponentSubsystemModel] =
     divisions.collect {
+      case m: VisionRequirementDivision => m.makeModel(config)
+      case m: ContextDivision => m.makeModel(config)
+      case m: SystemContextDivision => m.makeModel(config)
+      case m: ContextMapDivision => m.makeModel(config)
+      case m: CapabilityDivision => m.makeModel(config)
+      case m: QualityDivision => m.makeModel(config)
+      case m: ConstraintDivision => m.makeModel(config)
       case m: ComponentDivision => m.makeModel(config)
+      case m: UseCaseDivision => m.makeModel(config)
       case m: SubsystemDivision => m.makeModel(config)
     }.concatenate.toOption
 
@@ -370,6 +379,14 @@ object Model {
       SlipDivision,
       ServiceDivision,
       OperationDivision,
+      VisionRequirementDivision,
+      ContextDivision,
+      SystemContextDivision,
+      ContextMapDivision,
+      CapabilityDivision,
+      QualityDivision,
+      ConstraintDivision,
+      UseCaseDivision,
       ComponentDivision,
       SubsystemDivision,
       EventDivision,
@@ -946,6 +963,126 @@ object Model {
   object ComponentDivision extends DivisionFactory {
     override val name_Candidates = Vector("component", "componentlet", "extensionpoint")
     protected def to_Division(p: LogicalSection): Division = ComponentDivision(p)
+  }
+
+  case class UseCaseDivision(section: LogicalSection) extends Division {
+    val name = "usecase"
+
+    def makeModel(config: Config): ComponentSubsystemModel =
+      ComponentSubsystemModel.create(config, section)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: UseCaseDivision => copy(section + m.section)
+    }
+  }
+  object UseCaseDivision extends DivisionFactory {
+    override val name_Candidates = Vector("use case", "usecase")
+    protected def to_Division(p: LogicalSection): Division = UseCaseDivision(p)
+  }
+
+  case class VisionRequirementDivision(section: LogicalSection) extends Division {
+    val name = "vision"
+
+    def makeModel(config: Config): ComponentSubsystemModel =
+      ComponentSubsystemModel.create(config, section)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: VisionRequirementDivision => copy(section + m.section)
+    }
+  }
+  object VisionRequirementDivision extends DivisionFactory {
+    override val name_Candidates = Vector("vision")
+    protected def to_Division(p: LogicalSection): Division = VisionRequirementDivision(p)
+  }
+
+  case class ContextDivision(section: LogicalSection) extends Division {
+    val name = "context"
+
+    def makeModel(config: Config): ComponentSubsystemModel =
+      ComponentSubsystemModel.create(config, section)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: ContextDivision => copy(section + m.section)
+    }
+  }
+  object ContextDivision extends DivisionFactory {
+    override val name_Candidates = Vector("context")
+    protected def to_Division(p: LogicalSection): Division = ContextDivision(p)
+  }
+
+  case class SystemContextDivision(section: LogicalSection) extends Division {
+    val name = "systemcontext"
+
+    def makeModel(config: Config): ComponentSubsystemModel =
+      ComponentSubsystemModel.create(config, section)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: SystemContextDivision => copy(section + m.section)
+    }
+  }
+  object SystemContextDivision extends DivisionFactory {
+    override val name_Candidates = Vector("system context", "systemcontext")
+    protected def to_Division(p: LogicalSection): Division = SystemContextDivision(p)
+  }
+
+  case class ContextMapDivision(section: LogicalSection) extends Division {
+    val name = "contextmap"
+
+    def makeModel(config: Config): ComponentSubsystemModel =
+      ComponentSubsystemModel.create(config, section)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: ContextMapDivision => copy(section + m.section)
+    }
+  }
+  object ContextMapDivision extends DivisionFactory {
+    override val name_Candidates = Vector("context map", "contextmap")
+    protected def to_Division(p: LogicalSection): Division = ContextMapDivision(p)
+  }
+
+  case class CapabilityDivision(section: LogicalSection) extends Division {
+    val name = "capability"
+
+    def makeModel(config: Config): ComponentSubsystemModel =
+      ComponentSubsystemModel.create(config, section)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: CapabilityDivision => copy(section + m.section)
+    }
+  }
+  object CapabilityDivision extends DivisionFactory {
+    override val name_Candidates = Vector("capability")
+    protected def to_Division(p: LogicalSection): Division = CapabilityDivision(p)
+  }
+
+  case class QualityDivision(section: LogicalSection) extends Division {
+    val name = "quality"
+
+    def makeModel(config: Config): ComponentSubsystemModel =
+      ComponentSubsystemModel.create(config, section)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: QualityDivision => copy(section + m.section)
+    }
+  }
+  object QualityDivision extends DivisionFactory {
+    override val name_Candidates = Vector("quality")
+    protected def to_Division(p: LogicalSection): Division = QualityDivision(p)
+  }
+
+  case class ConstraintDivision(section: LogicalSection) extends Division {
+    val name = "constraint"
+
+    def makeModel(config: Config): ComponentSubsystemModel =
+      ComponentSubsystemModel.create(config, section)
+
+    def mergeOption(p: Division): Option[Division] = Option(p) collect {
+      case m: ConstraintDivision => copy(section + m.section)
+    }
+  }
+  object ConstraintDivision extends DivisionFactory {
+    override val name_Candidates = Vector("constraint")
+    protected def to_Division(p: LogicalSection): Division = ConstraintDivision(p)
   }
 
   case class SubsystemDivision(section: LogicalSection) extends Division {
