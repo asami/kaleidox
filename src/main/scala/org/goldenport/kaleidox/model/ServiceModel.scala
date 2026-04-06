@@ -69,6 +69,7 @@ object ServiceModel {
     description: Option[String] = None,
     entityName: Option[String] = None,
     entityNames: Vector[String] = Vector.empty,
+    access: Option[OperationModel.AccessDefinition] = None,
     useCases: Vector[ServiceClass.UseCaseDefinition] = Vector.empty
   ) {
     def isEmpty = operations.isEmpty
@@ -411,7 +412,15 @@ object ServiceModel {
         // p.tables
         val xs = p.sections.flatMap(_get_operations(name, _))
         val entities = _entity_names(p)
-        ServiceClass(name, Operations(xs), _description_text(p), entities.headOption, entities, _use_case_definitions(p)).toOption
+        ServiceClass(
+          name,
+          Operations(xs),
+          _description_text(p),
+          entities.headOption,
+          entities,
+          _access_definition(p),
+          _use_case_definitions(p)
+        ).toOption
       }
 
       private def _get_operations(service: String, p: Section): Vector[Operation] =
