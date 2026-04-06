@@ -86,6 +86,8 @@ case class OperationModel(
         summary = op.summary,
         execution = op.execution,
         implementation = op.implementation,
+        entityName = op.entityName,
+        entityNames = op.entityNames,
         inputType = resolvedInputType,
         inputSummary = op.inputSummary,
         inputDescription = op.inputDescription,
@@ -96,6 +98,7 @@ case class OperationModel(
         description = op.description,
         precondition = op.precondition,
         postcondition = op.postcondition,
+        access = op.access,
         rules = op.rules,
         parameters = parameters
       )
@@ -167,6 +170,8 @@ object OperationModel {
     summary: Option[String] = None,
     execution: Option[String] = None,
     implementation: Option[String] = None,
+    entityName: Option[String] = None,
+    entityNames: Vector[String] = Vector.empty,
     inputType: Option[String] = None,
     inputSummary: Option[String] = None,
     inputDescription: Option[String] = None,
@@ -176,8 +181,15 @@ object OperationModel {
     description: Option[String] = None,
     precondition: Option[String] = None,
     postcondition: Option[String] = None,
+    access: Option[AccessDefinition] = None,
     rules: Vector[String] = Vector.empty,
     parameters: Vector[FieldDefinition] = Vector.empty
+  )
+
+  case class AccessDefinition(
+    policy: String,
+    resource: Option[String] = None,
+    target: Option[String] = None
   )
 
   case class NormalizedOperationDefinition(
@@ -186,6 +198,8 @@ object OperationModel {
     summary: Option[String],
     execution: Option[String],
     implementation: Option[String],
+    entityName: Option[String] = None,
+    entityNames: Vector[String] = Vector.empty,
     inputType: String,
     inputSummary: Option[String] = None,
     inputDescription: Option[String] = None,
@@ -196,6 +210,7 @@ object OperationModel {
     description: Option[String] = None,
     precondition: Option[String] = None,
     postcondition: Option[String] = None,
+    access: Option[AccessDefinition] = None,
     rules: Vector[String] = Vector.empty,
     parameters: Vector[FieldDefinition]
   )
@@ -268,6 +283,8 @@ object OperationModel {
     val postcondition = kv.collectFirst {
       case (k, v) if k == "postcondition" || k == "post-condition" => v.trim
     }.filterNot(Strings.blankp)
+    val access = _access_definition(p)
+    val entityNames = _entity_names(p)
     val rules = _rule_lines(p)
     val params = p.sections.filter(_.keyForModel == "parameter").toVector.flatMap(_parse_parameter_section)
     OperationDefinition(
@@ -276,6 +293,8 @@ object OperationModel {
       summary = summary,
       execution = execution,
       implementation = implementation,
+      entityName = entityNames.headOption,
+      entityNames = entityNames,
       inputType = input,
       inputSummary = inputspec.summary,
       inputDescription = inputspec.description,
@@ -285,6 +304,7 @@ object OperationModel {
       description = description,
       precondition = precondition,
       postcondition = postcondition,
+      access = access,
       rules = rules,
       parameters = params
     )
@@ -342,6 +362,33 @@ object OperationModel {
   ): Vector[String] =
     p.sections.find(_.keyForModel == "rule").toVector.flatMap { s =>
       CmlSectionFormat.valueLines(s.toText)
+    }
+
+  private def _access_definition(
+    p: Section
+  ): Option[AccessDefinition] =
+    p.sections.find(_.keyForModel == "access").flatMap { s =>
+      val kv = _merged_key_values(s).toMap
+      val policy = kv.get("policy").map(_.trim).filterNot(Strings.blankp)
+      policy.map { x =>
+        AccessDefinition(
+          policy = x,
+          resource = kv.get("resource").map(_.trim).filterNot(Strings.blankp),
+          target = kv.get("target").map(_.trim).filterNot(Strings.blankp)
+        )
+      }
+    }
+
+  private def _entity_name(
+    p: Section
+  ): Option[String] =
+    p.sections.find(_.keyForModel == "entity").flatMap(x => Option(_section_body_text(x)).map(_.trim).filterNot(Strings.blankp))
+
+  private def _entity_names(
+    p: Section
+  ): Vector[String] =
+    p.sections.find(_.keyForModel == "entity").toVector.flatMap { s =>
+      s.toText.split("[,;\\n\\r]+").toVector.map(_.trim).filterNot(Strings.blankp)
     }
 
   private def _parse_parameter_section(

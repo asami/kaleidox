@@ -67,6 +67,8 @@ object ServiceModel {
     name: String,
     operations: ServiceClass.Operations,
     description: Option[String] = None,
+    entityName: Option[String] = None,
+    entityNames: Vector[String] = Vector.empty,
     useCases: Vector[ServiceClass.UseCaseDefinition] = Vector.empty
   ) {
     def isEmpty = operations.isEmpty
@@ -122,6 +124,9 @@ object ServiceModel {
       description: Option[String] = None,
       precondition: Option[String] = None,
       postcondition: Option[String] = None,
+      entityName: Option[String] = None,
+      entityNames: Vector[String] = Vector.empty,
+      access: Option[OperationModel.AccessDefinition] = None,
       rules: Vector[String] = Vector.empty
     ) {
       def toFunction: LispFunction = method.toFunction
@@ -405,7 +410,8 @@ object ServiceModel {
         val name = p.nameForModel
         // p.tables
         val xs = p.sections.flatMap(_get_operations(name, _))
-        ServiceClass(name, Operations(xs), _description_text(p), _use_case_definitions(p)).toOption
+        val entities = _entity_names(p)
+        ServiceClass(name, Operations(xs), _description_text(p), entities.headOption, entities, _use_case_definitions(p)).toOption
       }
 
       private def _get_operations(service: String, p: Section): Vector[Operation] =
@@ -438,6 +444,9 @@ object ServiceModel {
           description = _description_text(p),
           precondition = _precondition_text(p),
           postcondition = _postcondition_text(p),
+          entityName = _entity_names(p).headOption,
+          entityNames = _entity_names(p),
+          access = _access_definition(p),
           rules = _rule_lines(p)
         ))
       }
@@ -570,6 +579,33 @@ object ServiceModel {
 
       private def _rule_lines(p: Section): Vector[String] =
         p.sections.find(_.keyForModel == "rule").toVector.flatMap(s => CmlSectionFormat.valueLines(s.toText))
+
+      private def _access_definition(
+        p: Section
+      ): Option[OperationModel.AccessDefinition] =
+        p.sections.find(_.keyForModel == "access").flatMap { s =>
+          val kv = _merged_key_values(s)
+          val policy = _value_opt(kv, "policy")
+          policy.map { x =>
+            OperationModel.AccessDefinition(
+              policy = x,
+              resource = _value_opt(kv, "resource"),
+              target = _value_opt(kv, "target")
+            )
+          }
+        }
+
+      private def _entity_name(
+        p: Section
+      ): Option[String] =
+        p.sections.find(_.keyForModel == "entity").flatMap(_section_body_text).map(_.trim).filterNot(Strings.blankp)
+
+      private def _entity_names(
+        p: Section
+      ): Vector[String] =
+        p.sections.find(_.keyForModel == "entity").toVector.flatMap { s =>
+          s.toText.split("[,;\\n\\r]+").toVector.map(_.trim).filterNot(Strings.blankp)
+        }
 
       private def _type_text(p: Section): Option[String] =
         p.sections.find(_.keyForModel == "type").
