@@ -7,11 +7,12 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.junit.JUnitRunner
 import org.smartdox.{Section, Text}
 import org.goldenport.record.v2.{CFormat, CMaxLength, CMinLength, CRegex}
+import org.goldenport.kaleidox.model.OperationModel
 
 /*
  * @since   Mar. 24, 2026
  *  version Mar. 25, 2026
- * @version Apr.  6, 2026
+ * @version Apr.  9, 2026
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -60,6 +61,52 @@ CreateOrderResult
       opmodel.values.map(_.name) should contain ("CreateOrder")
       opmodel.values.find(_.name == "CreateOrder").map(_.fields.size) should be (Some(2))
       opmodel.normalizedOperations.head.inputType should be ("CreateOrder")
+    }
+
+    "infer OPERATION kind from INPUT value definitions when TYPE is omitted" in {
+      val s = """# COMMAND
+
+## CreateOrder
+
+### ATTRIBUTE
+
+| name    | type    | multiplicity |
+|---------+---------+--------------|
+| orderId | OrderId | 1            |
+
+# QUERY
+
+## GetOrder
+
+### ATTRIBUTE
+
+| name    | type    | multiplicity |
+|---------+---------+--------------|
+| orderId | OrderId | 1            |
+
+# OPERATION
+
+## createOrder
+
+### INPUT
+CreateOrder
+
+### OUTPUT
+CreateOrderResult
+
+## getOrder
+
+### INPUT
+GetOrder
+
+### OUTPUT
+GetOrderResult
+"""
+      val model = Model.parse(config, s)
+      val opmodel = model.takeOperationModel
+      val normalized = opmodel.normalizedOperations
+      normalized.exists(x => x.name == "createOrder" && x.kind == OperationModel.OperationKind.Command) should be (true)
+      normalized.exists(x => x.name == "getOrder" && x.kind == OperationModel.OperationKind.Query) should be (true)
     }
 
     "accept YAML in EVENT section" in {
@@ -700,6 +747,92 @@ extends:
       val view = entity.view.getOrElse(fail("View definition is missing"))
       view.viewNames shouldBe Vector("summary", "detail")
       view.rebuildable shouldBe Some(true)
+    }
+
+    "accept DELEGATE value lines as base metadata" in {
+      val s = """# ENTITY
+                 |
+                 |## UserProfile
+                 |
+                 |### DELEGATE
+                 |
+                 |IdentityPresentation
+                 |PersonalProfile
+                 |""".stripMargin
+      val model = Model.parse(config, s)
+      val entity = model.takeEntityModel.get("UserProfile").getOrElse(fail("Entity UserProfile is missing"))
+      val delegates = entity.schemaClass.features.delegates
+      val personal = delegates.find(_.name == "PersonalProfile").getOrElse(fail("PersonalProfile delegate is missing"))
+      val identity = delegates.find(_.name == "IdentityPresentation").getOrElse(fail("IdentityPresentation delegate is missing"))
+
+      delegates.map(_.name) shouldBe Vector("IdentityPresentation", "PersonalProfile")
+      identity.multiplicity shouldBe "1"
+      personal.multiplicity shouldBe "1"
+    }
+
+    "merge AGGREGATE STATE hocon rows with subsection metadata by name" in {
+      val s = """# ENTITY
+                 |
+                 |## Person
+                 |
+                 |### ATTRIBUTE
+                 |
+                 || name | type     | multiplicity |
+                 ||------+----------+--------------|
+                 || id   | entityid | 1            |
+                 |
+                 |### AGGREGATE
+                 |
+                 |#### STATE
+                 |
+                 |status {
+                 |  type = string
+                 |  multiplicity = 1
+                 |}
+                 |
+                 |##### status
+                 |
+                 |type: text
+                 |multiplicity: 1
+                 |summary: Aggregate snapshot status.
+                 |""".stripMargin
+      val model = Model.parse(config, s)
+      val entity = model.takeEntityModel.get("Person").getOrElse(fail("Entity Person is missing"))
+      val aggregate = entity.aggregate.getOrElse(fail("Aggregate definition is missing"))
+      val status = aggregate.state.find(_.name == "status").getOrElse(fail("Aggregate state status is missing"))
+
+      status.datatype shouldBe Some("text")
+      status.multiplicity shouldBe Some("1")
+      status.properties.get("summary") shouldBe Some("Aggregate snapshot status.")
+    }
+
+    "accept VIEW QUERY subsection metadata records" in {
+      val s = """# ENTITY
+                 |
+                 |## Person
+                 |
+                 |### ATTRIBUTE
+                 |
+                 || name | type     | multiplicity |
+                 ||------+----------+--------------|
+                 || id   | entityid | 1            |
+                 |
+                 |### VIEW
+                 |
+                 |#### QUERY
+                 |
+                 |##### recent
+                 |
+                 |expression = "status = 'ACTIVE'"
+                 |cache = "PT5M"
+                 |""".stripMargin
+      val model = Model.parse(config, s)
+      val entity = model.takeEntityModel.get("Person").getOrElse(fail("Entity Person is missing"))
+      val view = entity.view.getOrElse(fail("View definition is missing"))
+      val recent = view.queries.find(_.name == "recent").getOrElse(fail("View query recent is missing"))
+
+      recent.expression shouldBe Some("\"status = 'ACTIVE'\"")
+      recent.properties.get("cache") shouldBe Some("\"PT5M\"")
     }
 
     "accept SERVICE scoped OPERATION contract grammar" in {

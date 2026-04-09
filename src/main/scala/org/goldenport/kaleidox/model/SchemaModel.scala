@@ -42,7 +42,7 @@ import scala.util.Try
  *  version Sep.  6, 2024
  *  version May.  2, 2025
  *  version Mar. 31, 2026
- * @version Apr.  3, 2026
+ * @version Apr.  9, 2026
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -85,6 +85,7 @@ object SchemaModel {
   }
 
   val featureKeys = Set("feature", "features", "フィーチャー", "フィーチャ", "特性")
+  val delegateKeys = Set("delegate", "delegates", "委譲")
   val attributeKeys = Set("attribute", "attributes", "アトリビュート", "属性")
   val associationKeys = Set("association", "associations", "アソシエーション", "関連")
   val aggregationKeys = Set("aggregation", "aggregations", "アグレゲーション", "集約")
@@ -337,15 +338,34 @@ object SchemaModel {
       protected def show_String: String = "SchemaClassContainer"
     }
 
+    case class DelegateDefinition(
+      name: String,
+      multiplicity: String = "1"
+    ) {
+      def normalize: DelegateDefinition =
+        copy(
+          name = Option(name).map(_.trim).getOrElse(""),
+          multiplicity = Option(multiplicity).map(_.trim).filterNot(_.isEmpty).getOrElse("1")
+        )
+    }
+
     case class Features(
       tableName: Option[String] = None,
-      parentsName: List[String] = Nil
+      parentsName: List[String] = Nil,
+      delegatesName: List[String] = Nil,
+      delegates: List[DelegateDefinition] = Nil
     ) {
-      def isEmpty = tableName.isEmpty
+      def isEmpty = tableName.isEmpty && parentsName.isEmpty && delegatesName.isEmpty && delegates.isEmpty
       def toOption: Option[Features] = if (isEmpty) None else Some(this)
 
       def withTableName(p: String) = copy(tableName = Some(p))
       def addParentName(p: String) = copy(parentsName = parentsName :+ p)
+      def addDelegateName(p: String) =
+        addDelegate(DelegateDefinition(p))
+      def addDelegate(p: DelegateDefinition) = copy(
+        delegatesName = delegatesName :+ p.name,
+        delegates = delegates :+ p
+      )
 
       def add(p: Features) = copy(
         tableName = p.tableName orElse tableName
@@ -353,7 +373,9 @@ object SchemaModel {
 
       def +(rhs: Features): Features = Features(
         rhs.tableName orElse tableName,
-        parentsName ::: rhs.parentsName
+        parentsName ::: rhs.parentsName,
+        delegatesName ::: rhs.delegatesName,
+        delegates ::: rhs.delegates
       )
     }
     object Features {
@@ -380,6 +402,7 @@ object SchemaModel {
       def createOption(p: LogicalSection): Option[SchemaClass] = {
         case class Z(
           featureTables: Vector[Table] = Vector.empty,
+          delegates: Vector[DelegateDefinition] = Vector.empty,
           propertyTables: Vector[Table] = Vector.empty,
           attributeTables: Vector[Table] = Vector.empty,
           attributeSlots: Vector[Record] = Vector.empty,
@@ -401,6 +424,7 @@ object SchemaModel {
             _get_schema_class(
               p.nameForModel,
               featureTables,
+              delegates,
               props,
               _merge_attribute_records(attributeTables.toVector.flatMap(SimpleModelerUtils.toRecords).map(_normalize_attribute_record) ++ attributeSlots),
               associationTables,
@@ -452,6 +476,8 @@ object SchemaModel {
               _features(p)
             else if (_is_attributes(p))
               _attributes(p)
+            else if (_is_delegates(p))
+              _delegates(p)
             else if (_is_associations(p))
               _associations(p)
             else if (_is_aggregations(p))
@@ -476,6 +502,9 @@ object SchemaModel {
 
           private def _is_attributes(p: LogicalSection) =
             attributeKeys.contains(p.keyForModel)
+
+          private def _is_delegates(p: LogicalSection) =
+            delegateKeys.contains(p.keyForModel)
 
           private def _is_associations(p: LogicalSection) =
             associationKeys.contains(p.keyForModel)
@@ -510,6 +539,62 @@ object SchemaModel {
               attributeTables = attributeTables ++ _table_list(p),
               attributeSlots = attributeSlots ++ _attribute_records_from_sections(p)
             )
+          }
+
+          private def _delegates(p: LogicalSection) = {
+            copy(delegates = delegates ++ _delegate_definitions(p))
+          }
+
+          private def _delegate_definitions(p: LogicalSection): Vector[DelegateDefinition] = {
+            val fromTables = _table_list(p).toVector.flatMap(SimpleModelerUtils.toRecords).flatMap(_delegate_from_record)
+            val fromText = _delegate_records_from_text(Option(p.text).getOrElse(""))
+            val fromSections = p.sections.toVector.flatMap(s => _delegate_from_section(s))
+            _merge_delegate_definitions(fromTables ++ fromText ++ fromSections)
+          }
+
+          private def _delegate_from_section(p: LogicalSection): Option[DelegateDefinition] = {
+            val kv = _key_values(p.text).toMap
+            val name = kv.get("name").orElse(kv.get("delegate")).orElse {
+              Option(p.nameForModel).map(_.trim).filterNot(_.isEmpty)
+            }
+            name.map(n => DelegateDefinition(n, kv.getOrElse("multiplicity", "1")).normalize)
+          }
+
+          private def _delegate_records_from_text(p: String): Vector[DelegateDefinition] = {
+            _delegate_records_from_meta_text(p).flatMap(_delegate_from_record)
+          }
+
+          private def _delegate_from_value_line(p: String): Option[DelegateDefinition] = {
+            val s = Option(p).map(_.trim).getOrElse("")
+            if (s.isEmpty)
+              None
+            else
+              Some(DelegateDefinition(s, "1"))
+          }
+
+          private def _delegate_from_record(p: Record): Option[DelegateDefinition] = {
+            val name = p.getStringCaseInsensitive(nameName).orElse(p.getStringCaseInsensitive(Vector("delegate"))).map(_.trim).filterNot(_.isEmpty)
+            val multi = p.getStringCaseInsensitive(multiplicityName).map(_.trim).filterNot(_.isEmpty).getOrElse("1")
+            name.map(n => DelegateDefinition(n, multi).normalize)
+          }
+
+          private def _merge_delegate_definitions(ps: Vector[DelegateDefinition]): Vector[DelegateDefinition] = {
+            case class Z(xs: Vector[(String, DelegateDefinition)]) {
+              def +(rhs: DelegateDefinition): Z = {
+                val n = rhs.normalize
+                if (n.name.isEmpty)
+                  this
+                else {
+                  val key = n.name.toLowerCase
+                  xs.indexWhere(_._1 == key) match {
+                    case -1 => copy(xs = xs :+ (key -> n))
+                    case i => copy(xs = xs.updated(i, key -> n))
+                  }
+                }
+              }
+              def result: Vector[DelegateDefinition] = xs.map(_._2)
+            }
+            ps.foldLeft(Z(Vector.empty))(_ + _).result
           }
 
           private def _attribute_records_from_sections(p: LogicalSection): Vector[Record] =
@@ -589,14 +674,13 @@ object SchemaModel {
 
           private def _event_definition(p: LogicalSection): EventDefinition = {
             val kv = _key_values(p.text)
+            val rec = Record.create(kv)
             if (kv.exists { case (k, _) => k == "view" || k == "viewname" || k == "view_name" })
               RAISE.syntaxErrorFault(s"Event '${p.nameForModel}' cannot depend on View.")
-            val category = kv.collectFirst { case (k, v) if k == "category" => v }.map(_normalize_event_category(_, p.nameForModel)).getOrElse("NonActionEvent")
-            val kind = kv.collectFirst { case (k, v) if k == "kind" => v }.map(_.trim).filterNot(_.isEmpty)
-            val actionname = kv.collectFirst {
-              case (k, v) if k == "actionname" || k == "action_name" => v
-            }.map(_.trim).filterNot(_.isEmpty)
-            val priority = kv.collectFirst { case (k, v) if k == "priority" => _to_int_or_raise(v, p.nameForModel) }.getOrElse(0)
+            val category = rec.getStringCaseInsensitive(Vector("category")).map(_normalize_event_category(_, p.nameForModel)).getOrElse("NonActionEvent")
+            val kind = rec.getStringCaseInsensitive(Vector("kind")).map(_.trim).filterNot(_.isEmpty)
+            val actionname = rec.getStringCaseInsensitive(Vector("actionname", "action_name")).map(_.trim).filterNot(_.isEmpty)
+            val priority = rec.getStringCaseInsensitive(Vector("priority")).map(_to_int_or_raise(_, p.nameForModel)).getOrElse(0)
             val selectors = kv.collect {
               case (k, v) if k == "selector" =>
                 _selector_pair(v, p.nameForModel)
@@ -640,15 +724,17 @@ object SchemaModel {
                 )
             }
             val fromSections = p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
-              val kv = _key_values(s.text).toMap
+              val kvv = _key_values(s.text)
+              val kv = kvv.toMap
+              val rec = Record.create(kvv)
               AggregateMemberDefinition(
                 name = s.nameForModel,
-                entity = kv.getOrElse("entity", kv.getOrElse("objectref", "")),
-                kind = kv.getOrElse("kind", "composition"),
-                boundary = kv.getOrElse("boundary", kv.getOrElse("scope", "internal")),
-                join = kv.get("join").orElse(kv.get("join_strategy")).orElse(kv.get("joinstrategy")).orElse(kv.get("join_kind")).orElse(kv.get("joinkind")),
-                multiplicity = kv.get("multiplicity"),
-                joinField = kv.get("join_field").orElse(kv.get("joinfield")),
+                entity = rec.getStringCaseInsensitive(Vector("entity", "objectref")).getOrElse(""),
+                kind = rec.getStringCaseInsensitive(Vector("kind")).getOrElse("composition"),
+                boundary = rec.getStringCaseInsensitive(Vector("boundary", "scope")).getOrElse("internal"),
+                join = rec.getStringCaseInsensitive(Vector("join", "join_strategy", "joinstrategy", "join_kind", "joinkind")),
+                multiplicity = rec.getStringCaseInsensitive(multiplicityName),
+                joinField = rec.getStringCaseInsensitive(Vector("join_field", "joinfield")),
                 properties = kv
               )
             }.filter(_.entity.nonEmpty)
@@ -659,6 +745,7 @@ object SchemaModel {
             p: LogicalSection
           ): AggregateCommandDefinition = {
             val kv = _key_values(p.text)
+            val rec = Record.create(kv)
             val props = kv.toMap
             val input = kv.collect {
               case (k, v) if k == "input" || k.startsWith("input.") => k -> v
@@ -670,9 +757,7 @@ object SchemaModel {
               case (k, v) if k == "event" || k == "emit" || k == "events" =>
                 _split_list(v)
             }.flatten
-            val newstate = kv.collectFirst {
-              case (k, v) if k == "newstate" || k == "new_state" || k == "state" => v
-            }
+            val newstate = rec.getStringCaseInsensitive(Vector("newstate", "new_state", "state"))
             AggregateCommandDefinition(
               name = p.nameForModel,
               input = input,
@@ -691,11 +776,13 @@ object SchemaModel {
                 AggregateStateDefinition(name, tpe, multi, props)
             }
             val fromSections = p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
-              val kv = _key_values(s.text).toMap
+              val kvv = _key_values(s.text)
+              val kv = kvv.toMap
+              val rec = Record.create(kvv)
               AggregateStateDefinition(
                 name = s.nameForModel,
-                datatype = kv.get("type"),
-                multiplicity = kv.get("multiplicity"),
+                datatype = rec.getStringCaseInsensitive(typeName),
+                multiplicity = rec.getStringCaseInsensitive(multiplicityName),
                 properties = kv
               )
             }
@@ -712,10 +799,12 @@ object SchemaModel {
           private def _aggregate_invariant_definition(
             p: LogicalSection
           ): AggregateInvariantDefinition = {
-            val kv = _key_values(p.text).toMap
+            val kvv = _key_values(p.text)
+            val kv = kvv.toMap
+            val rec = Record.create(kvv)
             AggregateInvariantDefinition(
               name = p.nameForModel,
-              expression = kv.get("expression").orElse(kv.get("expr")).orElse(kv.get("guard")),
+              expression = rec.getStringCaseInsensitive(Vector("expression", "expr", "guard")),
               properties = kv
             )
           }
@@ -729,9 +818,11 @@ object SchemaModel {
             val querysections = p.sections.filter(x => x.keyForModel == "query" || x.keyForModel == "queries")
             val attrs = attributesections.toVector.flatMap(_view_attribute_definitions)
             val queries = querysections.toVector.flatMap(_.sections).map(_view_query_definition)
-            val rootkv = _key_values(p.text).toMap
+            val rootkvv = _key_values(p.text)
+            val rootkv = rootkvv.toMap
+            val rootrec = Record.create(rootkvv)
             val sourceevents = rootkv.get("events").toVector.flatMap(_split_list) ++ rootkv.get("event").toVector.flatMap(_split_list)
-            val rebuildable = rootkv.get("rebuildable").map(_.equalsIgnoreCase("true"))
+            val rebuildable = rootrec.getStringCaseInsensitive(Vector("rebuildable")).map(_.equalsIgnoreCase("true"))
             val viewnames = rootkv.get("views").toVector.flatMap(_split_list) ++ rootkv.get("view").toVector.flatMap(_split_list) ++ rootkv.get("viewname").toVector.flatMap(_split_list) ++ rootkv.get("view_name").toVector.flatMap(_split_list)
             ViewDefinition(
               attributes = attrs,
@@ -759,11 +850,13 @@ object SchemaModel {
                 ViewAttributeDefinition(name, tpe, multi, props)
             }
             val fromSections = p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
-              val kv = _key_values(s.text).toMap
+              val kvv = _key_values(s.text)
+              val kv = kvv.toMap
+              val rec = Record.create(kvv)
               ViewAttributeDefinition(
                 name = s.nameForModel,
-                datatype = kv.get("type"),
-                multiplicity = kv.get("multiplicity"),
+                datatype = rec.getStringCaseInsensitive(typeName),
+                multiplicity = rec.getStringCaseInsensitive(multiplicityName),
                 properties = kv
               )
             }
@@ -780,12 +873,14 @@ object SchemaModel {
           private def _view_query_definition(
             p: LogicalSection
           ): ViewQueryDefinition = {
-            val kv = _key_values(p.text).toMap
+            val kvv = _key_values(p.text)
+            val kv = kvv.toMap
+            val rec = Record.create(kvv)
             if (kv.contains("mutates") || kv.contains("mutation") || kv.contains("write") || kv.contains("action"))
               RAISE.syntaxErrorFault(s"View Query '${p.nameForModel}' cannot mutate command-side state.")
             ViewQueryDefinition(
               name = p.nameForModel,
-              expression = kv.get("expression").orElse(kv.get("expr")),
+              expression = rec.getStringCaseInsensitive(Vector("expression", "expr")),
               properties = kv
             )
           }
@@ -1057,6 +1152,7 @@ object SchemaModel {
       def createOption(p: Section): Option[SchemaClass] = {
         case class Z(
           featureTables: Vector[Table] = Vector.empty,
+          delegates: Vector[DelegateDefinition] = Vector.empty,
           propertyTables: Vector[Table] = Vector.empty,
           attributeSlots: Vector[Record] = Vector.empty,
           associationTables: Vector[Table] = Vector.empty,
@@ -1077,6 +1173,7 @@ object SchemaModel {
             _get_schema_class(
               p.nameForModel,
               featureTables,
+              delegates,
               props,
               attributeSlots,
               associationTables,
@@ -1109,6 +1206,8 @@ object SchemaModel {
           private def _section(p: Section) =
             if (_is_attributes(p))
               _attributes(p)
+            else if (_is_delegates(p))
+              _delegates(p)
             else if (_is_statemachines(p))
               _statemachines(p)
             else if (_is_events(p))
@@ -1122,6 +1221,9 @@ object SchemaModel {
 
           private def _is_attributes(p: Section) =
             attributeKeys.contains(p.keyForModel)
+
+          private def _is_delegates(p: Section) =
+            delegateKeys.contains(p.keyForModel)
 
           private def _is_statemachines(p: Section) = 
             statemachineKeys.contains(p.keyForModel)
@@ -1137,6 +1239,75 @@ object SchemaModel {
 
           private def _attributes(p: Section) =
             copy(attributeSlots = this.attributeSlots ++ _attribute_records(p))
+
+          private def _delegates(p: Section) =
+            copy(delegates = delegates ++ _delegate_definitions(p))
+
+          private def _delegate_definitions(p: Section): Vector[DelegateDefinition] = {
+            val fromTables = p.tableList.toVector.flatMap(SimpleModelerUtils.toRecords).flatMap(_delegate_from_record)
+            val fromItems = _delegate_records_from_items(p)
+            val fromText = _delegate_records_from_text(_section_body_text(p))
+            val fromSections = p.sections.toVector.flatMap(_delegate_from_section)
+            _merge_delegate_definitions(fromTables ++ fromItems ++ fromText ++ fromSections)
+          }
+
+          private def _delegate_records_from_items(p: Section): Vector[DelegateDefinition] = {
+            val fromUl = p.uls.toVector.flatMap { ul =>
+              ul.contents.toVector.flatMap { li =>
+                _delegate_from_value_line(li.toText)
+              }
+            }
+            val fromDl = p.dls.toVector.flatMap { dl =>
+              dl.contents.toVector.flatMap {
+                case (dt, dd) =>
+                  _delegate_from_record(Record.create(Vector("name" -> dt.toText, "multiplicity" -> dd.toText)))
+              }
+            }
+            fromUl ++ fromDl
+          }
+
+          private def _delegate_from_section(p: Section): Option[DelegateDefinition] = {
+            val kv = _merged_key_values(p).toMap
+            val name = kv.get("name").orElse(kv.get("delegate")).orElse(Option(p.nameForModel).map(_.trim).filterNot(_.isEmpty))
+            name.map(n => DelegateDefinition(n, kv.getOrElse("multiplicity", "1")).normalize)
+          }
+
+          private def _delegate_records_from_text(p: String): Vector[DelegateDefinition] = {
+            _delegate_records_from_meta_text(p).flatMap(_delegate_from_record)
+          }
+
+          private def _delegate_from_value_line(p: String): Option[DelegateDefinition] = {
+            val s = Option(p).map(_.trim).getOrElse("")
+            if (s.isEmpty)
+              None
+            else
+              Some(DelegateDefinition(s, "1"))
+          }
+
+          private def _delegate_from_record(p: Record): Option[DelegateDefinition] = {
+            val name = p.getStringCaseInsensitive(nameName).orElse(p.getStringCaseInsensitive(Vector("delegate"))).map(_.trim).filterNot(_.isEmpty)
+            val multi = p.getStringCaseInsensitive(multiplicityName).map(_.trim).filterNot(_.isEmpty).getOrElse("1")
+            name.map(n => DelegateDefinition(n, multi).normalize)
+          }
+
+          private def _merge_delegate_definitions(ps: Vector[DelegateDefinition]): Vector[DelegateDefinition] = {
+            case class Z(xs: Vector[(String, DelegateDefinition)]) {
+              def +(rhs: DelegateDefinition): Z = {
+                val n = rhs.normalize
+                if (n.name.isEmpty)
+                  this
+                else {
+                  val key = n.name.toLowerCase
+                  xs.indexWhere(_._1 == key) match {
+                    case -1 => copy(xs = xs :+ (key -> n))
+                    case i => copy(xs = xs.updated(i, key -> n))
+                  }
+                }
+              }
+              def result: Vector[DelegateDefinition] = xs.map(_._2)
+            }
+            ps.foldLeft(Z(Vector.empty))(_ + _).result
+          }
 
           private def _attribute_records(p: Section): Vector[Record] = {
             val fromTables = p.tableList.toVector.flatMap(SimpleModelerUtils.toRecords).map(_normalize_attribute_record)
@@ -1223,7 +1394,7 @@ object SchemaModel {
           }
 
           private def _attribute_records_from_text(p: String): Vector[Record] = {
-            val structured = CmlSectionFormat.recordMaps(p).map(x => _to_record(x.toVector))
+            val structured = _records_from_meta_text(p)
             if (structured.nonEmpty)
               structured
             else {
@@ -1299,14 +1470,13 @@ object SchemaModel {
 
           private def _event_definition(p: Section): EventDefinition = {
             val kv = _key_values(p.toText)
+            val rec = Record.create(kv)
             if (kv.exists { case (k, _) => k == "view" || k == "viewname" || k == "view_name" })
               RAISE.syntaxErrorFault(s"Event '${p.nameForModel}' cannot depend on View.")
-            val category = kv.collectFirst { case (k, v) if k == "category" => v }.map(_normalize_event_category(_, p.nameForModel)).getOrElse("NonActionEvent")
-            val kind = kv.collectFirst { case (k, v) if k == "kind" => v }.map(_.trim).filterNot(_.isEmpty)
-            val actionname = kv.collectFirst {
-              case (k, v) if k == "actionname" || k == "action_name" => v
-            }.map(_.trim).filterNot(_.isEmpty)
-            val priority = kv.collectFirst { case (k, v) if k == "priority" => _to_int_or_raise(v, p.nameForModel) }.getOrElse(0)
+            val category = rec.getStringCaseInsensitive(Vector("category")).map(_normalize_event_category(_, p.nameForModel)).getOrElse("NonActionEvent")
+            val kind = rec.getStringCaseInsensitive(Vector("kind")).map(_.trim).filterNot(_.isEmpty)
+            val actionname = rec.getStringCaseInsensitive(Vector("actionname", "action_name")).map(_.trim).filterNot(_.isEmpty)
+            val priority = rec.getStringCaseInsensitive(Vector("priority")).map(_to_int_or_raise(_, p.nameForModel)).getOrElse(0)
             val selectors = kv.collect {
               case (k, v) if k == "selector" =>
                 _selector_pair(v, p.nameForModel)
@@ -1803,6 +1973,21 @@ object SchemaModel {
       private def _is_property_table(p: Table) = p.getCaptionName.
         map(_ == "特性一覧").getOrElse(false)
 
+      // Generic meta-grammar normalization:
+      // YAML/HOCON/Table/List text -> IR(Record) sequence.
+      private def _records_from_meta_text(p: String): Vector[Record] =
+        CmlSectionFormat.recordMaps(p).map { x =>
+          Record.create(x.toVector.map { case (k, v) => k -> v })
+        }
+
+      private def _delegate_records_from_meta_text(p: String): Vector[Record] = {
+        val structured = _records_from_meta_text(p)
+        if (structured.nonEmpty)
+          structured
+        else
+          CmlSectionFormat.valueLines(p).map(v => Record.create(Vector("name" -> v)))
+      }
+
       private def _property_table: PartialFunction[Dox, Table] = {
         case m: Table if _is_property_table(m) => m
       }
@@ -1819,6 +2004,7 @@ object SchemaModel {
       private def _get_schema_class(
         pname: String,
         features: Seq[Table],
+        delegates: Seq[DelegateDefinition],
         props: Seq[Table],
         attrs: Seq[Record],
         assocs: Seq[Table],
@@ -1831,7 +2017,9 @@ object SchemaModel {
         view: Option[ViewDefinition]
       ): Option[SchemaClass] = {
         val name = if (autoCapitalize) UString.capitalize(pname) else pname
-        val fs: Option[Features] = _to_features_option(features)
+        val fs: Option[Features] = _to_features_option(features).orElse(Some(Features.empty)).
+          map(x => delegates.foldLeft(x)((z, d) => z.addDelegate(d.normalize))).
+          flatMap(_.toOption)
         val xs: Seq[Slot] =
           _to_props(props) ++ _to_attrs(attrs) ++
         _to_assocs(assocs) ++ _to_aggres(aggres) ++ _to_comps(compos) ++

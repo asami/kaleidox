@@ -16,7 +16,7 @@ import org.goldenport.util.StringUtils
 /*
  * @since   Mar. 22, 2026
  *  version Mar. 28, 2026
- * @version Apr.  6, 2026
+ * @version Apr.  9, 2026
  * @author  ASAMI, Tomoharu
  */
 case class OperationModel(
@@ -52,7 +52,6 @@ case class OperationModel(
     val seen = scala.collection.mutable.Map.empty[String, Int]
 
     operations.map { op =>
-      val kind = op.kind.getOrElse(_raise(s"Operation '${op.name}' requires TYPE (COMMAND|QUERY)."))
       val output = op.outputType.map(_.trim).filterNot(_.isEmpty).getOrElse {
         _raise(s"Operation '${op.name}' requires OUTPUT.")
       }
@@ -60,6 +59,10 @@ case class OperationModel(
       val parameters = op.parameters
       if (inputType.isEmpty && parameters.isEmpty)
         _raise(s"Operation '${op.name}' requires INPUT or PARAMETER.")
+
+      val kind = op.kind.orElse(_infer_kind(op.name, inputType, valueMap)).getOrElse {
+        _raise(s"Operation '${op.name}' requires TYPE (COMMAND|QUERY) or an INPUT value definition.")
+      }
 
       val resolvedInputType = inputType.getOrElse {
         val base = s"${StringUtils.capitalize(op.name)}Input"
@@ -128,6 +131,22 @@ case class OperationModel(
       if (params.nonEmpty && in.fields != params)
         _raise(s"Operation '$opname' INPUT and PARAMETER are inconsistent.")
     }
+
+  private def _infer_kind(
+    opname: String,
+    inputType: Option[String],
+    valueMap: Map[String, InputValueDefinition]
+  ): Option[OperationKind] = {
+    val valueKind = inputType.flatMap(valueMap.get).map(_.kind).orElse {
+      valueMap.get(s"${StringUtils.capitalize(opname)}Command").map(_.kind)
+    }.orElse {
+      valueMap.get(s"${StringUtils.capitalize(opname)}Query").map(_.kind)
+    }
+    valueKind.map {
+      case InputValueKind.CommandValue => OperationKind.Command
+      case InputValueKind.QueryValue => OperationKind.Query
+    }
+  }
 
   private def _raise(message: String): Nothing =
     RAISE.syntaxErrorFault(message)
