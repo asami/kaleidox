@@ -749,7 +749,7 @@ extends:
       view.rebuildable shouldBe Some(true)
     }
 
-    "accept DELEGATE value lines as base metadata" in {
+    "merge DELEGATE value lines with subsection metadata by name" in {
       val s = """# ENTITY
                  |
                  |## UserProfile
@@ -758,6 +758,10 @@ extends:
                  |
                  |IdentityPresentation
                  |PersonalProfile
+                 |
+                 |#### PersonalProfile
+                 |
+                 |multiplicity = ?
                  |""".stripMargin
       val model = Model.parse(config, s)
       val entity = model.takeEntityModel.get("UserProfile").getOrElse(fail("Entity UserProfile is missing"))
@@ -767,7 +771,7 @@ extends:
 
       delegates.map(_.name) shouldBe Vector("IdentityPresentation", "PersonalProfile")
       identity.multiplicity shouldBe "1"
-      personal.multiplicity shouldBe "1"
+      personal.multiplicity shouldBe "?"
     }
 
     "merge AGGREGATE STATE hocon rows with subsection metadata by name" in {

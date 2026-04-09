@@ -547,9 +547,17 @@ object SchemaModel {
 
           private def _delegate_definitions(p: LogicalSection): Vector[DelegateDefinition] = {
             val fromTables = _table_list(p).toVector.flatMap(SimpleModelerUtils.toRecords).flatMap(_delegate_from_record)
-            val fromText = _delegate_records_from_text(Option(p.text).getOrElse(""))
+            val fromText = _delegate_records_from_text(_logical_body_text(p))
             val fromSections = p.sections.toVector.flatMap(s => _delegate_from_section(s))
             _merge_delegate_definitions(fromTables ++ fromText ++ fromSections)
+          }
+
+          private def _logical_body_text(p: LogicalSection): String = {
+            val lines = Option(p.text).getOrElse("").split("\\r?\\n").toVector
+            lines.takeWhile { x =>
+              val s = x.trim
+              !(s.startsWith("####") || s.startsWith("#####") || s.startsWith("######"))
+            }.mkString("\n")
           }
 
           private def _delegate_from_section(p: LogicalSection): Option[DelegateDefinition] = {
@@ -565,11 +573,7 @@ object SchemaModel {
           }
 
           private def _delegate_from_value_line(p: String): Option[DelegateDefinition] = {
-            val s = Option(p).map(_.trim).getOrElse("")
-            if (s.isEmpty)
-              None
-            else
-              Some(DelegateDefinition(s, "1"))
+            _normalize_delegate_name_line(p).map(s => DelegateDefinition(s, "1"))
           }
 
           private def _delegate_from_record(p: Record): Option[DelegateDefinition] = {
@@ -1277,11 +1281,7 @@ object SchemaModel {
           }
 
           private def _delegate_from_value_line(p: String): Option[DelegateDefinition] = {
-            val s = Option(p).map(_.trim).getOrElse("")
-            if (s.isEmpty)
-              None
-            else
-              Some(DelegateDefinition(s, "1"))
+            _normalize_delegate_name_line(p).map(s => DelegateDefinition(s, "1"))
           }
 
           private def _delegate_from_record(p: Record): Option[DelegateDefinition] = {
@@ -1984,9 +1984,55 @@ object SchemaModel {
         val structured = _records_from_meta_text(p)
         if (structured.nonEmpty)
           structured
-        else
-          CmlSectionFormat.valueLines(p).map(v => Record.create(Vector("name" -> v)))
+        else {
+          val kv = CmlSectionFormat.keyValues(p)
+          val fromKv = _delegate_records_from_key_values(kv)
+          if (fromKv.nonEmpty)
+            fromKv
+          else
+            CmlSectionFormat.valueLines(p).flatMap(_delegate_record_from_value_line)
+        }
       }
+
+      private def _delegate_records_from_key_values(p: Vector[(String, String)]): Vector[Record] = {
+        case class Z(current: Vector[(String, String)] = Vector.empty, records: Vector[Record] = Vector.empty) {
+          private def _flush: Z =
+            if (current.isEmpty)
+              this
+            else
+              copy(current = Vector.empty, records = records :+ Record.create(current))
+
+          def +(rhs: (String, String)): Z = {
+            val (k, v) = rhs
+            val key = Option(k).map(_.trim.toLowerCase).getOrElse("")
+            if (key == "name" || key == "delegate")
+              _flush.copy(current = Vector(key -> v))
+            else
+              copy(current = current :+ (key -> v))
+          }
+
+          def result: Vector[Record] = _flush.records
+        }
+        p.foldLeft(Z())(_ + _).result.filter(r => _delegate_name_from_record(r).isDefined)
+      }
+
+      private def _delegate_record_from_value_line(p: String): Option[Record] =
+        _normalize_delegate_name_line(p).map(n => Record.create(Vector("name" -> n)))
+
+      private def _normalize_delegate_name_line(p: String): Option[String] = {
+        val raw = Option(p).map(_.trim).getOrElse("")
+        if (raw.isEmpty)
+          None
+        else {
+          val s = if (raw.startsWith("- ")) raw.substring(2).trim else raw
+          val hasMetaMarker = s.exists(ch => ch == ':' || ch == '=' || ch == '{' || ch == '}' || ch == '#')
+          val validName = s.matches("[A-Za-z_][A-Za-z0-9_\\.\\-]*")
+          if (hasMetaMarker || !validName) None else Some(s)
+        }
+      }
+
+      private def _delegate_name_from_record(p: Record): Option[String] =
+        p.getStringCaseInsensitive(SchemaClass.nameName).orElse(p.getStringCaseInsensitive(Vector("delegate"))).map(_.trim).filterNot(_.isEmpty)
 
       private def _property_table: PartialFunction[Dox, Table] = {
         case m: Table if _is_property_table(m) => m
