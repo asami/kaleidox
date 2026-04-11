@@ -39,7 +39,8 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Oct. 22, 2023
  *  version Jul. 12, 2024
  *  version May.  2, 2025
- * @version Mar. 24, 2026
+ *  version Mar. 24, 2026
+ * @version Apr. 12, 2026
  * @author  ASAMI, Tomoharu
  */
 case class EntityModel(
@@ -402,7 +403,7 @@ object EntityModel {
 
         private def _schema(p: LogicalSection) = SchemaClass.createOption(p)
       }
-      sections./:(Z())(_+_).r
+      sections.foldLeft(Z())(_+_).r
     }
   }
 
@@ -455,7 +456,7 @@ object EntityModel {
       if (unresolved.isEmpty) {
         resolved
       } else {
-        val b = unresolved./:(Resolver(resolved))(_+_)
+        val b = unresolved.foldLeft(Resolver(resolved))(_+_)
         if (unresolved.size == b.unresolved.size)
           ParseResult.error("Unresolved parents").RAISE // TODO
         else

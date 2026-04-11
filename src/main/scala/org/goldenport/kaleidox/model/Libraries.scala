@@ -6,7 +6,8 @@ import org.goldenport.kaleidox._
 
 /*
  * @since   Apr. 18, 2021
- * @version Mar. 19, 2022
+ *  version Mar. 19, 2022
+ * @version Apr. 12, 2026
  * @author  ASAMI, Tomoharu
  */
 case class Libraries(
@@ -41,7 +42,7 @@ case class Libraries(
           }
         }
     }
-    rhs.libraries./:(Z(libraries))(_+_).r
+    rhs.libraries.foldLeft(Z(libraries))(_+_).r
   }
 
   def +(p: Library): Libraries = this.+(Libraries(p))

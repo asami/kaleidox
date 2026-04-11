@@ -21,7 +21,8 @@ import org.goldenport.kaleidox.model.{Libraries, Library}
  *  version Aug.  8, 2021
  *  version Apr. 24, 2022
  *  version Nov. 27, 2022
- * @version Jan.  2, 2023
+ *  version Jan.  2, 2023
+ * @version Apr. 12, 2026
  * @author  ASAMI, Tomoharu
  */
 case class Space(
@@ -32,7 +33,7 @@ case class Space(
 //   importedModels: Set[Model.ImportedModel.Locator] = Set.empty
 ) {
   def addLibraries(libraries: Libraries): Space = 
-    libraries.models./:(this)(Space.build)
+    libraries.models.foldLeft(this)(Space.build)
 
   def addModel(model: Model): Space = Space.build(this, model)
 

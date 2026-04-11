@@ -21,7 +21,8 @@ import org.goldenport.kaleidox.model.analysis.AnalysisModel
  *  version Jan.  3, 2024
  *  version Jul. 12, 2024
  *  version Nov.  5, 2024
- * @version Jan.  1, 2025
+ *  version Jan.  1, 2025
+ * @version Apr. 12, 2026
  * @author  ASAMI, Tomoharu
  */
 case class PreambleModel(
@@ -110,7 +111,7 @@ object PreambleModel {
           ???
         }
       }
-      ps./:(Z())(_+_).r
+      ps.foldLeft(Z())(_+_).r
     }
 
     protected final def division_id_elements(ps: Seq[Division]): (Option[IdentificationDivision], List[Division]) = {
@@ -126,10 +127,10 @@ object PreambleModel {
 
     // TODO Common
     protected final def import_library(ps: Vector[ImportDivision]): LibraryHangar =
-      ps./:(LibraryHangar.empty)((z, x) => _import_library(z, x))
+      ps.foldLeft(LibraryHangar.empty)((z, x) => _import_library(z, x))
 
     private def _import_library(h: LibraryHangar, p: ImportDivision): LibraryHangar =
-      p.locators./:(h)(_import_library)
+      p.locators.foldLeft(h)(_import_library)
 
     private def _import_library(h: LibraryHangar, p: Locator): LibraryHangar =
       if (h.isExists(p))

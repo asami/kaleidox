@@ -2,7 +2,7 @@ organization := "org.goldenport"
 
 name := "kaleidox"
 
-version := "0.6.10"
+version := "0.6.11-SNAPSHOT"
 
 scalaVersion := "2.12.18"
 // crossScalaVersions := Seq("2.10.39.2", "2.9.1")
@@ -140,7 +140,7 @@ publishMavenStyle := true
 // Docker
 maintainer := "asami@asamioffice.com"
 
-dockerBaseImage in Docker := "dockerfile/java"
+(Docker / dockerBaseImage).withRank(KeyRanks.Invisible) := "dockerfile/java"
 
 // dockerExposedPorts in Docker := Seq(8080, 8080)
 

@@ -14,7 +14,7 @@ import org.goldenport.kaleidox._
  *  version Jun. 27, 2021
  *  version Aug. 21, 2023
  *  version Oct. 15, 2023
- * @version Apr.  3, 2026
+ * @version Apr. 12, 2026
  * @author  ASAMI, Tomoharu
  */
 case class StateMachineModel(
@@ -99,7 +99,7 @@ object StateMachineModel {
 
     private def _to_model(ps: Seq[StateMachineClass]) = {
       val builder = TreeMap.Builder[StateMachineClass](".")
-      val a = ps./:(builder)((z, x) => z.add(x.name, x)).build
+      val a = ps.foldLeft(builder)((z, x) => z.add(x.name, x)).build
       StateMachineModel(a)
     }
 

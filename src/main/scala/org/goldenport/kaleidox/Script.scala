@@ -19,7 +19,8 @@ import org.goldenport.sexpr.script.Script.StringLiteralTokenizer
  *  version Mar. 16, 2021
  *  version Jul. 31, 2023
  *  version Aug.  5, 2023
- * @version Sep. 15, 2025
+ *  version Sep. 15, 2025
+ * @version Apr. 12, 2026
  * @author  ASAMI, Tomoharu
  */
 case class Script(
@@ -75,7 +76,7 @@ object Script extends Model.DivisionFactory {
       //   a.flatMap(_.expressions.map(LispExpression))
       // }
     }
-    p.blocks.blocks./:(Z())(_+_).r
+    p.blocks.blocks.foldLeft(Z())(_+_).r
   }
 
   def apply(p: SExpr, ps: SExpr*): Script = apply(p +: ps.toVector)

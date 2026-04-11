@@ -1,7 +1,6 @@
 package org.goldenport.kaleidox
 
 import scalaz._, Scalaz._
-import scala.collection.immutable.Stack
 import org.goldenport.RAISE
 import org.goldenport.i18n.I18NContext
 import org.goldenport.context.Conclusion
@@ -31,7 +30,8 @@ import org.goldenport.kaleidox.model.StateMachineModel
  *  version Apr. 13, 2021
  *  version May. 10, 2021
  *  version Apr. 24, 2022
- * @version Jul. 17, 2023
+ *  version Jul. 17, 2023
+ * @version Apr. 12, 2026
  * @author  ASAMI, Tomoharu
  */
 case class Universe(
@@ -39,7 +39,7 @@ case class Universe(
   setup: Space,
   parameters: Space,
   history: Vector[Universe.HistorySlot],
-  stack: Stack[Blackboard],
+  stack: List[Blackboard],
 //  trace: Vector[Conclusion],
   muteValue: Option[SExpr], // for mute
   errors: Vector[ErrorMessage],
@@ -75,11 +75,11 @@ case class Universe(
   def pop: Universe = pop(1) // this // pop(1) & push(1)
   def pop(n: Int): Universe = {
     @annotation.tailrec
-    def go(s: Stack[Blackboard], n: Int): (Blackboard, Stack[Blackboard]) = {
+    def go(s: List[Blackboard], n: Int): (Blackboard, List[Blackboard]) = {
       if (n <= 1)
-        stack.pop2
+        (stack.head, stack.tail)
       else
-        go(s.pop, n - 1)
+        go(s.tail, n - 1)
     }
     val (x, s) = go(stack, n)
     // val r = s.push(x)
@@ -107,7 +107,7 @@ case class Universe(
     val newbb = current.next(p, bindings, s, i)
     copy(
       history = history :+ _history_slot(newbb, p, t),
-      stack = stack.push(newbb),
+      stack = newbb :: stack,
       muteValue = None
     )
   }
@@ -123,7 +123,7 @@ case class Universe(
   //   val newbb = current.next(p, bindings, s, i)
   //   copy(
   //     history = history :+ _history_slot(newbb, p, t),
-  //     stack = stack.push(newbb),
+  //     stack = newbb :: stack,
   //     muteValue = None
   //   )
   // }
@@ -137,7 +137,7 @@ case class Universe(
     val newbb = current.next(p, s, i)
     copy(
       history = history :+ _history_slot(newbb, p, t),
-      stack = stack.push(newbb),
+      stack = newbb :: stack,
       muteValue = None
     )
   }
@@ -151,7 +151,7 @@ case class Universe(
   //   val newbb = current.next(p, s, i)
   //   copy(
   //     history = history :+ _history_slot(newbb, p, t),
-  //     stack = stack.push(newbb),
+  //     stack = newbb :: stack,
   //     muteValue = None
   //   )
   // }
@@ -166,7 +166,7 @@ case class Universe(
 
   // def next(p: SExpr, bindings: IRecord, s: SExpr): Universe = {
   //   val newbb = current.next(p, bindings, s)
-  //   copy(history = history :+ newbb, stack = stack.push(newbb), muteValue = None)
+  //   copy(history = history :+ newbb, stack = newbb :: stack, muteValue = None)
   // }
 
   // TODO for lambda evaluation
@@ -180,7 +180,7 @@ case class Universe(
     val newbb = current.next(bindings)
     copy(
       history = history :+ _history_slot(newbb),
-      stack = stack.push(newbb),
+      stack = newbb :: stack,
       muteValue = None
     )
   }
@@ -189,7 +189,7 @@ case class Universe(
     val newbb = current.next()
     copy(
       history = history :+ _history_slot(newbb),
-      stack = stack.push(newbb)
+      stack = newbb :: stack
     )
   }
 
@@ -205,11 +205,11 @@ case class Universe(
     } else if (stack.length < n) {
       -\/(SError.stackUnderflow)
     } else {
-      def go(i: Int, s: Stack[Blackboard], r: Vector[SExpr]): (Universe, List[SExpr]) =
+      def go(i: Int, s: List[Blackboard], r: Vector[SExpr]): (Universe, List[SExpr]) =
         if (i <= 0) {
           (copy(stack = s), r.toList)
         } else {
-          val (x, s1) = s.pop2
+          val (x, s1) = (s.head, s.tail)
           go(i - 1, s1, r :+ x.getValueSExpr.getOrElse(SNil))
         }
       \/-(go(n, stack, Vector.empty))
@@ -238,7 +238,7 @@ object Universe {
     Space.empty,
     Space.empty,
     Vector(HistorySlot.empty),
-    Stack(Blackboard.empty),
+    List(Blackboard.empty),
 //    Vector(Conclusion.Ok),
     None,
     Vector.empty,
@@ -258,7 +258,7 @@ object Universe {
       setup,
       parameters,
       Vector(HistorySlot(init, Conclusion.Ok)),
-      Stack(init),
+      List(init),
 //      Vector(Conclusion.Ok),
       None,
       model.errors,

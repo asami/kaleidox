@@ -42,7 +42,7 @@ import scala.util.Try
  *  version Sep.  6, 2024
  *  version May.  2, 2025
  *  version Mar. 31, 2026
- * @version Apr.  9, 2026
+ * @version Apr. 12, 2026
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -162,7 +162,7 @@ object SchemaModel {
 
         private def _add(p: Consequence[Field]) = copy(xs = (xs |@| p)(_ :+ _))
       }
-      attributes./:(Z())(_+_).r
+      attributes.foldLeft(Z())(_+_).r
       // case class Z(xs: Vector[Consequence[Field]] = Vector.empty) {
       //   def r = 
 
@@ -171,7 +171,7 @@ object SchemaModel {
       //     case None => this // XXX more gidid
       //   }
       // }
-      // p.fields./:(Z())(_+_).r
+      // p.fields.foldLeft(Z())(_+_).r
     }
 
     def idForReconstitute(p: IRecord): Consequence[EntityId] =
@@ -208,7 +208,7 @@ object SchemaModel {
 
         private def _add(p: Field) = copy(xs = xs.map(_ :+ p))
       }
-      p.fields./:(Z())(_+_).r
+      p.fields.foldLeft(Z())(_+_).r
     }
   }
 
@@ -1150,7 +1150,7 @@ object SchemaModel {
           }
         }
 
-        p.blocks.blocks./:(Z())(_+_).r
+        p.blocks.blocks.foldLeft(Z())(_+_).r
       }
 
       def createOption(p: Section): Option[SchemaClass] = {
@@ -1967,7 +1967,7 @@ object SchemaModel {
           }
         }
 
-        p.elements./:(Z())(_+_).r
+        p.elements.foldLeft(Z())(_+_).r
       }
 
       private def _is_property_table(p: Table) = p.getCaptionName.
@@ -2318,7 +2318,7 @@ object SchemaModel {
           }.getOrElse(this)
         }
       }
-      rs./:(Z())(_+_).r
+      rs.foldLeft(Z())(_+_).r
     }
 
     def print(p: Schema): String = p.columns.map(_.name).mkString(",")

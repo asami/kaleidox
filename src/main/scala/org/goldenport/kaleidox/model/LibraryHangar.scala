@@ -6,7 +6,7 @@ import org.goldenport.kaleidox._
 
 /*
  * @since   Apr. 18, 2021
- * @version Apr. 18, 2021
+ * @version Apr. 12, 2026
  * @author  ASAMI, Tomoharu
  */
 case class LibraryHangar(
@@ -38,7 +38,7 @@ case class LibraryHangar(
 
       def +(rhs: Library) = copy(ls = ls + rhs)
     }
-    p.libraries.libraries./:(Z(libraries + main))(_+_).r
+    p.libraries.libraries.foldLeft(Z(libraries + main))(_+_).r
   }
 
   private def _to_message(locator: Locator, p: WarningMessage) =

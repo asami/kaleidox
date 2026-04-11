@@ -32,7 +32,8 @@ import org.goldenport.sexpr.eval.{EvalContext, LispBinding}
  *  version Sep. 20, 2021
  *  version Nov. 28, 2022
  *  version Dec. 31, 2022
- * @version Jan. 22, 2023
+ *  version Jan. 22, 2023
+ * @version Apr. 12, 2026
  * @author  ASAMI, Tomoharu
  */
 case class Engine(
@@ -174,7 +175,7 @@ case class Engine(
       r <- execute(p)
     } yield r
     val rr: UnitOfWorkFM[RWSOutput] = r.run(_new_context, state)
-    runTask(rr)(interpreter).run
+    runTask(rr)(interpreter).unsafePerformSync
   }
 
   def run(ctx: ExecutionContext, state: Universe, p: Script): RWSOutput = {
@@ -183,14 +184,14 @@ case class Engine(
       r <- execute(p)
     } yield r
     val rr: UnitOfWorkFM[RWSOutput] = r.run(ctx, state)
-    runTask(rr)(interpreter).run
+    runTask(rr)(interpreter).unsafePerformSync
   }
 
   private def _new_context = context.newContext(this)
 
   private def execute(p: Script): ReaderWriterStateT[UnitOfWorkFM, ExecutionContext, RWSWriter, Universe, RWSB] = {
     val c: ReaderWriterStateT[UnitOfWorkFM, ExecutionContext, RWSWriter, Universe, RWSB] = urwso[ExecutionContext, RWSWriter, Universe, RWSB]
-    p.expressions./:(c)((z, x) =>
+    p.expressions.foldLeft(c)((z, x) =>
       for {
         _ <- z
         r <- _eval(x)

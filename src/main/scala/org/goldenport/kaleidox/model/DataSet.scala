@@ -29,7 +29,8 @@ import VoucherModel._
  *  version Jun. 25, 2021
  *  version Jan. 22, 2023
  *  version Aug. 21, 2023
- * @version Oct. 15, 2023
+ *  version Oct. 15, 2023
+ * @version Apr. 12, 2026
  * @author  ASAMI, Tomoharu
  */
 case class DataSet(
@@ -191,7 +192,7 @@ object DataSet {
 
         private def _table(p: ITable) = copy(table = Some(p))
       }
-      p.blocks.blocks./:(Z())(_+_).r
+      p.blocks.blocks.foldLeft(Z())(_+_).r
     }
 
     private def _is_property(p: LogicalBlock) = {
@@ -347,7 +348,7 @@ object DataSet {
 
         private def _table(p: ITable) = copy(table = Some(p))
       }
-      p.blocks.blocks./:(Z())(_+_).r
+      p.blocks.blocks.foldLeft(Z())(_+_).r
     }
 
     private def _sexpr_string(p: String) = SExprTextMaker.stringLiteral(p)

@@ -18,7 +18,8 @@ import VoucherModel._
  *  version Jan.  9, 2021
  *  version Feb. 23, 2021
  *  version Jun. 25, 2021
- * @version Aug. 21, 2023
+ *  version Aug. 21, 2023
+ * @version Apr. 12, 2026
  * @author  ASAMI, Tomoharu
  */
 case class VoucherModel(
@@ -160,7 +161,7 @@ object VoucherModel {
           }.getOrElse(this)
         }
       }
-      rs./:(Z())(_+_).r
+      rs.foldLeft(Z())(_+_).r
     }
   }
 

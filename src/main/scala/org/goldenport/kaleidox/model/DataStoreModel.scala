@@ -18,7 +18,8 @@ import org.goldenport.kaleidox._
  *  version Jan. 22, 2023
  *  version Aug. 21, 2023
  *  version Oct. 15, 2023
- * @version May.  2, 2025
+ *  version May.  2, 2025
+ * @version Apr. 12, 2026
  * @author  ASAMI, Tomoharu
  */
 case class DataStoreModel(
@@ -166,7 +167,7 @@ object DataStoreModel {
           ds.getSlot(name).map(_.data.table.toTable)
         }
       }
-      sections./:(Z())(_+_).r
+      sections.foldLeft(Z())(_+_).r
     }
   }
 }

@@ -27,7 +27,7 @@ import org.goldenport.parser.LogicalSection
  *  version Jun. 20, 2021
  *  version Oct.  1, 2022
  *  version Aug. 21, 2023
- * @version Apr.  6, 2026
+ * @version Apr. 12, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
@@ -205,7 +205,7 @@ object ServiceModel {
               map(x => copy(params = params.tail, results = results :+ Slot(Option(x), x.resolve(rhs)))).
               getOrElse(copy(results = results :+ Slot(None, Validation.success(rhs))))
         }
-        ps./:(Z())(_+_).r
+        ps.foldLeft(Z())(_+_).r
       }
     }
     object Parameters {

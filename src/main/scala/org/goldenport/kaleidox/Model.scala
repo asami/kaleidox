@@ -71,7 +71,7 @@ import org.goldenport.kaleidox.model.analysis.AnalysisModel
  *  version Sep.  6, 2024
  *  version Nov. 22, 2024
  *  version May.  2, 2025
- * @version Apr.  6, 2026
+ * @version Apr. 12, 2026
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -155,7 +155,7 @@ case class Model(
     val a = divisions.collect {
       case m: EnvironmentDivision => m
     }
-    a.headOption.map(x => a.tail./:(x.properties)((z, x) => z.update(x.properties))) // TODO concat
+    a.headOption.map(x => a.tail.foldLeft(x.properties)((z, x) => z.update(x.properties))) // TODO concat
   }
 
   lazy val getVoucherModel: Option[VoucherModel] = {
@@ -293,7 +293,7 @@ case class Model(
         // Z(r./:(ZZ())(_+_).r)
       }
     }
-    val ds = p.divisions./:(Z(divisions))(_+_).r
+    val ds = p.divisions.foldLeft(Z(divisions))(_+_).r
     val ims = libraries + p.libraries // importedModels + p.importedModels
     val es = errors ++ p.errors
     val ws = warnings ++ p.warnings
@@ -315,7 +315,7 @@ case class Model(
             map(merged => copy(xs = xs :+ merged, isdone = true)).
             getOrElse(copy(xs = xs :+ x))
     }
-    xs./:(Z())(_+_).r
+    xs.foldLeft(Z())(_+_).r
   }
 }
 
@@ -1219,7 +1219,7 @@ object Model {
           case m => this // TODO
         }
       }
-      divisions./:(Z())(_+_).r
+      divisions.foldLeft(Z())(_+_).r
     }
 
     def mergeOption(p: Division): Option[Division] = Option(p) collect {
@@ -1306,7 +1306,7 @@ object Model {
         case None => this
       }
     }
-    schema.columns./:(Z())(_+_).r
+    schema.columns.foldLeft(Z())(_+_).r
   }
 
   private def _to_instance(c: Column)(d: Any): Any = c.datatype.toInstance(d)
@@ -1416,11 +1416,11 @@ object Model {
 
     private def _import_models(ps: Vector[ImportDivision]): /*ImportingModels*/LibraryHangar = {
       val init = /*ImportingModels*/LibraryHangar.empty
-      ps./:(init)((z, x) => _import_models(z, x))
+      ps.foldLeft(init)((z, x) => _import_models(z, x))
     }
 
     private def _import_models(im: /*ImportingModels*/LibraryHangar, p: ImportDivision): /*ImportingModels*/LibraryHangar =
-      p.locators./:(im)(_import_models)
+      p.locators.foldLeft(im)(_import_models)
 
     private def _import_models(im: /*ImportingModels*/LibraryHangar, p: /*ImportedModel.Locator*/Locator): /*ImportingModels*/LibraryHangar =
       if (im.isExists(p))

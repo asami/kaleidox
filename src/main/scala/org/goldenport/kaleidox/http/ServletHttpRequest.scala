@@ -1,7 +1,7 @@
 package org.goldenport.kaleidox.http
 
 import scala.collection.JavaConverters._
-import java.net.URL
+import java.net.{URI, URL}
 import javax.servlet.http.HttpServletRequest
 import javax.servlet.http.HttpServletResponse
 import javax.servlet.http.Part
@@ -18,11 +18,12 @@ import org.goldenport.values.PathName
  *  version Mar. 21, 2021
  *  version Apr. 22, 2021
  *  version Jan. 23, 2022
- * @version Mar. 30, 2022
+ *  version Mar. 30, 2022
+ * @version Apr. 12, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ServletHttpRequest(request: HttpServletRequest) extends HttpRequest {
-  val url: URL = new URL(request.getRequestURL.toString)
+  val url: URL = URI.create(request.getRequestURL.toString).toURL
   val pathname: PathName = {
     val a1 = request.getServletPath
     val a2 = request.getRequestURI
