@@ -40,7 +40,7 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Jul. 12, 2024
  *  version May.  2, 2025
  *  version Mar. 24, 2026
- * @version Apr. 12, 2026
+ * @version Apr. 13, 2026
  * @author  ASAMI, Tomoharu
  */
 case class EntityModel(
@@ -233,7 +233,7 @@ object EntityModel {
           case Some(s) => ParseResult.success(_add_features(schema.add(s).withName(name), hocon))
           case None => ParseResult.error(s"Schema not found: $schemaname")
         }
-        case None => ParseResult.success(schema.withName(name))
+        case None => ParseResult.success(_add_features(schema.withName(name), hocon))
       }
     }
 
@@ -255,8 +255,8 @@ object EntityModel {
       val a = hocon.getStringOption(PROP_ENTITY_TABLE).
         map(p.withTableName).
         getOrElse(p)
-      hocon.getStringOption(PROP_ENTITY_EXTENDS).
-        map(a.addParentName).
+      hocon.getStringListOption(PROP_ENTITY_EXTENDS).
+        map(_.foldLeft(a)(_ addParentName _)).
         getOrElse(a)
     }
 
