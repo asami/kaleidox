@@ -16,7 +16,7 @@ import org.goldenport.util.StringUtils
 /*
  * @since   Mar. 22, 2026
  *  version Mar. 28, 2026
- * @version Apr.  9, 2026
+ * @version Apr. 13, 2026
  * @author  ASAMI, Tomoharu
  */
 case class OperationModel(
@@ -208,7 +208,14 @@ object OperationModel {
   case class AccessDefinition(
     policy: String,
     resource: Option[String] = None,
-    target: Option[String] = None
+    target: Option[String] = None,
+    mode: Option[String] = None,
+    relation: Option[String] = None,
+    operationModel: Option[String] = None,
+    entityUsage: Option[String] = None,
+    entityOperationKind: Option[String] = None,
+    entityApplicationDomain: Option[String] = None,
+    condition: Option[String] = None
   )
 
   case class NormalizedOperationDefinition(
@@ -393,7 +400,14 @@ object OperationModel {
         AccessDefinition(
           policy = x,
           resource = kv.get("resource").map(_.trim).filterNot(Strings.blankp),
-          target = kv.get("target").map(_.trim).filterNot(Strings.blankp)
+          target = kv.get("target").map(_.trim).filterNot(Strings.blankp),
+          mode = kv.get("mode").orElse(kv.get("access_mode")).map(_.trim).filterNot(Strings.blankp),
+          relation = kv.get("relation").orElse(kv.get("relation_rule")).map(_.trim).filterNot(Strings.blankp),
+          operationModel = kv.get("operation_model").orElse(kv.get("operationmodel")).map(_.trim).filterNot(Strings.blankp),
+          entityUsage = kv.get("entity_usage").orElse(kv.get("entityusage")).map(_.trim).filterNot(Strings.blankp),
+          entityOperationKind = kv.get("entity_operation_kind").orElse(kv.get("entityoperationkind")).orElse(kv.get("operation_kind")).map(_.trim).filterNot(Strings.blankp),
+          entityApplicationDomain = kv.get("entity_application_domain").orElse(kv.get("entityapplicationdomain")).orElse(kv.get("application_domain")).map(_.trim).filterNot(Strings.blankp),
+          condition = kv.get("condition").orElse(kv.get("abac")).orElse(kv.get("abac_condition")).orElse(kv.get("natural_condition")).map(_.trim).filterNot(Strings.blankp)
         )
       }
     }
@@ -502,13 +516,10 @@ object OperationModel {
       val fromsectiontext = _key_values(_section_body_text(s))
       val fromsectiondl = s.dls.toVector.flatMap(x => _key_values(x.toText))
       val direct = fromsectiontext ++ fromsectiondl
-      if (direct.nonEmpty)
-        direct
-      else {
-        val key = s.keyForModel.toLowerCase
-        val body = _section_body_text(s).linesIterator.map(_.trim).find(_.nonEmpty).getOrElse("")
-        if (key.isEmpty || body.isEmpty) Vector.empty else Vector(key -> body)
-      }
+      val key = s.keyForModel.toLowerCase
+      val body = _section_body_text(s).linesIterator.map(_.trim).filterNot(_.isEmpty).mkString("\n")
+      val sectionvalue = if (key.isEmpty || body.isEmpty) Vector.empty else Vector(key -> body)
+      direct ++ sectionvalue
     }
     fromtext ++ fromdl ++ fromsections
   }

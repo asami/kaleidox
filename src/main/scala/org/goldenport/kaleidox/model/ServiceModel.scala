@@ -27,7 +27,7 @@ import org.goldenport.parser.LogicalSection
  *  version Jun. 20, 2021
  *  version Oct.  1, 2022
  *  version Aug. 21, 2023
- * @version Apr. 12, 2026
+ * @version Apr. 13, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
@@ -599,7 +599,14 @@ object ServiceModel {
             OperationModel.AccessDefinition(
               policy = x,
               resource = _value_opt(kv, "resource"),
-              target = _value_opt(kv, "target")
+              target = _value_opt(kv, "target"),
+              mode = _value_opt(kv, "mode").orElse(_value_opt(kv, "access_mode")),
+              relation = _value_opt(kv, "relation").orElse(_value_opt(kv, "relation_rule")),
+              operationModel = _value_opt(kv, "operation_model").orElse(_value_opt(kv, "operationmodel")),
+              entityUsage = _value_opt(kv, "entity_usage").orElse(_value_opt(kv, "entityusage")),
+              entityOperationKind = _value_opt(kv, "entity_operation_kind").orElse(_value_opt(kv, "entityoperationkind")).orElse(_value_opt(kv, "operation_kind")),
+              entityApplicationDomain = _value_opt(kv, "entity_application_domain").orElse(_value_opt(kv, "entityapplicationdomain")).orElse(_value_opt(kv, "application_domain")),
+              condition = _value_opt(kv, "condition").orElse(_value_opt(kv, "abac")).orElse(_value_opt(kv, "abac_condition")).orElse(_value_opt(kv, "natural_condition"))
             )
           }
         }
@@ -650,12 +657,13 @@ object ServiceModel {
         val fromtext = _key_values(p.toText)
         val fromsections = p.sections.toVector.flatMap { s =>
           val fromsectiontext = _key_values(s.toText)
+          val key = s.keyForModel.toLowerCase
+          val body = s.toText.linesIterator.map(_.trim).filterNot(_.isEmpty).mkString("\n")
+          val sectionvalue = if (key.isEmpty || body.isEmpty) Vector.empty else Vector(key -> body)
           if (fromsectiontext.nonEmpty)
-            fromsectiontext
+            fromsectiontext ++ sectionvalue
           else {
-            val key = s.keyForModel.toLowerCase
-            val body = s.toText.linesIterator.map(_.trim).find(_.nonEmpty).getOrElse("")
-            if (key.isEmpty || body.isEmpty) Vector.empty else Vector(key -> body)
+            sectionvalue
           }
         }
         fromtext ++ fromsections
