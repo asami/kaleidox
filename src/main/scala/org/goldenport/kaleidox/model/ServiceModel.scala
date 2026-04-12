@@ -606,7 +606,13 @@ object ServiceModel {
               entityUsage = _value_opt(kv, "entity_usage").orElse(_value_opt(kv, "entityusage")),
               entityOperationKind = _value_opt(kv, "entity_operation_kind").orElse(_value_opt(kv, "entityoperationkind")).orElse(_value_opt(kv, "operation_kind")),
               entityApplicationDomain = _value_opt(kv, "entity_application_domain").orElse(_value_opt(kv, "entityapplicationdomain")).orElse(_value_opt(kv, "application_domain")),
-              condition = _value_opt(kv, "condition").orElse(_value_opt(kv, "abac")).orElse(_value_opt(kv, "abac_condition")).orElse(_value_opt(kv, "natural_condition"))
+              condition = _value_opt(kv, "condition")
+                .orElse(_value_opt(kv, "conditions"))
+                .orElse(_value_opt(kv, "abac"))
+                .orElse(_value_opt(kv, "abac_condition"))
+                .orElse(_value_opt(kv, "abac_conditions"))
+                .orElse(_value_opt(kv, "natural_condition"))
+                .orElse(_value_opt(kv, "natural_conditions"))
             )
           }
         }

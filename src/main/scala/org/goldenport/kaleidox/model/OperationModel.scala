@@ -407,7 +407,7 @@ object OperationModel {
           entityUsage = kv.get("entity_usage").orElse(kv.get("entityusage")).map(_.trim).filterNot(Strings.blankp),
           entityOperationKind = kv.get("entity_operation_kind").orElse(kv.get("entityoperationkind")).orElse(kv.get("operation_kind")).map(_.trim).filterNot(Strings.blankp),
           entityApplicationDomain = kv.get("entity_application_domain").orElse(kv.get("entityapplicationdomain")).orElse(kv.get("application_domain")).map(_.trim).filterNot(Strings.blankp),
-          condition = kv.get("condition").orElse(kv.get("abac")).orElse(kv.get("abac_condition")).orElse(kv.get("natural_condition")).map(_.trim).filterNot(Strings.blankp)
+          condition = kv.get("condition").orElse(kv.get("conditions")).orElse(kv.get("abac")).orElse(kv.get("abac_condition")).orElse(kv.get("abac_conditions")).orElse(kv.get("natural_condition")).orElse(kv.get("natural_conditions")).map(_.trim).filterNot(Strings.blankp)
         )
       }
     }
