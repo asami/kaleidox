@@ -645,7 +645,7 @@ object ServiceModel {
           map(ValueClass(_))
 
       private def _section_body_text(p: Section): Option[String] =
-        Option(p.toText.trim).
+        Option(_section_body_data(p)).
           map(_.linesIterator.map(_.trim).find(_.nonEmpty).orNull).
           filterNot(Strings.blankp)
 
@@ -662,9 +662,10 @@ object ServiceModel {
       ): Vector[(String, String)] = {
         val fromtext = _key_values(p.toText)
         val fromsections = p.sections.toVector.flatMap { s =>
-          val fromsectiontext = _key_values(s.toText)
+          val sectionbody = _section_body_data(s)
+          val fromsectiontext = _key_values(sectionbody)
           val key = s.keyForModel.toLowerCase
-          val body = s.toText.linesIterator.map(_.trim).filterNot(_.isEmpty).mkString("\n")
+          val body = sectionbody.linesIterator.map(_.trim).filterNot(_.isEmpty).mkString("\n")
           val sectionvalue = if (key.isEmpty || body.isEmpty) Vector.empty else Vector(key -> body)
           if (fromsectiontext.nonEmpty)
             fromsectiontext ++ sectionvalue
@@ -679,6 +680,14 @@ object ServiceModel {
         p: String
       ): Vector[(String, String)] =
         CmlSectionFormat.keyValues(p)
+
+      private def _section_body_data(p: Section): String = {
+        val data = p.toData().trim
+        if (data.nonEmpty)
+          data
+        else
+          p.toText.trim
+      }
 
       private def _value_lines(
         p: String

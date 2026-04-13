@@ -527,12 +527,16 @@ object OperationModel {
   private def _key_values(p: String): Vector[(String, String)] =
     CmlSectionFormat.keyValues(p)
 
-  private def _section_body_text(p: Section): String =
-    p.getStringIfOnlyText.map(_.trim).filterNot(_.isEmpty).getOrElse {
+  private def _section_body_text(p: Section): String = {
+    val data = p.toData().trim
+    if (data.nonEmpty)
+      data
+    else {
       val lines = p.toText.linesIterator.toVector
       val body = lines.dropWhile(x => x.trim.startsWith("#")).takeWhile(x => !x.trim.startsWith("#")).mkString("\n").trim
       if (body.nonEmpty) body else p.toText.trim
     }
+  }
 
   private def _looks_like_heading_dump(p: String): Boolean =
     p.startsWith("#") || p.linesIterator.exists(x => x.trim.startsWith("###") || x.trim.startsWith("##"))
