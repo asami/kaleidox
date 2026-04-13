@@ -97,7 +97,10 @@ object EntityModel {
     store: IEntityClass.Store = IEntityClass.Store(),
     aggregate: Option[SchemaModel.AggregateDefinition] = None,
     view: Option[SchemaModel.ViewDefinition] = None,
-    packageName: String = "domain" // TODO
+    packageName: String = "domain", // TODO
+    usageKind: Option[String] = None,
+    operationKind: Option[String] = None,
+    applicationDomain: Option[String] = None
   ) extends IEntityClass with Showable.Base {
     def print = s"[${label_string}]${print_String}"
 
@@ -194,7 +197,10 @@ object EntityModel {
           parents = parents,
           store = store,
           aggregate = schema.aggregate,
-          view = schema.view
+          view = schema.view,
+          usageKind = _string_opt(hocon, "usage_kind", "usageKind", "entity_usage", "entityUsage"),
+          operationKind = _string_opt(hocon, "operation_kind", "operationKind", "entity_operation_kind", "entityOperationKind"),
+          applicationDomain = _string_opt(hocon, "application_domain", "applicationDomain", "entity_application_domain", "entityApplicationDomain")
         )
       }
     }
@@ -217,7 +223,10 @@ object EntityModel {
           parents = parents,
           store = store,
           aggregate = schema.aggregate,
-          view = schema.view
+          view = schema.view,
+          usageKind = _string_opt(hocon, "usage_kind", "usageKind", "entity_usage", "entityUsage"),
+          operationKind = _string_opt(hocon, "operation_kind", "operationKind", "entity_operation_kind", "entityOperationKind"),
+          applicationDomain = _string_opt(hocon, "application_domain", "applicationDomain", "entity_application_domain", "entityApplicationDomain")
         )
       }
     }
@@ -282,11 +291,17 @@ object EntityModel {
           schemaClass = schema,
           parents = parents,
           aggregate = schema.aggregate,
-          view = schema.view
+          view = schema.view,
+          usageKind = _string_opt(hocon, "usage_kind", "usageKind", "entity_usage", "entityUsage"),
+          operationKind = _string_opt(hocon, "operation_kind", "operationKind", "entity_operation_kind", "entityOperationKind"),
+          applicationDomain = _string_opt(hocon, "application_domain", "applicationDomain", "entity_application_domain", "entityApplicationDomain")
         )
       }
       a.take
     }
+
+    private def _string_opt(hocon: Hocon, names: String*): Option[String] =
+      names.iterator.flatMap(hocon.getStringOption).map(_.trim).find(_.nonEmpty)
   }
 
   def apply(f: KaleidoxEntityFactory, p: EntityClass): EntityModel =
