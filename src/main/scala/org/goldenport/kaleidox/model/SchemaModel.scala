@@ -42,7 +42,8 @@ import scala.util.Try
  *  version Sep.  6, 2024
  *  version May.  2, 2025
  *  version Mar. 31, 2026
- * @version Apr. 12, 2026
+ *  version Apr. 12, 2026
+ * @version Apr. 15, 2026
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -223,6 +224,7 @@ object SchemaModel {
 
   case class AggregateDefinition(
     members: Vector[AggregateMemberDefinition] = Vector.empty,
+    creates: Vector[AggregateCreateDefinition] = Vector.empty,
     commands: Vector[AggregateCommandDefinition] = Vector.empty,
     state: Vector[AggregateStateDefinition] = Vector.empty,
     invariants: Vector[AggregateInvariantDefinition] = Vector.empty
@@ -245,6 +247,15 @@ object SchemaModel {
     validations: Vector[String] = Vector.empty,
     events: Vector[String] = Vector.empty,
     newState: Option[String] = None,
+    properties: Map[String, String] = Map.empty
+  )
+
+  case class AggregateCreateDefinition(
+    name: String,
+    input: Map[String, String] = Map.empty,
+    validations: Vector[String] = Vector.empty,
+    events: Vector[String] = Vector.empty,
+    initialState: Option[String] = None,
     properties: Map[String, String] = Map.empty
   )
 
@@ -701,14 +712,16 @@ object SchemaModel {
 
           private def _aggregate_definition(p: LogicalSection): AggregateDefinition = {
             val membersections = p.sections.filter(x => x.keyForModel == "member" || x.keyForModel == "members")
+            val createsections = p.sections.filter(x => x.keyForModel == "create" || x.keyForModel == "creates")
             val commandsections = p.sections.filter(x => x.keyForModel == "command" || x.keyForModel == "commands")
             val statesections = p.sections.filter(x => x.keyForModel == "state" || x.keyForModel == "states")
             val invariantsections = p.sections.filter(x => x.keyForModel == "invariant" || x.keyForModel == "invariants")
             val members = membersections.toVector.flatMap(_aggregate_member_definitions)
+            val creates = createsections.toVector.flatMap(_.sections).map(_aggregate_create_definition)
             val commands = commandsections.toVector.flatMap(_.sections).map(_aggregate_command_definition)
             val state = statesections.toVector.flatMap(_aggregate_state_definitions)
             val invariants = invariantsections.toVector.flatMap(_.sections).map(_aggregate_invariant_definition)
-            AggregateDefinition(members = members, commands = commands, state = state, invariants = invariants)
+            AggregateDefinition(members = members, creates = creates, commands = commands, state = state, invariants = invariants)
           }
 
           private def _aggregate_member_definitions(
@@ -768,6 +781,33 @@ object SchemaModel {
               validations = validations,
               events = events,
               newState = newstate,
+              properties = props
+            )
+          }
+
+          private def _aggregate_create_definition(
+            p: LogicalSection
+          ): AggregateCreateDefinition = {
+            val kv = _key_values(p.text)
+            val rec = Record.create(kv)
+            val props = kv.toMap
+            val input = kv.collect {
+              case (k, v) if k == "input" || k.startsWith("input.") => k -> v
+            }.toMap
+            val validations = kv.collect {
+              case (k, v) if k == "validate" || k == "validation" || k == "guard" => v
+            }
+            val events = kv.collect {
+              case (k, v) if k == "event" || k == "emit" || k == "events" =>
+                _split_list(v)
+            }.flatten
+            val initialstate = rec.getStringCaseInsensitive(Vector("initialstate", "initial_state", "state"))
+            AggregateCreateDefinition(
+              name = p.nameForModel,
+              input = input,
+              validations = validations,
+              events = events,
+              initialState = initialstate,
               properties = props
             )
           }
@@ -1493,14 +1533,16 @@ object SchemaModel {
 
           private def _aggregate_definition(p: Section): AggregateDefinition = {
             val membersections = p.sections.filter(x => x.keyForModel == "member" || x.keyForModel == "members")
+            val createsections = p.sections.filter(x => x.keyForModel == "create" || x.keyForModel == "creates")
             val commandsections = p.sections.filter(x => x.keyForModel == "command" || x.keyForModel == "commands")
             val statesections = p.sections.filter(x => x.keyForModel == "state" || x.keyForModel == "states")
             val invariantsections = p.sections.filter(x => x.keyForModel == "invariant" || x.keyForModel == "invariants")
             val members = membersections.toVector.flatMap(_aggregate_member_definitions)
+            val creates = createsections.toVector.flatMap(_.sections).map(_aggregate_create_definition)
             val commands = commandsections.toVector.flatMap(_.sections).map(_aggregate_command_definition)
             val state = statesections.toVector.flatMap(_aggregate_state_definitions)
             val invariants = invariantsections.toVector.flatMap(_.sections).map(_aggregate_invariant_definition)
-            AggregateDefinition(members = members, commands = commands, state = state, invariants = invariants)
+            AggregateDefinition(members = members, creates = creates, commands = commands, state = state, invariants = invariants)
           }
 
           private def _aggregate_member_definitions(
@@ -1570,6 +1612,34 @@ object SchemaModel {
               validations = validations,
               events = events,
               newState = newstate,
+              properties = props
+            )
+          }
+
+          private def _aggregate_create_definition(
+            p: Section
+          ): AggregateCreateDefinition = {
+            val kv = _merged_key_values(p)
+            val props = kv.toMap
+            val input = kv.collect {
+              case (k, v) if k == "input" || k.startsWith("input.") => k -> v
+            }.toMap
+            val validations = kv.collect {
+              case (k, v) if k == "validate" || k == "validation" || k == "guard" => v
+            }
+            val events = kv.collect {
+              case (k, v) if k == "event" || k == "emit" || k == "events" =>
+                _split_list(v)
+            }.flatten
+            val initialstate = kv.collectFirst {
+              case (k, v) if k == "initialstate" || k == "initial_state" || k == "state" => v
+            }
+            AggregateCreateDefinition(
+              name = p.nameForModel,
+              input = input,
+              validations = validations,
+              events = events,
+              initialState = initialstate,
               properties = props
             )
           }
