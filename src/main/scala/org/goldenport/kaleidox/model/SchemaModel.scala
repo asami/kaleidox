@@ -4,6 +4,7 @@ import scalaz._, Scalaz._
 import org.smartdox.parser.Dox2Parser
 import org.smartdox.Section
 import org.smartdox.Description
+import org.smartdox.InlineMacro
 import org.goldenport.record.v2.{Schema, Column, SqlSchema}
 import org.goldenport.record.v2.XStateMachine
 import org.goldenport.record.v2.Constraint
@@ -43,7 +44,8 @@ import scala.util.Try
  *  version May.  2, 2025
  *  version Mar. 31, 2026
  *  version Apr. 12, 2026
- * @version Apr. 15, 2026
+ *  version Apr. 15, 2026
+ * @version Apr. 16, 2026
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -247,6 +249,7 @@ object SchemaModel {
     validations: Vector[String] = Vector.empty,
     events: Vector[String] = Vector.empty,
     newState: Option[String] = None,
+    implementation: Option[String] = None,
     properties: Map[String, String] = Map.empty
   )
 
@@ -256,6 +259,7 @@ object SchemaModel {
     validations: Vector[String] = Vector.empty,
     events: Vector[String] = Vector.empty,
     initialState: Option[String] = None,
+    implementation: Option[String] = None,
     properties: Map[String, String] = Map.empty
   )
 
@@ -775,12 +779,14 @@ object SchemaModel {
                 _split_list(v)
             }.flatten
             val newstate = rec.getStringCaseInsensitive(Vector("newstate", "new_state", "state"))
+            val implementation = rec.getStringCaseInsensitive(Vector("implementation", "impl"))
             AggregateCommandDefinition(
               name = p.nameForModel,
               input = input,
               validations = validations,
               events = events,
               newState = newstate,
+              implementation = implementation,
               properties = props
             )
           }
@@ -802,12 +808,14 @@ object SchemaModel {
                 _split_list(v)
             }.flatten
             val initialstate = rec.getStringCaseInsensitive(Vector("initialstate", "initial_state", "state"))
+            val implementation = rec.getStringCaseInsensitive(Vector("implementation", "impl"))
             AggregateCreateDefinition(
               name = p.nameForModel,
               input = input,
               validations = validations,
               events = events,
               initialState = initialstate,
+              implementation = implementation,
               properties = props
             )
           }
@@ -1606,12 +1614,16 @@ object SchemaModel {
             val newstate = kv.collectFirst {
               case (k, v) if k == "newstate" || k == "new_state" || k == "state" => v
             }
+            val implementation = kv.collectFirst {
+              case (k, v) if k == "implementation" || k == "impl" => v
+            }
             AggregateCommandDefinition(
               name = p.nameForModel,
               input = input,
               validations = validations,
               events = events,
               newState = newstate,
+              implementation = implementation,
               properties = props
             )
           }
@@ -1634,12 +1646,16 @@ object SchemaModel {
             val initialstate = kv.collectFirst {
               case (k, v) if k == "initialstate" || k == "initial_state" || k == "state" => v
             }
+            val implementation = kv.collectFirst {
+              case (k, v) if k == "implementation" || k == "impl" => v
+            }
             AggregateCreateDefinition(
               name = p.nameForModel,
               input = input,
               validations = validations,
               events = events,
               initialState = initialstate,
+              implementation = implementation,
               properties = props
             )
           }
@@ -2346,9 +2362,14 @@ object SchemaModel {
       private def _string_value_flexible(p: Record, keys: Seq[String]): Option[String] = {
         val normalized = keys.map(_normalize_key).toSet
         p.fields.collectFirst {
-          case f if normalized.contains(_normalize_key(f.name)) => f.asString
+          case f if normalized.contains(_normalize_key(f.name)) => _field_string(f)
         }.map(_.trim).filterNot(_.isEmpty)
       }
+
+      private def _field_string(p: Field): String =
+        p.getValue.collect {
+          case InlineMacro("pass", contents, _, _) => contents
+        }.getOrElse(p.asString)
 
       private def _normalize_key(p: String): String =
         p.toLowerCase.replaceAll("[\\s_\\-　]+", "")

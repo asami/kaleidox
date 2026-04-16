@@ -47,7 +47,7 @@ libraryDependencies += "org.goldenport" %% "goldenport-sexpr" % "2.2.3"
 
 // libraryDependencies += "org.goldenport" %% "goldenport-statemachine" % "0.0.1"
 
-libraryDependencies += "org.smartdox" %% "smartdox" % "2.4.9"
+libraryDependencies += "org.smartdox" %% "smartdox" % "2.4.12-SNAPSHOT"
 
 // libraryDependencies += "org.simplemodeling" %% "simplemodeler" % "1.0.3"
 

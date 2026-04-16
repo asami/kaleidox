@@ -529,7 +529,7 @@ extends:
 
 | name  | type   | multiplicity | min_length | max_length | pattern     | format |
 |-------+--------+--------------+------------+------------+-------------+--------|
-| value | string | 1            | 2          | 2          | ^[A-Z]{2}$  | uuid   |
+| value | string | 1            | 2          | 2          | pass:[^[A-Z]{2}$] | uuid   |
 """
       val model = Model.parse(config, s)
       val schema = model.takeEntityModel.get("CountryCode").getOrElse(fail("Entity CountryCode is missing")).schema
@@ -537,7 +537,9 @@ extends:
 
       column.constraints.exists(_.isInstanceOf[CMinLength]) should be (true)
       column.constraints.exists(_.isInstanceOf[CMaxLength]) should be (true)
-      column.constraints.exists(_.isInstanceOf[CRegex]) should be (true)
+      column.constraints.collectFirst {
+        case CRegex(pattern) => pattern.regex
+      } should be (Some("^[A-Z]{2}$"))
       column.constraints.exists(_.isInstanceOf[CFormat]) should be (true)
     }
 
