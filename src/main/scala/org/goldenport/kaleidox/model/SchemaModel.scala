@@ -334,6 +334,7 @@ object SchemaModel {
     val dbColumnNameName = Vector("DBカラム名", "dbカラム名", "dbcolumnname", "db_column_name", "db column name", "column_name")
     val dbColumnTypeName = Vector("DBカラム型", "dbカラム型", "dbcolumntype", "db_column_type", "db column type", "column_type")
     val externalNameName = Vector("外部連携属性名", "external_name", "external name", "externalName")
+    val derivedName = Vector("派生", "derived", "derivedFrom", "derived from")
     val minLengthName = Vector("min_length", "minlength", "min length", "最小長", "最小文字数")
     val maxLengthName = Vector("max_length", "maxlength", "max length", "最大長", "最大文字数")
     val patternName = Vector("pattern", "regex", "正規表現", "パターン")
@@ -472,19 +473,34 @@ object SchemaModel {
               this
 
           private def _normalize_attribute_record(p: Record): Record = {
-            if (p.getStringCaseInsensitive(nameName).isDefined)
-              p
-            else {
-              val fields = Vector(
-                p.getString("1").map("name" -> _),
-                p.getString("2").map("type" -> _),
-                p.getString("3").map("multiplicity" -> _),
-                p.getString("4").map("label" -> _),
-                p.getString("5").map("description" -> _)
-              ).flatten
-              if (fields.isEmpty) p else Record.create(fields)
+            val normalized = Vector(
+              _get_string(p, nameName).orElse(p.getString("1")).map("name" -> _),
+              _get_string(p, typeName).orElse(p.getString("2")).map("type" -> _),
+              _get_string(p, multiplicityName).orElse(p.getString("3")).map("multiplicity" -> _),
+              _get_string(p, labelName).orElse(p.getString("4")).map("label" -> _),
+              _get_string(p, Vector("description")).map("description" -> _),
+              _get_string(p, derivedName).orElse(p.getString("5")).map("derived" -> _)
+            ).flatten
+            val normalizedKeys = normalized.map(_._1.toLowerCase(java.util.Locale.ROOT)).toSet
+            val original = p.fields.toVector.flatMap { field =>
+              val key = field.name.trim
+              if (key.nonEmpty && !normalizedKeys.contains(key.toLowerCase(java.util.Locale.ROOT)))
+                Some(key -> field.value.asString)
+              else
+                None
             }
+            val fields = normalized ++ original
+            if (fields.isEmpty) p else Record.create(fields)
           }
+
+          private def _get_string(p: Record, names: Seq[String]): Option[String] =
+            p.getStringCaseInsensitive(names.toVector).orElse {
+              val keys = names.map(_.trim.toLowerCase(java.util.Locale.ROOT)).toSet
+              p.fields.toStream.flatMap { field =>
+              val key = field.name.trim.toLowerCase(java.util.Locale.ROOT)
+                if (keys.contains(key)) Some(field.value.asString) else None
+              }.headOption
+            }
 
           private def _section(p: LogicalSection) =
             if (_is_features(p))
@@ -815,7 +831,7 @@ object SchemaModel {
               validations = validations,
               events = events,
               initialState = initialstate,
-              implementation = implementation,
+              implementation = implementation.orElse(Some("pattern:create")),
               properties = props
             )
           }
@@ -1366,19 +1382,34 @@ object SchemaModel {
           }
 
           private def _normalize_attribute_record(p: Record): Record = {
-            if (p.getStringCaseInsensitive(nameName).isDefined)
-              p
-            else {
-              val fields = Vector(
-                p.getString("1").map("name" -> _),
-                p.getString("2").map("type" -> _),
-                p.getString("3").map("multiplicity" -> _),
-                p.getString("4").map("label" -> _),
-                p.getString("5").map("description" -> _)
-              ).flatten
-              if (fields.isEmpty) p else Record.create(fields)
+            val normalized = Vector(
+              _get_string(p, nameName).orElse(p.getString("1")).map("name" -> _),
+              _get_string(p, typeName).orElse(p.getString("2")).map("type" -> _),
+              _get_string(p, multiplicityName).orElse(p.getString("3")).map("multiplicity" -> _),
+              _get_string(p, labelName).orElse(p.getString("4")).map("label" -> _),
+              _get_string(p, Vector("description")).map("description" -> _),
+              _get_string(p, derivedName).orElse(p.getString("5")).map("derived" -> _)
+            ).flatten
+            val normalizedKeys = normalized.map(_._1.toLowerCase(java.util.Locale.ROOT)).toSet
+            val original = p.fields.toVector.flatMap { field =>
+              val key = field.name.trim
+              if (key.nonEmpty && !normalizedKeys.contains(key.toLowerCase(java.util.Locale.ROOT)))
+                Some(key -> field.value.asString)
+              else
+                None
             }
+            val fields = normalized ++ original
+            if (fields.isEmpty) p else Record.create(fields)
           }
+
+          private def _get_string(p: Record, names: Seq[String]): Option[String] =
+            p.getStringCaseInsensitive(names.toVector).orElse {
+              val keys = names.map(_.trim.toLowerCase(java.util.Locale.ROOT)).toSet
+              p.fields.toStream.flatMap { field =>
+                val key = field.name.trim.toLowerCase(java.util.Locale.ROOT)
+                if (keys.contains(key)) Some(field.value.asString) else None
+              }.headOption
+            }
 
           private def _attribute_records_from_items(p: Section): Vector[Record] = {
             val fromUl = p.uls.toVector.flatMap { ul =>
@@ -1655,7 +1686,7 @@ object SchemaModel {
               validations = validations,
               events = events,
               initialState = initialstate,
-              implementation = implementation,
+              implementation = implementation.orElse(Some("pattern:create")),
               properties = props
             )
           }
@@ -2263,7 +2294,8 @@ object SchemaModel {
         p.getStringCaseInsensitive(typeName).map(_.trim).filterNot(_.isEmpty),
         _db_column_name(p),
         _db_column_type(p),
-        _external_name(p)
+        _external_name(p),
+        _derived(p)
       )
 
       private def _association(p: Record) = Association(
@@ -2359,6 +2391,15 @@ object SchemaModel {
           p.getStringCaseInsensitive(externalNameName).map(_.trim).filterNot(_.isEmpty)
         )
 
+      private def _derived(p: Record): Option[String] =
+        _string_value_flexible(p, derivedName).orElse(
+          p.getStringCaseInsensitive(derivedName).map(_.trim).filterNot(_.isEmpty)
+        ).orElse(
+          p.getString("5").map(_.trim).filterNot(_.isEmpty)
+        ).orElse(
+          _field_value(p, 4).map(_.trim).filterNot(_.isEmpty)
+        )
+
       private def _string_value_flexible(p: Record, keys: Seq[String]): Option[String] = {
         val normalized = keys.map(_normalize_key).toSet
         p.fields.collectFirst {
@@ -2369,7 +2410,17 @@ object SchemaModel {
       private def _field_string(p: Field): String =
         p.getValue.collect {
           case InlineMacro("pass", contents, _, _) => contents
-        }.getOrElse(p.asString)
+        }.getOrElse(_normalize_inline_macro_string(p.asString))
+
+      private val _inline_macro_string =
+        """<inlinemacro\s+name="([^"]+)">([\s\S]*?)</inlinemacro>""".r
+
+      private def _normalize_inline_macro_string(p: String): String =
+        p match {
+          case _inline_macro_string("pass", contents) => contents
+          case _inline_macro_string(name, contents) => s"$name:$contents"
+          case _ => p
+        }
 
       private def _normalize_key(p: String): String =
         p.toLowerCase.replaceAll("[\\s_\\-　]+", "")
@@ -2433,6 +2484,7 @@ object SchemaModel {
     def dbColumnName: Option[String] = None
     def dbColumnType: Option[String] = None
     def externalName: Option[String] = None
+    def derived: Option[String] = None
     def toColumn: Column
     def unmarshall(p: Any): Consequence[Any]
   }
@@ -2443,7 +2495,8 @@ object SchemaModel {
     domain: ValueDomain,
     override val dbColumnName: Option[String] = None,
     override val dbColumnType: Option[String] = None,
-    override val externalName: Option[String] = None
+    override val externalName: Option[String] = None,
+    override val derived: Option[String] = None
   ) extends Slot {
     def toColumn = Column(
       name,
@@ -2472,7 +2525,8 @@ object SchemaModel {
     rawTypeName: Option[String] = None,
     override val dbColumnName: Option[String] = None,
     override val dbColumnType: Option[String] = None,
-    override val externalName: Option[String] = None
+    override val externalName: Option[String] = None,
+    override val derived: Option[String] = None
   ) extends Slot {
     def isRequired = domain.isRequired
 
