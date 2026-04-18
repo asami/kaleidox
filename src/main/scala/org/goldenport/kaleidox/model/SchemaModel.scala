@@ -43,9 +43,7 @@ import scala.util.Try
  *  version Sep.  6, 2024
  *  version May.  2, 2025
  *  version Mar. 31, 2026
- *  version Apr. 12, 2026
- *  version Apr. 15, 2026
- * @version Apr. 16, 2026
+ * @version Apr. 19, 2026
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -479,7 +477,7 @@ object SchemaModel {
               _get_string(p, multiplicityName).orElse(p.getString("3")).map("multiplicity" -> _),
               _get_string(p, labelName).orElse(p.getString("4")).map("label" -> _),
               _get_string(p, Vector("description")).map("description" -> _),
-              _get_string(p, derivedName).orElse(p.getString("5")).map("derived" -> _)
+              _get_string(p, derivedName).orElse(_positional_derived(p)).map("derived" -> _)
             ).flatten
             val normalizedKeys = normalized.map(_._1.toLowerCase(java.util.Locale.ROOT)).toSet
             val original = p.fields.toVector.flatMap { field =>
@@ -492,6 +490,18 @@ object SchemaModel {
             val fields = normalized ++ original
             if (fields.isEmpty) p else Record.create(fields)
           }
+
+          private def _positional_derived(p: Record): Option[String] =
+            if (_has_web_field(p))
+              None
+            else
+              p.getString("5")
+
+          private def _has_web_field(p: Record): Boolean =
+            p.fields.exists(field => _normalize_record_key(field.name).startsWith("web"))
+
+          private def _normalize_record_key(p: String): String =
+            p.toLowerCase(java.util.Locale.ROOT).replaceAll("[\\s_\\-　]+", "")
 
           private def _get_string(p: Record, names: Seq[String]): Option[String] =
             p.getStringCaseInsensitive(names.toVector).orElse {
@@ -1388,7 +1398,7 @@ object SchemaModel {
               _get_string(p, multiplicityName).orElse(p.getString("3")).map("multiplicity" -> _),
               _get_string(p, labelName).orElse(p.getString("4")).map("label" -> _),
               _get_string(p, Vector("description")).map("description" -> _),
-              _get_string(p, derivedName).orElse(p.getString("5")).map("derived" -> _)
+              _get_string(p, derivedName).orElse(_positional_derived(p)).map("derived" -> _)
             ).flatten
             val normalizedKeys = normalized.map(_._1.toLowerCase(java.util.Locale.ROOT)).toSet
             val original = p.fields.toVector.flatMap { field =>
@@ -1401,6 +1411,18 @@ object SchemaModel {
             val fields = normalized ++ original
             if (fields.isEmpty) p else Record.create(fields)
           }
+
+          private def _positional_derived(p: Record): Option[String] =
+            if (_has_web_field(p))
+              None
+            else
+              p.getString("5")
+
+          private def _has_web_field(p: Record): Boolean =
+            p.fields.exists(field => _normalize_record_key(field.name).startsWith("web"))
+
+          private def _normalize_record_key(p: String): String =
+            p.toLowerCase(java.util.Locale.ROOT).replaceAll("[\\s_\\-　]+", "")
 
           private def _get_string(p: Record, names: Seq[String]): Option[String] =
             p.getStringCaseInsensitive(names.toVector).orElse {
@@ -2295,7 +2317,8 @@ object SchemaModel {
         _db_column_name(p),
         _db_column_type(p),
         _external_name(p),
-        _derived(p)
+        _derived(p),
+        _web(p)
       )
 
       private def _association(p: Record) = Association(
@@ -2395,9 +2418,32 @@ object SchemaModel {
         _string_value_flexible(p, derivedName).orElse(
           p.getStringCaseInsensitive(derivedName).map(_.trim).filterNot(_.isEmpty)
         ).orElse(
-          p.getString("5").map(_.trim).filterNot(_.isEmpty)
+          if (_has_web_field(p))
+            None
+          else
+            p.getString("5").map(_.trim).filterNot(_.isEmpty)
         ).orElse(
-          _field_value(p, 4).map(_.trim).filterNot(_.isEmpty)
+          if (_has_web_field(p))
+            None
+          else
+            _field_value(p, 4).map(_.trim).filterNot(_.isEmpty)
+        )
+
+      private def _web(p: Record): Attribute.Web =
+        Attribute.Web(
+          label = _string_value_flexible(p, Seq("web-label", "webLabel")),
+          controlType = _string_value_flexible(p, Seq("web-control-type", "web-controlType", "webControlType", "web-control", "webControl", "web-widget", "webWidget")),
+          placeholder = _string_value_flexible(p, Seq("web-placeholder", "webPlaceholder")),
+          help = _string_value_flexible(p, Seq("web-help", "webHelp")),
+          required = _boolean_value_flexible(p, Seq("web-required", "webRequired")),
+          hidden = _boolean_value_flexible(p, Seq("web-hidden", "webHidden")),
+          readonly = _boolean_value_flexible(p, Seq("web-readonly", "webReadonly", "web-read-only", "webReadOnly")),
+          minLength = _string_value_flexible(p, Seq("web-min-length", "webMinLength")),
+          maxLength = _string_value_flexible(p, Seq("web-max-length", "webMaxLength")),
+          min = _string_value_flexible(p, Seq("web-min", "webMin")),
+          max = _string_value_flexible(p, Seq("web-max", "webMax")),
+          step = _string_value_flexible(p, Seq("web-step", "webStep")),
+          pattern = _string_value_flexible(p, Seq("web-pattern", "webPattern", "web-regex", "webRegex"))
         )
 
       private def _string_value_flexible(p: Record, keys: Seq[String]): Option[String] = {
@@ -2425,11 +2471,20 @@ object SchemaModel {
       private def _normalize_key(p: String): String =
         p.toLowerCase.replaceAll("[\\s_\\-　]+", "")
 
+      private def _has_web_field(p: Record): Boolean =
+        p.fields.exists(field => _normalize_key(field.name).startsWith("web"))
+
       private def _field_value(p: Record, index: Int): Option[String] =
         p.fields.lift(index).flatMap(_.getValue).map(_.toString).map(_.trim).filterNot(_.isEmpty)
 
       private def _int_value_flexible(p: Record, keys: Seq[String]): Option[Int] =
         _string_value_flexible(p, keys).flatMap(x => Try(x.toInt).toOption)
+
+      private def _boolean_value_flexible(p: Record, keys: Seq[String]): Option[Boolean] =
+        _string_value_flexible(p, keys).map(_.trim.toLowerCase(java.util.Locale.ROOT)).collect {
+          case "true" | "yes" | "on" | "1" => true
+          case "false" | "no" | "off" | "0" => false
+        }
 
       private def _format_constraint(p: String): Option[Constraint] = p.trim.toLowerCase match {
         case "" => None
@@ -2526,7 +2581,8 @@ object SchemaModel {
     override val dbColumnName: Option[String] = None,
     override val dbColumnType: Option[String] = None,
     override val externalName: Option[String] = None,
-    override val derived: Option[String] = None
+    override val derived: Option[String] = None,
+    web: Attribute.Web = Attribute.Web.empty
   ) extends Slot {
     def isRequired = domain.isRequired
 
@@ -2545,6 +2601,27 @@ object SchemaModel {
     )
 
     def unmarshall(p: Any): Consequence[Any] = verify(p)
+  }
+
+  object Attribute {
+    case class Web(
+      label: Option[String] = None,
+      controlType: Option[String] = None,
+      placeholder: Option[String] = None,
+      help: Option[String] = None,
+      required: Option[Boolean] = None,
+      hidden: Option[Boolean] = None,
+      readonly: Option[Boolean] = None,
+      minLength: Option[String] = None,
+      maxLength: Option[String] = None,
+      min: Option[String] = None,
+      max: Option[String] = None,
+      step: Option[String] = None,
+      pattern: Option[String] = None
+    )
+    object Web {
+      val empty: Web = Web()
+    }
   }
 
   class Association(
