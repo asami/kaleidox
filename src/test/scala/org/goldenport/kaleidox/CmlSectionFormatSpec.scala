@@ -704,6 +704,42 @@ extends:
       title.datatype shouldBe "text"
     }
 
+    "parse OPERATION ATTRIBUTE web form metadata" in {
+      val s = """# COMMAND
+                 |
+                 |## SavePerson
+                 |
+                 |### ATTRIBUTE
+                 |
+                 || name | type   | multiplicity | web-label | web-control-type | web-placeholder | web-help         | web-required |
+                 ||------+--------+--------------+-----------+------------------+-----------------+------------------+--------------|
+                 || body | string | 1            | Body      | textarea         | Write body      | Main body text.  | true         |
+                 |
+                 |#### title
+                 |
+                 |type: string
+                 |web-label: Subject
+                 |web-placeholder: Short title
+                 |web-help: Visible title.
+                 |web-required: false
+                 |""".stripMargin
+      val model = Model.parse(config, s)
+      val opmodel = model.takeOperationModel
+      val value = opmodel.values.find(_.name == "SavePerson").getOrElse(fail("SavePerson value is missing"))
+      val body = value.fields.find(_.name == "body").getOrElse(fail("body field is missing"))
+      val title = value.fields.find(_.name == "title").getOrElse(fail("title field is missing"))
+
+      body.label shouldBe Some("Body")
+      body.controlType shouldBe Some("textarea")
+      body.placeholder shouldBe Some("Write body")
+      body.help shouldBe Some("Main body text.")
+      body.required shouldBe Some(true)
+      title.label shouldBe Some("Subject")
+      title.placeholder shouldBe Some("Short title")
+      title.help shouldBe Some("Visible title.")
+      title.required shouldBe Some(false)
+    }
+
     "merge OPERATION ATTRIBUTE dl rows with subsection metadata by name" in {
       val s = """# COMMAND
                  |

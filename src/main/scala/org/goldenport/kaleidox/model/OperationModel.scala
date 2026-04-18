@@ -16,7 +16,8 @@ import org.goldenport.util.StringUtils
 /*
  * @since   Mar. 22, 2026
  *  version Mar. 28, 2026
- * @version Apr. 13, 2026
+ *  version Apr. 13, 2026
+ * @version Apr. 19, 2026
  * @author  ASAMI, Tomoharu
  */
 case class OperationModel(
@@ -102,6 +103,7 @@ case class OperationModel(
         precondition = op.precondition,
         postcondition = op.postcondition,
         access = op.access,
+        authorization = op.authorization,
         rules = op.rules,
         parameters = parameters
       )
@@ -174,7 +176,12 @@ object OperationModel {
   case class FieldDefinition(
     name: String,
     datatype: String,
-    multiplicity: String = "1"
+    multiplicity: String = "1",
+    label: Option[String] = None,
+    controlType: Option[String] = None,
+    placeholder: Option[String] = None,
+    help: Option[String] = None,
+    required: Option[Boolean] = None
   )
 
   case class InputValueDefinition(
@@ -201,8 +208,15 @@ object OperationModel {
     precondition: Option[String] = None,
     postcondition: Option[String] = None,
     access: Option[AccessDefinition] = None,
+    authorization: Option[AuthorizationDefinition] = None,
     rules: Vector[String] = Vector.empty,
     parameters: Vector[FieldDefinition] = Vector.empty
+  )
+
+  case class AuthorizationDefinition(
+    operationModes: Vector[String] = Vector.empty,
+    allowAnonymous: Option[Boolean] = None,
+    anonymousOperationModes: Vector[String] = Vector.empty
   )
 
   case class AccessDefinition(
@@ -237,6 +251,7 @@ object OperationModel {
     precondition: Option[String] = None,
     postcondition: Option[String] = None,
     access: Option[AccessDefinition] = None,
+    authorization: Option[AuthorizationDefinition] = None,
     rules: Vector[String] = Vector.empty,
     parameters: Vector[FieldDefinition]
   )
@@ -310,6 +325,7 @@ object OperationModel {
       case (k, v) if k == "postcondition" || k == "post-condition" => v.trim
     }.filterNot(Strings.blankp)
     val access = _access_definition(p)
+    val authorization = _authorization_definition(p)
     val entityNames = _entity_names(p)
     val rules = _rule_lines(p)
     val params = p.sections.filter(_.keyForModel == "parameter").toVector.flatMap(_parse_parameter_section)
@@ -331,6 +347,7 @@ object OperationModel {
       precondition = precondition,
       postcondition = postcondition,
       access = access,
+      authorization = authorization,
       rules = rules,
       parameters = params
     )
@@ -412,6 +429,37 @@ object OperationModel {
       }
     }
 
+  private def _authorization_definition(
+    p: Section
+  ): Option[AuthorizationDefinition] =
+    p.sections.find(s => s.keyForModel == "authorization" || s.keyForModel == "operation-authorization").map { s =>
+      val kv = _merged_key_values(s).toMap
+      AuthorizationDefinition(
+        operationModes = _string_vector(kv, "operationmodes", "operation_modes", "modes"),
+        allowAnonymous = _boolean(kv, "allowanonymous", "allow_anonymous"),
+        anonymousOperationModes = _string_vector(kv, "anonymousoperationmodes", "anonymous_operation_modes", "anonymousmodes", "anonymous_modes")
+      )
+    }.filter { a =>
+      a.operationModes.nonEmpty || a.allowAnonymous.nonEmpty || a.anonymousOperationModes.nonEmpty
+    }
+
+  private def _string_vector(
+    kv: Map[String, String],
+    keys: String*
+  ): Vector[String] =
+    keys.iterator.flatMap(kv.get).toSeq.headOption
+      .map(_.split("[,|\\s]+").toVector.map(_.trim).filterNot(Strings.blankp))
+      .getOrElse(Vector.empty)
+
+  private def _boolean(
+    kv: Map[String, String],
+    keys: String*
+  ): Option[Boolean] =
+    keys.iterator.flatMap(kv.get).map(_.trim.toLowerCase(java.util.Locale.ROOT)).collectFirst {
+      case "true" | "yes" | "on" | "1" => true
+      case "false" | "no" | "off" | "0" => false
+    }
+
   private def _entity_name(
     p: Section
   ): Option[String] =
@@ -455,10 +503,11 @@ object OperationModel {
   ): Vector[FieldDefinition] =
     p.sections.toVector.filter(_.nameForModel.nonEmpty).map { s =>
       val kv = _merged_key_values(s).toMap
-      FieldDefinition(
+      _field_definition(
         s.nameForModel,
         kv.getOrElse("type", kv.getOrElse("datatype", "")),
-        kv.getOrElse("multiplicity", "1")
+        kv.getOrElse("multiplicity", "1"),
+        kv
       )
     }.filter(_.datatype.nonEmpty)
 
@@ -475,7 +524,12 @@ object OperationModel {
             val merged = FieldDefinition(
               name = lhs.name,
               datatype = if (rhs.datatype.nonEmpty) rhs.datatype else lhs.datatype,
-              multiplicity = if (rhs.multiplicity.nonEmpty) rhs.multiplicity else lhs.multiplicity
+              multiplicity = if (rhs.multiplicity.nonEmpty) rhs.multiplicity else lhs.multiplicity,
+              label = rhs.label.orElse(lhs.label),
+              controlType = rhs.controlType.orElse(lhs.controlType),
+              placeholder = rhs.placeholder.orElse(lhs.placeholder),
+              help = rhs.help.orElse(lhs.help),
+              required = rhs.required.orElse(lhs.required)
             )
             copy(xs = xs.updated(i, key -> merged))
         }
@@ -503,9 +557,53 @@ object OperationModel {
       for {
         n <- name.map(_.trim).filterNot(_.isEmpty)
         t <- tpe.map(_.trim).filterNot(_.isEmpty)
-      } yield FieldDefinition(n, t, multi.trim)
+      } yield FieldDefinition(
+        n,
+        t,
+        multi.trim,
+        label = _string_from_record(r, "web-label", "weblabel"),
+        controlType = _string_from_record(r, "web-control-type", "web-controltype", "webcontroltype", "web-control", "webcontrol", "web-widget", "webwidget"),
+        placeholder = _string_from_record(r, "web-placeholder", "webplaceholder"),
+        help = _string_from_record(r, "web-help", "webhelp"),
+        required = _boolean_from_record(r, "web-required")
+      )
     }
   }
+
+  private def _string_from_record(
+    record: org.goldenport.record.v3.Record,
+    keys: String*
+  ): Option[String] =
+    record.getStringCaseInsensitive(keys.toVector).map(_.trim).filterNot(Strings.blankp)
+
+  private def _field_definition(
+    name: String,
+    datatype: String,
+    multiplicity: String,
+    kv: Map[String, String]
+  ): FieldDefinition =
+    FieldDefinition(
+      name = name,
+      datatype = datatype,
+      multiplicity = multiplicity,
+      label = _string(kv, "web-label", "weblabel"),
+      controlType = _string(kv, "web-control-type", "web-controltype", "webcontroltype", "web-control", "webcontrol", "web-widget", "webwidget"),
+      placeholder = _string(kv, "web-placeholder", "webplaceholder"),
+      help = _string(kv, "web-help", "webhelp"),
+      required = _boolean(kv, "web-required", "webrequired")
+    )
+
+  private def _string(
+    kv: Map[String, String],
+    keys: String*
+  ): Option[String] =
+    keys.iterator.flatMap(kv.get).map(_.trim).find(!Strings.blankp(_))
+
+  private def _boolean_from_record(
+    record: org.goldenport.record.v3.Record,
+    key: String
+  ): Option[Boolean] =
+    record.getStringCaseInsensitive(Vector(key, key.replace("-", ""))).flatMap(x => _boolean(Map(key -> x), key))
 
   private def _merged_key_values(
     p: Section
