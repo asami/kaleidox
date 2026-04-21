@@ -43,7 +43,7 @@ import scala.util.Try
  *  version Sep.  6, 2024
  *  version May.  2, 2025
  *  version Mar. 31, 2026
- * @version Apr. 19, 2026
+ * @version Apr. 21, 2026
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -472,12 +472,12 @@ object SchemaModel {
 
           private def _normalize_attribute_record(p: Record): Record = {
             val normalized = Vector(
-              _get_string(p, nameName).orElse(p.getString("1")).map("name" -> _),
-              _get_string(p, typeName).orElse(p.getString("2")).map("type" -> _),
-              _get_string(p, multiplicityName).orElse(p.getString("3")).map("multiplicity" -> _),
-              _get_string(p, labelName).orElse(p.getString("4")).map("label" -> _),
+              _get_string(p, nameName).map("name" -> _),
+              _get_string(p, typeName).map("type" -> _),
+              _get_string(p, multiplicityName).map("multiplicity" -> _),
+              _get_string(p, labelName).map("label" -> _),
               _get_string(p, Vector("description")).map("description" -> _),
-              _get_string(p, derivedName).orElse(_positional_derived(p)).map("derived" -> _)
+              _get_string(p, derivedName).map("derived" -> _)
             ).flatten
             val normalizedKeys = normalized.map(_._1.toLowerCase(java.util.Locale.ROOT)).toSet
             val original = p.fields.toVector.flatMap { field =>
@@ -490,12 +490,6 @@ object SchemaModel {
             val fields = normalized ++ original
             if (fields.isEmpty) p else Record.create(fields)
           }
-
-          private def _positional_derived(p: Record): Option[String] =
-            if (_has_web_field(p))
-              None
-            else
-              p.getString("5")
 
           private def _has_web_field(p: Record): Boolean =
             p.fields.exists(field => _normalize_record_key(field.name).startsWith("web"))
@@ -1393,12 +1387,12 @@ object SchemaModel {
 
           private def _normalize_attribute_record(p: Record): Record = {
             val normalized = Vector(
-              _get_string(p, nameName).orElse(p.getString("1")).map("name" -> _),
-              _get_string(p, typeName).orElse(p.getString("2")).map("type" -> _),
-              _get_string(p, multiplicityName).orElse(p.getString("3")).map("multiplicity" -> _),
-              _get_string(p, labelName).orElse(p.getString("4")).map("label" -> _),
+              _get_string(p, nameName).map("name" -> _),
+              _get_string(p, typeName).map("type" -> _),
+              _get_string(p, multiplicityName).map("multiplicity" -> _),
+              _get_string(p, labelName).map("label" -> _),
               _get_string(p, Vector("description")).map("description" -> _),
-              _get_string(p, derivedName).orElse(_positional_derived(p)).map("derived" -> _)
+              _get_string(p, derivedName).map("derived" -> _)
             ).flatten
             val normalizedKeys = normalized.map(_._1.toLowerCase(java.util.Locale.ROOT)).toSet
             val original = p.fields.toVector.flatMap { field =>
@@ -1411,12 +1405,6 @@ object SchemaModel {
             val fields = normalized ++ original
             if (fields.isEmpty) p else Record.create(fields)
           }
-
-          private def _positional_derived(p: Record): Option[String] =
-            if (_has_web_field(p))
-              None
-            else
-              p.getString("5")
 
           private def _has_web_field(p: Record): Boolean =
             p.fields.exists(field => _normalize_record_key(field.name).startsWith("web"))
@@ -2357,7 +2345,6 @@ object SchemaModel {
         // }
 
       private def _name(p: Record): String = p.getStringCaseInsensitive(nameName).
-        orElse(_field_value(p, 0)).
         getOrElse {
         RAISE.syntaxErrorFault("No name in table.")
       }
@@ -2374,7 +2361,6 @@ object SchemaModel {
         )
 
       private def _datatype(p: Record): DataType = p.getStringCaseInsensitive(typeName).
-        orElse(_field_value(p, 1)).
         flatMap(DataType.get).getOrElse(XString)
 
       private def _objectref(p: Record): ObjectRef =
@@ -2388,7 +2374,6 @@ object SchemaModel {
         )
 
       private def _multiplicity(p: Record): Multiplicity = p.getStringCaseInsensitive(multiplicityName).
-        orElse(_field_value(p, 2)).
         flatMap(Multiplicity.get).getOrElse(MOne)
 
       private def _constraints(p: Record): List[Constraint] = {
@@ -2417,16 +2402,6 @@ object SchemaModel {
       private def _derived(p: Record): Option[String] =
         _string_value_flexible(p, derivedName).orElse(
           p.getStringCaseInsensitive(derivedName).map(_.trim).filterNot(_.isEmpty)
-        ).orElse(
-          if (_has_web_field(p))
-            None
-          else
-            p.getString("5").map(_.trim).filterNot(_.isEmpty)
-        ).orElse(
-          if (_has_web_field(p))
-            None
-          else
-            _field_value(p, 4).map(_.trim).filterNot(_.isEmpty)
         )
 
       private def _web(p: Record): Attribute.Web =
@@ -2473,9 +2448,6 @@ object SchemaModel {
 
       private def _has_web_field(p: Record): Boolean =
         p.fields.exists(field => _normalize_key(field.name).startsWith("web"))
-
-      private def _field_value(p: Record, index: Int): Option[String] =
-        p.fields.lift(index).flatMap(_.getValue).map(_.toString).map(_.trim).filterNot(_.isEmpty)
 
       private def _int_value_flexible(p: Record, keys: Seq[String]): Option[Int] =
         _string_value_flexible(p, keys).flatMap(x => Try(x.toInt).toOption)
