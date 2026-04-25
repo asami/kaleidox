@@ -27,7 +27,7 @@ import org.goldenport.parser.LogicalSection
  *  version Jun. 20, 2021
  *  version Oct.  1, 2022
  *  version Aug. 21, 2023
- * @version Apr. 13, 2026
+ * @version Apr. 25, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
@@ -125,10 +125,14 @@ object ServiceModel {
       description: Option[String] = None,
       precondition: Option[String] = None,
       postcondition: Option[String] = None,
+      execution: Option[String] = None,
+      implementation: Option[String] = None,
       entityName: Option[String] = None,
       entityNames: Vector[String] = Vector.empty,
       access: Option[OperationModel.AccessDefinition] = None,
-      rules: Vector[String] = Vector.empty
+      authorization: Option[OperationModel.AuthorizationDefinition] = None,
+      rules: Vector[String] = Vector.empty,
+      parameters: Vector[OperationModel.FieldDefinition] = Vector.empty
     ) {
       def toFunction: LispFunction = method.toFunction
     }
@@ -453,10 +457,14 @@ object ServiceModel {
           description = _description_text(p),
           precondition = _precondition_text(p),
           postcondition = _postcondition_text(p),
+          execution = _execution_text(p),
+          implementation = _implementation_text(p),
           entityName = _entity_names(p).headOption,
           entityNames = _entity_names(p),
           access = _access_definition(p),
-          rules = _rule_lines(p)
+          authorization = _authorization_definition(p),
+          rules = _rule_lines(p),
+          parameters = _parameter_fields(p)
         ))
       }
 
@@ -588,6 +596,93 @@ object ServiceModel {
 
       private def _rule_lines(p: Section): Vector[String] =
         p.sections.find(_.keyForModel == "rule").toVector.flatMap(s => CmlSectionFormat.valueLines(s.toText))
+
+      private def _execution_text(p: Section): Option[String] =
+        p.sections.find(s => s.keyForModel == "execution" || s.keyForModel == "directive").
+          flatMap(_section_body_text).map(_.trim).filterNot(Strings.blankp)
+
+      private def _implementation_text(p: Section): Option[String] =
+        p.sections.find(_.keyForModel == "implementation").
+          flatMap(_section_body_text).map(_.trim).filterNot(Strings.blankp)
+
+      private def _parameter_fields(p: Section): Vector[OperationModel.FieldDefinition] =
+        p.sections.filter(_.keyForModel == "parameter").toVector.flatMap(_parse_parameter_section)
+
+      private def _parse_parameter_section(p: Section): Vector[OperationModel.FieldDefinition] = {
+        val fromTables = p.tableList.toVector.flatMap(_table_fields)
+        val fromText = if (fromTables.isEmpty) _field_lines(_section_body_text(p).getOrElse("")) else Vector.empty
+        fromTables ++ fromText
+      }
+
+      private def _field_lines(p: String): Vector[OperationModel.FieldDefinition] =
+        CmlSectionFormat.fieldDefinitions(p).map { case (n, t, multi) =>
+          OperationModel.FieldDefinition(n, t, multi)
+        }
+
+      private def _table_fields(table: Table): Vector[OperationModel.FieldDefinition] = {
+        val records = SimpleModelerUtils.toRecords(table).toVector
+        records.flatMap { r =>
+          val name = r.getStringCaseInsensitive(Vector("name"))
+          val tpe = r.getStringCaseInsensitive(Vector("type"))
+          val multi = r.getStringCaseInsensitive(Vector("multiplicity")).getOrElse("1")
+          for {
+            n <- name.map(_.trim).filterNot(_.isEmpty)
+            t <- tpe.map(_.trim).filterNot(_.isEmpty)
+          } yield OperationModel.FieldDefinition(
+            n,
+            t,
+            multi.trim,
+            label = _string_from_record(r, "web-label", "weblabel"),
+            controlType = _string_from_record(r, "web-control-type", "web-controltype", "webcontroltype", "web-control", "webcontrol", "web-widget", "webwidget"),
+            placeholder = _string_from_record(r, "web-placeholder", "webplaceholder"),
+            help = _string_from_record(r, "web-help", "webhelp"),
+            required = _boolean_from_record(r, "web-required")
+          )
+        }
+      }
+
+      private def _string_from_record(
+        record: org.goldenport.record.v3.Record,
+        keys: String*
+      ): Option[String] =
+        record.getStringCaseInsensitive(keys.toVector).map(_.trim).filterNot(Strings.blankp)
+
+      private def _boolean_from_record(
+        record: org.goldenport.record.v3.Record,
+        key: String
+      ): Option[Boolean] =
+        record.getStringCaseInsensitive(Vector(key, key.replace("-", ""))).flatMap(x => _boolean(Map(key -> x), key))
+
+      private def _authorization_definition(
+        p: Section
+      ): Option[OperationModel.AuthorizationDefinition] =
+        p.sections.find(s => s.keyForModel == "authorization" || s.keyForModel == "operation-authorization").map { s =>
+          val kv = _merged_key_values(s).toMap
+          OperationModel.AuthorizationDefinition(
+            operationModes = _string_vector(kv, "operationmodes", "operation_modes", "modes"),
+            allowAnonymous = _boolean(kv, "allowanonymous", "allow_anonymous"),
+            anonymousOperationModes = _string_vector(kv, "anonymousoperationmodes", "anonymous_operation_modes", "anonymousmodes", "anonymous_modes")
+          )
+        }.filter { a =>
+          a.operationModes.nonEmpty || a.allowAnonymous.nonEmpty || a.anonymousOperationModes.nonEmpty
+        }
+
+      private def _string_vector(
+        kv: Map[String, String],
+        keys: String*
+      ): Vector[String] =
+        keys.iterator.flatMap(kv.get).toSeq.headOption
+          .map(_.split("[,|\\s]+").toVector.map(_.trim).filterNot(Strings.blankp))
+          .getOrElse(Vector.empty)
+
+      private def _boolean(
+        kv: Map[String, String],
+        keys: String*
+      ): Option[Boolean] =
+        keys.iterator.flatMap(kv.get).map(_.trim.toLowerCase(java.util.Locale.ROOT)).collectFirst {
+          case "true" | "yes" | "on" | "1" => true
+          case "false" | "no" | "off" | "0" => false
+        }
 
       private def _access_definition(
         p: Section
