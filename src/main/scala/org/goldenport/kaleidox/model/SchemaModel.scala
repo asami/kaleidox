@@ -43,7 +43,7 @@ import scala.util.Try
  *  version Sep.  6, 2024
  *  version May.  2, 2025
  *  version Mar. 31, 2026
- * @version Apr. 21, 2026
+ * @version May.  3, 2026
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -471,8 +471,9 @@ object SchemaModel {
               this
 
           private def _normalize_attribute_record(p: Record): Record = {
+            val inferred = _attribute_name_from_leading_column(p)
             val normalized = Vector(
-              _get_string(p, nameName).map("name" -> _),
+              _get_string(p, nameName).orElse(inferred).map("name" -> _),
               _get_string(p, typeName).map("type" -> _),
               _get_string(p, multiplicityName).map("multiplicity" -> _),
               _get_string(p, labelName).map("label" -> _),
@@ -496,6 +497,16 @@ object SchemaModel {
 
           private def _normalize_record_key(p: String): String =
             p.toLowerCase(java.util.Locale.ROOT).replaceAll("[\\s_\\-　]+", "")
+
+          private def _attribute_name_from_leading_column(p: Record): Option[String] = {
+            val reserved = (nameName ++ typeName ++ multiplicityName ++ labelName ++ Vector("description") ++ derivedName).
+              map(_normalize_record_key).toSet
+            p.fields.toVector.collectFirst {
+              case field if !reserved.contains(_normalize_record_key(field.name)) =>
+                val v = Option(field.value.asString).map(_.trim).getOrElse("")
+                if (v.nonEmpty) v else field.name.trim
+            }.filterNot(_.isEmpty)
+          }
 
           private def _get_string(p: Record, names: Seq[String]): Option[String] =
             p.getStringCaseInsensitive(names.toVector).orElse {
@@ -1386,8 +1397,9 @@ object SchemaModel {
           }
 
           private def _normalize_attribute_record(p: Record): Record = {
+            val inferred = _attribute_name_from_leading_column(p)
             val normalized = Vector(
-              _get_string(p, nameName).map("name" -> _),
+              _get_string(p, nameName).orElse(inferred).map("name" -> _),
               _get_string(p, typeName).map("type" -> _),
               _get_string(p, multiplicityName).map("multiplicity" -> _),
               _get_string(p, labelName).map("label" -> _),
@@ -1411,6 +1423,16 @@ object SchemaModel {
 
           private def _normalize_record_key(p: String): String =
             p.toLowerCase(java.util.Locale.ROOT).replaceAll("[\\s_\\-　]+", "")
+
+          private def _attribute_name_from_leading_column(p: Record): Option[String] = {
+            val reserved = (nameName ++ typeName ++ multiplicityName ++ labelName ++ Vector("description") ++ derivedName).
+              map(_normalize_record_key).toSet
+            p.fields.toVector.collectFirst {
+              case field if !reserved.contains(_normalize_record_key(field.name)) =>
+                val v = Option(field.value.asString).map(_.trim).getOrElse("")
+                if (v.nonEmpty) v else field.name.trim
+            }.filterNot(_.isEmpty)
+          }
 
           private def _get_string(p: Record, names: Seq[String]): Option[String] =
             p.getStringCaseInsensitive(names.toVector).orElse {

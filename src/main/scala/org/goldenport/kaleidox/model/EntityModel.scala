@@ -40,7 +40,7 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Jul. 12, 2024
  *  version May.  2, 2025
  *  version Mar. 24, 2026
- * @version Apr. 13, 2026
+ * @version May.  3, 2026
  * @author  ASAMI, Tomoharu
  */
 case class EntityModel(
@@ -391,7 +391,9 @@ object EntityModel {
             case (Some(s), Some(p)) => EntityClass.parse(schemaModel, factory, name, s, p).toOption
             case (Some(s), None) =>
               Some(EntityClass(factory, s, Nil, aggregate = s.aggregate, view = s.view))
-            case (None, Some(p)) => EntityClass.parse(schemaModel, factory, name, p).toOption
+            case (None, Some(p)) =>
+              val featureSchema = SchemaClass(name, SchemaClass.Features.empty, Vector.empty)
+              EntityClass.parse(schemaModel, factory, name, featureSchema, p).toOption
             case (None, None) => SchemaClass.createOption(p).map(s => EntityClass(factory, s, Nil, aggregate = s.aggregate, view = s.view)) // TODO
           }
           ec.

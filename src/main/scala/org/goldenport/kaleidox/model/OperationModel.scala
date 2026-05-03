@@ -17,7 +17,7 @@ import org.goldenport.util.StringUtils
  * @since   Mar. 22, 2026
  *  version Mar. 28, 2026
  *  version Apr. 13, 2026
- * @version Apr. 19, 2026
+ * @version May.  3, 2026
  * @author  ASAMI, Tomoharu
  */
 case class OperationModel(
@@ -102,6 +102,7 @@ case class OperationModel(
         description = op.description,
         precondition = op.precondition,
         postcondition = op.postcondition,
+        visibility = op.visibility,
         access = op.access,
         authorization = op.authorization,
         rules = op.rules,
@@ -207,6 +208,7 @@ object OperationModel {
     description: Option[String] = None,
     precondition: Option[String] = None,
     postcondition: Option[String] = None,
+    visibility: Option[String] = None,
     access: Option[AccessDefinition] = None,
     authorization: Option[AuthorizationDefinition] = None,
     rules: Vector[String] = Vector.empty,
@@ -250,6 +252,7 @@ object OperationModel {
     description: Option[String] = None,
     precondition: Option[String] = None,
     postcondition: Option[String] = None,
+    visibility: Option[String] = None,
     access: Option[AccessDefinition] = None,
     authorization: Option[AuthorizationDefinition] = None,
     rules: Vector[String] = Vector.empty,
@@ -346,6 +349,7 @@ object OperationModel {
       description = description,
       precondition = precondition,
       postcondition = postcondition,
+      visibility = _visibility_text(p),
       access = access,
       authorization = authorization,
       rules = rules,
@@ -426,6 +430,19 @@ object OperationModel {
           entityApplicationDomain = kv.get("entity_application_domain").orElse(kv.get("entityapplicationdomain")).orElse(kv.get("application_domain")).map(_.trim).filterNot(Strings.blankp),
           condition = kv.get("condition").orElse(kv.get("conditions")).orElse(kv.get("abac")).orElse(kv.get("abac_condition")).orElse(kv.get("abac_conditions")).orElse(kv.get("natural_condition")).orElse(kv.get("natural_conditions")).map(_.trim).filterNot(Strings.blankp)
         )
+      }
+    }
+
+  private def _visibility_text(
+    p: Section
+  ): Option[String] =
+    p.sections.find(_.keyForModel == "visibility").flatMap { s =>
+      val text = CmlSectionFormat.valueLines(s.toText).mkString(" ").trim
+      if (Strings.blankp(text)) None else Some(text)
+    }.orElse {
+      p.sections.find(_.keyForModel == "access").flatMap { s =>
+        val kv = _merged_key_values(s).toMap
+        kv.get("visibility").orElse(kv.get("resource_visibility")).map(_.trim).filterNot(Strings.blankp)
       }
     }
 

@@ -27,7 +27,7 @@ import org.goldenport.parser.LogicalSection
  *  version Jun. 20, 2021
  *  version Oct.  1, 2022
  *  version Aug. 21, 2023
- * @version Apr. 25, 2026
+ * @version May.  3, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
@@ -129,6 +129,7 @@ object ServiceModel {
       implementation: Option[String] = None,
       entityName: Option[String] = None,
       entityNames: Vector[String] = Vector.empty,
+      visibility: Option[String] = None,
       access: Option[OperationModel.AccessDefinition] = None,
       authorization: Option[OperationModel.AuthorizationDefinition] = None,
       rules: Vector[String] = Vector.empty,
@@ -433,7 +434,7 @@ object ServiceModel {
         else
           Vector.empty
 
-      private def _is_operation(p: Section) = p.keyForModel == "operation"
+      private def _is_operation(p: Section) = _key_is(p, "operation")
 
       private def _get_operation(service: String, p: Section): Option[Operation] = {
         val name = p.nameForModel
@@ -461,6 +462,7 @@ object ServiceModel {
           implementation = _implementation_text(p),
           entityName = _entity_names(p).headOption,
           entityNames = _entity_names(p),
+          visibility = _visibility_text(p),
           access = _access_definition(p),
           authorization = _authorization_definition(p),
           rules = _rule_lines(p),
@@ -475,7 +477,7 @@ object ServiceModel {
           None
 
       private def _is_in(p: Section) = {
-        val k = p.keyForModel
+        val k = _key(p)
         k == "in" || k == "input"
       }
 
@@ -503,7 +505,7 @@ object ServiceModel {
           None
 
       private def _is_out(p: Section) = {
-        val k = p.keyForModel
+        val k = _key(p)
         k == "out" || k == "output"
       }
 
@@ -535,10 +537,10 @@ object ServiceModel {
         else
           None
 
-      private def _is_method(p: Section) = p.keyForModel == "method"
+      private def _is_method(p: Section) = _key_is(p, "method")
 
       private def _description_text(p: Section): Option[String] =
-        p.sections.find(_.keyForModel == "description").
+        p.sections.find(_key_is(_, "description")).
           map(_.toText.trim).
           filter(_.nonEmpty)
 
@@ -566,7 +568,7 @@ object ServiceModel {
       }
 
       private def _use_case_scenarios(p: Section): Vector[UseCaseScenario] =
-        p.sections.toVector.filter(_.keyForModel.equalsIgnoreCase("scenario")).flatMap { s =>
+        p.sections.toVector.filter(_key_is(_, "scenario")).flatMap { s =>
           s.sections.toVector.map(_parse_use_case_scenario)
         }
 
@@ -583,30 +585,30 @@ object ServiceModel {
       }
 
       private def _summary_text(p: Section): Option[String] =
-        p.sections.find(_.keyForModel == "summary").
+        p.sections.find(_key_is(_, "summary")).
           flatMap(_section_body_text)
 
       private def _precondition_text(p: Section): Option[String] =
-        p.sections.find(s => s.keyForModel == "precondition" || s.keyForModel == "pre-condition").
+        p.sections.find(s => _key_is(s, "precondition", "pre-condition")).
           flatMap(_section_body_text)
 
       private def _postcondition_text(p: Section): Option[String] =
-        p.sections.find(s => s.keyForModel == "postcondition" || s.keyForModel == "post-condition").
+        p.sections.find(s => _key_is(s, "postcondition", "post-condition")).
           flatMap(_section_body_text)
 
       private def _rule_lines(p: Section): Vector[String] =
-        p.sections.find(_.keyForModel == "rule").toVector.flatMap(s => CmlSectionFormat.valueLines(s.toText))
+        p.sections.find(_key_is(_, "rule")).toVector.flatMap(s => CmlSectionFormat.valueLines(s.toText))
 
       private def _execution_text(p: Section): Option[String] =
-        p.sections.find(s => s.keyForModel == "execution" || s.keyForModel == "directive").
+        p.sections.find(s => _key_is(s, "execution", "directive")).
           flatMap(_section_body_text).map(_.trim).filterNot(Strings.blankp)
 
       private def _implementation_text(p: Section): Option[String] =
-        p.sections.find(_.keyForModel == "implementation").
+        p.sections.find(_key_is(_, "implementation")).
           flatMap(_section_body_text).map(_.trim).filterNot(Strings.blankp)
 
       private def _parameter_fields(p: Section): Vector[OperationModel.FieldDefinition] =
-        p.sections.filter(_.keyForModel == "parameter").toVector.flatMap(_parse_parameter_section)
+        p.sections.filter(_key_is(_, "parameter")).toVector.flatMap(_parse_parameter_section)
 
       private def _parse_parameter_section(p: Section): Vector[OperationModel.FieldDefinition] = {
         val fromTables = p.tableList.toVector.flatMap(_table_fields)
@@ -656,7 +658,7 @@ object ServiceModel {
       private def _authorization_definition(
         p: Section
       ): Option[OperationModel.AuthorizationDefinition] =
-        p.sections.find(s => s.keyForModel == "authorization" || s.keyForModel == "operation-authorization").map { s =>
+        p.sections.find(s => _key_is(s, "authorization", "operation-authorization")).map { s =>
           val kv = _merged_key_values(s).toMap
           OperationModel.AuthorizationDefinition(
             operationModes = _string_vector(kv, "operationmodes", "operation_modes", "modes"),
@@ -687,7 +689,7 @@ object ServiceModel {
       private def _access_definition(
         p: Section
       ): Option[OperationModel.AccessDefinition] =
-        p.sections.find(_.keyForModel == "access").flatMap { s =>
+        p.sections.find(_key_is(_, "access")).flatMap { s =>
           val kv = _merged_key_values(s)
           val policy = _value_opt(kv, "policy")
           policy.map { x =>
@@ -712,32 +714,53 @@ object ServiceModel {
           }
         }
 
+      private def _visibility_text(
+        p: Section
+      ): Option[String] =
+        p.sections.find(_key_is(_, "visibility")).flatMap { s =>
+          val text = CmlSectionFormat.valueLines(s.toText).mkString(" ").trim
+          if (Strings.blankp(text)) None else Some(text)
+        }.orElse {
+          p.sections.find(_key_is(_, "access")).flatMap { s =>
+            val kv = _merged_key_values(s)
+            _value_opt(kv, "visibility").orElse(_value_opt(kv, "resource_visibility"))
+          }
+        }
+
       private def _entity_name(
         p: Section
       ): Option[String] =
-        p.sections.find(_.keyForModel == "entity").flatMap(_section_body_text).map(_.trim).filterNot(Strings.blankp)
+        p.sections.find(_key_is(_, "entity")).flatMap(_section_body_text).map(_.trim).filterNot(Strings.blankp)
 
       private def _entity_names(
         p: Section
       ): Vector[String] =
-        p.sections.find(_.keyForModel == "entity").toVector.flatMap { s =>
+        p.sections.find(_key_is(_, "entity")).toVector.flatMap { s =>
           s.toText.split("[,;\\n\\r]+").toVector.map(_.trim).filterNot(Strings.blankp)
         }
 
       private def _type_text(p: Section): Option[String] =
-        p.sections.find(_.keyForModel == "type").
+        p.sections.find(_key_is(_, "type")).
           flatMap(_section_body_text)
 
       private def _kind_opt(p: Section): Option[OperationModel.OperationKind] =
-        p.sections.find(_.keyForModel == "type").
+        p.sections.find(_key_is(_, "type")).
           flatMap(_section_body_text).
           flatMap(OperationModel.OperationKind.parse)
 
       private def _inline_value(p: Section): Option[ValueClass] =
-        p.sections.find(_.keyForModel == "value").
+        p.sections.find(_key_is(_, "value")).
           flatMap(_.sections.headOption).
           flatMap(SchemaModel.SchemaClass.createOption).
           map(ValueClass(_))
+
+      private def _key(p: Section): String =
+        p.keyForModel.toLowerCase(java.util.Locale.ROOT)
+
+      private def _key_is(p: Section, names: String*): Boolean = {
+        val key = _key(p)
+        names.exists(_.equalsIgnoreCase(key))
+      }
 
       private def _section_body_text(p: Section): Option[String] =
         Option(_section_body_data(p)).

@@ -71,7 +71,7 @@ import org.goldenport.kaleidox.model.analysis.AnalysisModel
  *  version Sep.  6, 2024
  *  version Nov. 22, 2024
  *  version May.  2, 2025
- * @version Apr. 12, 2026
+ * @version May.  3, 2026
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -787,7 +787,7 @@ object Model {
     def makeModel(config: Config): ServiceModel = {
       val doxconfig = Dox2Parser.Config.default // TODO
       val dox = Dox2Parser.parseSection(doxconfig, section)
-      if (dox.keyForModel == "service")
+      if (dox.keyForModel.equalsIgnoreCase("service"))
         _make_services(config, dox)
       else
         ServiceModel.empty
@@ -1399,14 +1399,43 @@ object Model {
     }
 
     private def _parse(blocks: LogicalBlocks): Model = {
-      val divs = blocks.blocks collect {
-        case m: LogicalSection => Division.take(m)
-      }
+      val divs = _top_level_divisions(blocks)
       if (divs.isEmpty)
         Model(config, Script.parse(config, blocks))
       else
         _import_divisions(divs)
     }
+
+    private def _top_level_divisions(blocks: LogicalBlocks): Vector[Division] =
+      blocks.blocks.flatMap {
+        case m: LogicalSection =>
+          _top_level_sections(m).map(Division.take)
+        case _ =>
+          Vector.empty
+      }
+
+    private def _top_level_sections(section: LogicalSection): Vector[LogicalSection] = {
+      val promoted = if (_may_contain_top_level_sections(section))
+        _promotable_descendant_sections(section)
+      else
+        Vector.empty
+      section +: promoted
+    }
+
+    private def _may_contain_top_level_sections(section: LogicalSection): Boolean =
+      section.keyForModel.equalsIgnoreCase("component")
+
+    private def _is_promotable_top_level_section(section: LogicalSection): Boolean =
+      _promotable_top_level_section_keys.contains(section.keyForModel.toLowerCase(java.util.Locale.ROOT))
+
+    private def _promotable_descendant_sections(section: LogicalSection): Vector[LogicalSection] =
+      section.sections.flatMap { child =>
+        val self = if (_is_promotable_top_level_section(child)) Vector(child) else Vector.empty
+        self ++ _promotable_descendant_sections(child)
+      }
+
+    private val _promotable_top_level_section_keys: Set[String] =
+      Set("service", "entity", "schema", "value")
 
     private def _import_divisions(divs: Vector[Division]): Model = {
       val a = divs.collect { case m: ImportDivision => m }
