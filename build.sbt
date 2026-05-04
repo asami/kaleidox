@@ -2,7 +2,7 @@ organization := "org.goldenport"
 
 name := "kaleidox"
 
-version := "0.6.13-SNAPSHOT"
+version := "0.6.13"
 
 scalaVersion := "2.12.18"
 // crossScalaVersions := Seq("2.10.39.2", "2.9.1")
@@ -41,7 +41,7 @@ resolvers += "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/
 
 libraryDependencies += "org.goldenport" %% "goldenport-scala-lib" % "2.3.26"
 
-libraryDependencies += "org.goldenport" %% "goldenport-record" % "2.2.4"
+libraryDependencies += "org.goldenport" %% "goldenport-record" % "2.2.5"
 
 libraryDependencies += "org.goldenport" %% "goldenport-sexpr" % "2.2.3"
 
