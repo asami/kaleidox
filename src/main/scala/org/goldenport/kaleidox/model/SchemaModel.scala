@@ -43,7 +43,7 @@ import scala.util.Try
  *  version Sep.  6, 2024
  *  version May.  2, 2025
  *  version Mar. 31, 2026
- * @version May.  3, 2026
+ * @version May.  8, 2026
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -2326,9 +2326,10 @@ object SchemaModel {
         p.getStringCaseInsensitive(typeName).map(_.trim).filterNot(_.isEmpty),
         _db_column_name(p),
         _db_column_type(p),
-        _external_name(p),
-        _derived(p),
-        _web(p)
+      _external_name(p),
+      _derived(p),
+      _web(p),
+      _confidentiality(p)
       )
 
       private def _association(p: Record) = Association(
@@ -2440,8 +2441,17 @@ object SchemaModel {
           min = _string_value_flexible(p, Seq("web-min", "webMin")),
           max = _string_value_flexible(p, Seq("web-max", "webMax")),
           step = _string_value_flexible(p, Seq("web-step", "webStep")),
-          pattern = _string_value_flexible(p, Seq("web-pattern", "webPattern", "web-regex", "webRegex"))
+      pattern = _string_value_flexible(p, Seq("web-pattern", "webPattern", "web-regex", "webRegex"))
         )
+
+      private def _confidentiality(p: Record): Option[String] =
+        _string_value_flexible(p, Seq(
+          "confidentiality",
+          "confidentiality-level",
+          "confidentialityLevel",
+          "security-level",
+          "securityLevel"
+        ))
 
       private def _string_value_flexible(p: Record, keys: Seq[String]): Option[String] = {
         val normalized = keys.map(_normalize_key).toSet
@@ -2576,7 +2586,8 @@ object SchemaModel {
     override val dbColumnType: Option[String] = None,
     override val externalName: Option[String] = None,
     override val derived: Option[String] = None,
-    web: Attribute.Web = Attribute.Web.empty
+    web: Attribute.Web = Attribute.Web.empty,
+    confidentiality: Option[String] = None
   ) extends Slot {
     def isRequired = domain.isRequired
 

@@ -27,7 +27,7 @@ import org.goldenport.parser.LogicalSection
  *  version Jun. 20, 2021
  *  version Oct.  1, 2022
  *  version Aug. 21, 2023
- * @version May.  3, 2026
+ * @version May.  8, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
@@ -638,7 +638,8 @@ object ServiceModel {
             controlType = _string_from_record(r, "web-control-type", "web-controltype", "webcontroltype", "web-control", "webcontrol", "web-widget", "webwidget"),
             placeholder = _string_from_record(r, "web-placeholder", "webplaceholder"),
             help = _string_from_record(r, "web-help", "webhelp"),
-            required = _boolean_from_record(r, "web-required")
+            required = _boolean_from_record(r, "web-required"),
+            confidentiality = _string_from_record(r, "confidentiality", "confidentiality-level", "confidentialitylevel", "security-level", "securitylevel")
           )
         }
       }

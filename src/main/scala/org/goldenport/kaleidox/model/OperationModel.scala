@@ -17,7 +17,7 @@ import org.goldenport.util.StringUtils
  * @since   Mar. 22, 2026
  *  version Mar. 28, 2026
  *  version Apr. 13, 2026
- * @version May.  3, 2026
+ * @version May.  8, 2026
  * @author  ASAMI, Tomoharu
  */
 case class OperationModel(
@@ -182,7 +182,8 @@ object OperationModel {
     controlType: Option[String] = None,
     placeholder: Option[String] = None,
     help: Option[String] = None,
-    required: Option[Boolean] = None
+    required: Option[Boolean] = None,
+    confidentiality: Option[String] = None
   )
 
   case class InputValueDefinition(
@@ -546,7 +547,8 @@ object OperationModel {
               controlType = rhs.controlType.orElse(lhs.controlType),
               placeholder = rhs.placeholder.orElse(lhs.placeholder),
               help = rhs.help.orElse(lhs.help),
-              required = rhs.required.orElse(lhs.required)
+              required = rhs.required.orElse(lhs.required),
+              confidentiality = rhs.confidentiality.orElse(lhs.confidentiality)
             )
             copy(xs = xs.updated(i, key -> merged))
         }
@@ -582,7 +584,8 @@ object OperationModel {
         controlType = _string_from_record(r, "web-control-type", "web-controltype", "webcontroltype", "web-control", "webcontrol", "web-widget", "webwidget"),
         placeholder = _string_from_record(r, "web-placeholder", "webplaceholder"),
         help = _string_from_record(r, "web-help", "webhelp"),
-        required = _boolean_from_record(r, "web-required")
+        required = _boolean_from_record(r, "web-required"),
+        confidentiality = _string_from_record(r, "confidentiality", "confidentiality-level", "confidentialitylevel", "security-level", "securitylevel")
       )
     }
   }
@@ -607,7 +610,8 @@ object OperationModel {
       controlType = _string(kv, "web-control-type", "web-controltype", "webcontroltype", "web-control", "webcontrol", "web-widget", "webwidget"),
       placeholder = _string(kv, "web-placeholder", "webplaceholder"),
       help = _string(kv, "web-help", "webhelp"),
-      required = _boolean(kv, "web-required", "webrequired")
+      required = _boolean(kv, "web-required", "webrequired"),
+      confidentiality = _string(kv, "confidentiality", "confidentiality-level", "confidentialitylevel", "security-level", "securitylevel")
     )
 
   private def _string(
