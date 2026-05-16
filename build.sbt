@@ -2,7 +2,7 @@ organization := "org.goldenport"
 
 name := "kaleidox"
 
-version := "0.6.14"
+version := "0.6.15-SNAPSHOT"
 
 scalaVersion := "2.12.18"
 // crossScalaVersions := Seq("2.10.39.2", "2.9.1")
@@ -47,7 +47,7 @@ libraryDependencies += "org.goldenport" %% "goldenport-sexpr" % "2.2.3"
 
 // libraryDependencies += "org.goldenport" %% "goldenport-statemachine" % "0.0.1"
 
-libraryDependencies += "org.smartdox" %% "smartdox" % "2.4.12"
+libraryDependencies += "org.smartdox" %% "smartdox" % "2.4.13"
 
 // libraryDependencies += "org.simplemodeling" %% "simplemodeler" % "1.0.3"
 
