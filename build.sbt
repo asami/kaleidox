@@ -2,7 +2,7 @@ organization := "org.goldenport"
 
 name := "kaleidox"
 
-version := "0.6.15-SNAPSHOT"
+version := "0.6.15"
 
 scalaVersion := "2.12.18"
 // crossScalaVersions := Seq("2.10.39.2", "2.9.1")
@@ -30,8 +30,11 @@ resolvers += "GitHab releases 2020" at "https://raw.github.com/asami/maven-repos
 
 // resolvers += "GitHab releases 2024" at "https://raw.github.com/asami/maven-repository/2024/releases"
 
-resolvers += "GitHab releases" at "https://raw.github.com/asami/maven-repository/2025/releases"
+// deprecated
+resolvers += "GitHub Packages" at "https://maven.pkg.github.com/asami/maven-repository"
 
+// deprecated
+resolvers += "GitHab releases 2025" at "https://raw.github.com/asami/maven-repository/2025/releases"
 
 resolvers += "SimpleModeling.org" at "https://www.simplemodeling.org/repository/maven"
 
@@ -133,7 +136,13 @@ publishTo := {
   val repo = sys.env.get("SIMPLEMODELING_MAVEN_LOCAL")
     .map(file)
     .getOrElse(baseDirectory.value / "maven-local")
-  Some(Resolver.file("local-simplemodeling-maven", repo))
+
+  Some(
+    Resolver.file(
+      "local-simplemodeling-maven",
+      repo
+    )
+  )
 }
 
 credentials += Credentials(Path.userHome / ".sbt" / ".credentials")

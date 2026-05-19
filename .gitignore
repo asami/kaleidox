@@ -3,6 +3,7 @@ bin
 gen
 lib_managed
 lib
+maven-local
 *.bak
 target
 .*
