@@ -2,7 +2,7 @@ organization := "org.goldenport"
 
 name := "kaleidox"
 
-version := "0.6.15"
+version := "0.6.16-SNAPSHOT"
 
 scalaVersion := "2.12.18"
 // crossScalaVersions := Seq("2.10.39.2", "2.9.1")
