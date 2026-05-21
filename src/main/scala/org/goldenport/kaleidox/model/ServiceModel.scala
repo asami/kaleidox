@@ -27,7 +27,7 @@ import org.goldenport.parser.LogicalSection
  *  version Jun. 20, 2021
  *  version Oct.  1, 2022
  *  version Aug. 21, 2023
- * @version May.  8, 2026
+ * @version May. 22, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
@@ -439,9 +439,12 @@ object ServiceModel {
       private def _get_operation(service: String, p: Section): Option[Operation] = {
         val name = p.nameForModel
         val sections = p.sections
+        val directkv = _direct_key_values(p)
         val features = p.tables.headOption
-        val in = sections.flatMap(_get_operation_in).headOption.getOrElse(RAISE.syntaxErrorFault("No input"))
-        val out = sections.flatMap(_get_operation_out).headOption.getOrElse(RAISE.syntaxErrorFault("No output"))
+        val in = _merge_direct_input(name, _value_opt(directkv, "input"), sections.flatMap(_get_operation_in).headOption).
+          getOrElse(RAISE.syntaxErrorFault("No input"))
+        val out = _merge_direct_output(name, _value_opt(directkv, "output", "result"), sections.flatMap(_get_operation_out).headOption).
+          getOrElse(RAISE.syntaxErrorFault("No output"))
         // val method = Method.UnimplementedMethod
         // val method = {
         //   val script = SScript("arg1 + arg2") // TODO
@@ -453,7 +456,7 @@ object ServiceModel {
           input = in,
           output = out,
           method = method,
-          kind = _kind_opt(p),
+          kind = _merge_direct_kind(name, _operation_kind_direct(name, _value_opt(directkv, "type")), _kind_opt(p)),
           summary = _summary_text(p),
           description = _description_text(p),
           precondition = _precondition_text(p),
@@ -484,9 +487,10 @@ object ServiceModel {
       private def _to_operation_in(p: Section) = {
         val params = p.tables.headOption.map(_to_params).getOrElse(Parameters.empty)
         val value = _inline_value(p)
+        val kv = _direct_key_values(p)
         Input(
           parameters = params,
-          tpe = _type_text(p).orElse(value.map(_.name)),
+          tpe = _type_text(p).orElse(_value_opt(kv, "type")).orElse(value.map(_.name)),
           value = value,
           summary = _summary_text(p),
           description = _description_text(p)
@@ -513,9 +517,10 @@ object ServiceModel {
         p.tables.headOption
         val result = p.tables.headOption.map(_to_result).getOrElse(Result.empty)
         val value = _inline_value(p)
+        val kv = _direct_key_values(p)
         Output(
           result = result,
-          tpe = _type_text(p).orElse(value.map(_.name)),
+          tpe = _type_text(p).orElse(_value_opt(kv, "type")).orElse(value.map(_.name)),
           value = value,
           summary = _summary_text(p),
           description = _description_text(p)
@@ -749,6 +754,63 @@ object ServiceModel {
           flatMap(_section_body_text).
           flatMap(OperationModel.OperationKind.parse)
 
+      private def _operation_kind_direct(
+        opname: String,
+        value: Option[String]
+      ): Option[OperationModel.OperationKind] =
+        value.map { v =>
+          OperationModel.OperationKind.parse(v).getOrElse(
+            RAISE.syntaxErrorFault(s"Operation '$opname' TYPE must be COMMAND or QUERY: $v")
+          )
+        }
+
+      private def _merge_direct_kind(
+        opname: String,
+        direct: Option[OperationModel.OperationKind],
+        section: Option[OperationModel.OperationKind]
+      ): Option[OperationModel.OperationKind] =
+        _merge_direct_section(opname, "TYPE", direct, section)(_.toString)
+
+      private def _merge_direct_input(
+        opname: String,
+        direct: Option[String],
+        section: Option[Input]
+      ): Option[Input] =
+        section match {
+          case Some(s) =>
+            _merge_direct_section(opname, "INPUT", direct, s.tpe)(identity)
+            Some(s)
+          case None =>
+            direct.map(t => Input(Parameters.empty, tpe = Some(t)))
+        }
+
+      private def _merge_direct_output(
+        opname: String,
+        direct: Option[String],
+        section: Option[Output]
+      ): Option[Output] =
+        section match {
+          case Some(s) =>
+            _merge_direct_section(opname, "OUTPUT", direct, s.tpe)(identity)
+            Some(s)
+          case None =>
+            direct.map(t => Output(Result.empty, tpe = Some(t)))
+        }
+
+      private def _merge_direct_section[A](
+        opname: String,
+        role: String,
+        direct: Option[A],
+        section: Option[A]
+      )(show: A => String): Option[A] =
+        (direct, section) match {
+          case (Some(lhs), Some(rhs)) if show(lhs) != show(rhs) =>
+            RAISE.syntaxErrorFault(s"Operation '$opname' direct $role '${show(lhs)}' conflicts with $role section '${show(rhs)}'.")
+          case (Some(lhs), _) => Some(lhs)
+          case (_, Some(rhs)) => Some(rhs)
+          case _ => None
+        }
+
       private def _inline_value(p: Section): Option[ValueClass] =
         p.sections.find(_key_is(_, "value")).
           flatMap(_.sections.headOption).
@@ -795,6 +857,23 @@ object ServiceModel {
         fromtext ++ fromsections
       }
 
+      private def _direct_key_values(
+        p: Section
+      ): Vector[(String, String)] = {
+        val fromtext = _key_values(_section_body_data(p))
+        val frombodytext = _key_values(_section_direct_body_text(p))
+        val fromul = p.uls.toVector.flatMap { ul =>
+          ul.contents.toVector.flatMap(li => _key_values(li.toText))
+        }
+        val fromdl = p.dls.toVector.flatMap { dl =>
+          dl.contents.toVector.flatMap {
+            case (dt, dd) =>
+              _key_values(s"${dt.toText} :: ${dd.toText}")
+          }
+        }
+        fromtext ++ frombodytext ++ fromul ++ fromdl
+      }
+
       private def _key_values(
         p: String
       ): Vector[(String, String)] =
@@ -806,6 +885,13 @@ object ServiceModel {
           data
         else
           p.toText.trim
+      }
+
+      private def _section_direct_body_text(p: Section): String = {
+        val lines = p.toText.linesIterator.toVector
+        lines.dropWhile(x => x.trim.startsWith("#")).
+          takeWhile(x => !x.trim.startsWith("#")).
+          mkString("\n").trim
       }
 
       private def _value_lines(
