@@ -17,7 +17,7 @@ import org.goldenport.kaleidox.Model
  * @since   Oct. 12, 2023
  *  version Mar. 24, 2026
  *  version Apr.  3, 2026
- * @version May. 22, 2026
+ * @version May. 24, 2026
  * @author  ASAMI, Tomoharu
  */
 case class PowertypeModel(
@@ -135,15 +135,13 @@ object PowertypeModel {
         PowertypeKind(p.nameForModel, value, label)
       }
 
-      private def _package_from_text(text: String): String = {
-        val hocon = ConfigFactory.parseString(_without_table_text(text))
-        if (hocon.hasPath("package"))
-          hocon.getString("package").trim
-        else if (hocon.hasPath("package_name"))
-          hocon.getString("package_name").trim
-        else
-          "domain"
-      }
+      private def _package_from_text(text: String): String =
+        text.linesIterator.collectFirst {
+          case _package_line(key, value) if key.equalsIgnoreCase("package") || key.equalsIgnoreCase("package_name") =>
+            value.trim.stripPrefix("\"").stripSuffix("\"")
+        }.map(_.trim).filterNot(_.isEmpty).getOrElse("domain")
+
+      private val _package_line = """\s*([A-Za-z_][A-Za-z0-9_\-]*)\s*[=:]\s*(.+)\s*""".r
 
       private def _without_table_text(text: String): String =
         text.linesIterator.filterNot(x => _is_table_line(x.trim)).mkString("\n")

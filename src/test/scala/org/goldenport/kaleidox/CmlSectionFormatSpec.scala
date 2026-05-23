@@ -12,7 +12,8 @@ import org.goldenport.kaleidox.model.OperationModel
 /*
  * @since   Mar. 24, 2026
  *  version Mar. 25, 2026
- * @version Apr.  9, 2026
+ *  version Apr.  9, 2026
+ * @version May. 24, 2026
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -518,6 +519,26 @@ extends:
       val model = Model.parse(config, s)
       val entity = model.takeEntityModel.get("Person").getOrElse(fail("Entity Person is missing"))
       entity.parents.nonEmpty should be (true)
+    }
+
+    "accept literate POWERTYPE package text with table" in {
+      val s = """# POWERTYPE
+
+## InformationLifecycleState
+
+Lifecycle state of editable and confirmed Information.
+
+package = org.goldenport.cncf.information.value
+
+| name      | label     |
+| ---       | ---       |
+| imported  | Imported  |
+| confirmed | Confirmed |
+"""
+      val model = Model.parse(config, s)
+      val powertype = model.takePowertypeModel.classes("InformationLifecycleState")
+      powertype.packageName should be ("org.goldenport.cncf.information.value")
+      powertype.kinds.map(_.name) should be (Vector("imported", "confirmed"))
     }
 
     "normalize table attribute constraint metadata to record constraints" in {

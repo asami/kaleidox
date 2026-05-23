@@ -15,7 +15,8 @@ import org.goldenport.kaleidox.model.SchemaModel.SchemaClass
  * @since   Jun. 25, 2021
  *  version Jun. 27, 2021
  *  version Aug. 21, 2023
- * @version Oct. 15, 2023
+ *  version Oct. 15, 2023
+ * @version May. 24, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ValueModel(
@@ -57,7 +58,8 @@ object ValueModel {
   }
 
   case class ValueClass(
-    schemaClass: SchemaClass
+    schemaClass: SchemaClass,
+    packageName: Option[String] = None
   ) extends SchemaClass.SchemaClassContainer {
     def name = schemaClass.name
     def schema = schemaClass.schema
@@ -70,7 +72,18 @@ object ValueModel {
   def create(p: Section): ValueModel = createOption(p) getOrElse empty
 
   def createOption(p: Section): Option[ValueModel] =
-    SchemaClass.createOption(p).map(_to_model)
+    _to_model(p).toOption
 
-  private def _to_model(p: SchemaClass) = ValueModel(ValueClass(p))
+  private def _to_model(p: Section) = {
+    val pkg = _package_name(p)
+    SchemaClass.createOption(p).map(x => ValueModel(ValueClass(x, pkg))).getOrElse(empty)
+  }
+
+  private def _package_name(p: Section): Option[String] =
+    p.toPlainText.linesIterator.collectFirst {
+      case _package_line(key, value) if key.equalsIgnoreCase("package") || key.equalsIgnoreCase("package_name") =>
+        value.trim.stripPrefix("\"").stripSuffix("\"")
+    }.map(_.trim).filterNot(_.isEmpty)
+
+  private val _package_line = """\s*([A-Za-z_][A-Za-z0-9_\-]*)\s*[=:]\s*(.+)\s*""".r
 }

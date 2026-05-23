@@ -40,7 +40,7 @@ import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
  *  version Jul. 12, 2024
  *  version May.  2, 2025
  *  version Mar. 24, 2026
- * @version May.  3, 2026
+ * @version May. 24, 2026
  * @author  ASAMI, Tomoharu
  */
 case class EntityModel(
@@ -152,6 +152,7 @@ object EntityModel {
     val PROP_ENTITY_TABLE = "table"
     val PROP_ENTITY_SCHEMA = "schema"
     val PROP_ENTITY_EXTENDS = "extends"
+    val PROP_ENTITY_PACKAGE = "package"
 
     sealed trait ParentRef {
       def isResolved: Boolean
@@ -198,6 +199,7 @@ object EntityModel {
           store = store,
           aggregate = schema.aggregate,
           view = schema.view,
+          packageName = _package_name(hocon).getOrElse("domain"),
           usageKind = _string_opt(hocon, "usage_kind", "usageKind", "entity_usage", "entityUsage"),
           operationKind = _string_opt(hocon, "operation_kind", "operationKind", "entity_operation_kind", "entityOperationKind"),
           applicationDomain = _string_opt(hocon, "application_domain", "applicationDomain", "entity_application_domain", "entityApplicationDomain")
@@ -224,6 +226,7 @@ object EntityModel {
           store = store,
           aggregate = schema.aggregate,
           view = schema.view,
+          packageName = _package_name(hocon).getOrElse("domain"),
           usageKind = _string_opt(hocon, "usage_kind", "usageKind", "entity_usage", "entityUsage"),
           operationKind = _string_opt(hocon, "operation_kind", "operationKind", "entity_operation_kind", "entityOperationKind"),
           applicationDomain = _string_opt(hocon, "application_domain", "applicationDomain", "entity_application_domain", "entityApplicationDomain")
@@ -292,6 +295,7 @@ object EntityModel {
           parents = parents,
           aggregate = schema.aggregate,
           view = schema.view,
+          packageName = _package_name(hocon).getOrElse("domain"),
           usageKind = _string_opt(hocon, "usage_kind", "usageKind", "entity_usage", "entityUsage"),
           operationKind = _string_opt(hocon, "operation_kind", "operationKind", "entity_operation_kind", "entityOperationKind"),
           applicationDomain = _string_opt(hocon, "application_domain", "applicationDomain", "entity_application_domain", "entityApplicationDomain")
@@ -299,6 +303,9 @@ object EntityModel {
       }
       a.take
     }
+
+    private def _package_name(hocon: Hocon): Option[String] =
+      _string_opt(hocon, PROP_ENTITY_PACKAGE, "packageName", "package_name")
 
     private def _string_opt(hocon: Hocon, names: String*): Option[String] =
       names.iterator.flatMap(hocon.getStringOption).map(_.trim).find(_.nonEmpty)
