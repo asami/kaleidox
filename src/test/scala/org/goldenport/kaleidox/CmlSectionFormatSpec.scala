@@ -18,7 +18,7 @@ import org.goldenport.kaleidox.model.OperationModel
  */
 @RunWith(classOf[JUnitRunner])
 class CmlSectionFormatSpec extends AnyWordSpec with Matchers with GivenWhenThen {
-  private val config = Config.log.debug.withoutLocation
+  private val _config = Config.log.debug.withoutLocation
 
   "Model parser" should {
     "accept OPERATION/COMMAND sections" in {
@@ -56,7 +56,7 @@ CreateOrder
 ### OUTPUT
 CreateOrderResult
 """
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val opmodel = model.takeOperationModel
       opmodel.operations.map(_.name) should contain ("createOrder")
       opmodel.values.map(_.name) should contain ("CreateOrder")
@@ -103,7 +103,7 @@ GetOrder
 ### OUTPUT
 GetOrderResult
 """
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val opmodel = model.takeOperationModel
       val normalized = opmodel.normalizedOperations
       normalized.exists(x => x.name == "createOrder" && x.kind == OperationModel.OperationKind.Command) should be (true)
@@ -120,7 +120,7 @@ selector:
 action_name: person.sync
 priority: 2
 """
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val eventmodel = model.getEventModel.getOrElse(fail("EventModel is missing"))
       eventmodel.receptionDefinitions.size should be (1)
       val event = eventmodel.receptionDefinitions.head
@@ -144,7 +144,7 @@ transport: grpc
 *** CONFIG
 profile: prod
 """
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val cs = model.takeComponentSubsystemModel
       cs.components.map(_.name) should contain ("person")
       cs.subsystems.map(_.name) should contain ("identity")
@@ -213,7 +213,7 @@ profile: prod
                 |1. User enters an existing email.
                 |2. System rejects the request.
                 |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val component = model.takeComponentSubsystemModel.components.headOption.getOrElse(fail("Component is missing"))
       val usecase = component.useCases.headOption.getOrElse(fail("Use case is missing"))
 
@@ -248,7 +248,7 @@ profile: prod
                 |
                 |Provide a shared domain use-case definition above component scope.
                 |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val usecase = model.takeComponentSubsystemModel.useCases.headOption.getOrElse(fail("Top-level use case is missing"))
 
       usecase.name should be ("domain_identity_lifecycle")
@@ -274,7 +274,7 @@ profile: prod
                 |
                 |Allow a user to authenticate.
                 |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val capability = model.takeComponentSubsystemModel.capabilities.headOption.getOrElse(fail("Top-level capability is missing"))
 
       capability.name should be ("Authentication")
@@ -296,7 +296,7 @@ profile: prod
                 |
                 |Enable coherent user identity as a domain capability.
                 |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val vision = model.takeComponentSubsystemModel.visions.headOption.getOrElse(fail("Top-level vision is missing"))
 
       vision.name should be ("TrustedIdentity")
@@ -317,7 +317,7 @@ profile: prod
                 |
                 |Keep authentication response latency within an acceptable range.
                 |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val quality = model.takeComponentSubsystemModel.qualities.headOption.getOrElse(fail("Top-level quality is missing"))
 
       quality.name should be ("AuthenticationLatency")
@@ -338,7 +338,7 @@ profile: prod
                 |
                 |Respect the required legacy operating environment.
                 |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val constraint = model.takeComponentSubsystemModel.constraints.headOption.getOrElse(fail("Top-level constraint is missing"))
 
       constraint.name should be ("LegacyOperatingSystem")
@@ -410,7 +410,7 @@ profile: prod
                 |
                 |RegisterResult
                 |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val service = model.getServiceModel.flatMap(_.classes.get("User")).getOrElse(fail("Service is missing"))
       val usecase = service.useCases.headOption.getOrElse(fail("Use case is missing"))
 
@@ -440,7 +440,7 @@ profile: prod
                 |
                 |A user submits a request.The system creates an account.The system returns the result.
                 |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val component = model.takeComponentSubsystemModel.components.headOption.getOrElse(fail("Component is missing"))
       val scenario = component.useCases.headOption.flatMap(_.scenarios.headOption).getOrElse(fail("Scenario is missing"))
 
@@ -482,7 +482,7 @@ profile: prod
                 |
                 |Datastore is unavailable and the request fails.
                 |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val component = model.takeComponentSubsystemModel.components.headOption.getOrElse(fail("Component is missing"))
       val scenario = component.useCases.headOption.flatMap(_.scenarios.headOption).getOrElse(fail("Scenario is missing"))
 
@@ -516,7 +516,7 @@ profile: prod
 extends:
   - SimpleEntity
 """
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val entity = model.takeEntityModel.get("Person").getOrElse(fail("Entity Person is missing"))
       entity.parents.nonEmpty should be (true)
     }
@@ -535,7 +535,7 @@ package = org.goldenport.cncf.information.value
 | imported  | Imported  |
 | confirmed | Confirmed |
 """
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val powertype = model.takePowertypeModel.classes("InformationLifecycleState")
       powertype.packageName should be ("org.goldenport.cncf.information.value")
       powertype.kinds.map(_.name) should be (Vector("imported", "confirmed"))
@@ -552,7 +552,7 @@ package = org.goldenport.cncf.information.value
 |-------+--------+--------------+------------+------------+-------------+--------|
 | value | string | 1            | 2          | 2          | pass:[^[A-Z]{2}$] | uuid   |
 """
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val schema = model.takeEntityModel.get("CountryCode").getOrElse(fail("Entity CountryCode is missing")).schema
       val column = schema.columns.find(_.name == "value").getOrElse(fail("Column value is missing"))
 
@@ -576,15 +576,15 @@ package = org.goldenport.cncf.information.value
 | created_at    | string | 1            | date-time |
 | phone_number  | string | 1            | phone     |
 """
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val schema = model.takeEntityModel.get("ContactProfile").getOrElse(fail("Entity ContactProfile is missing")).schema
-      val createdAt = schema.columns.find(_.name == "created_at").getOrElse(fail("Column created_at is missing"))
-      val phoneNumber = schema.columns.find(_.name == "phone_number").getOrElse(fail("Column phone_number is missing"))
-      val createdAtFormats = createdAt.constraints.collect { case CFormat(f) => f.toLowerCase }
-      val phoneFormats = phoneNumber.constraints.collect { case CFormat(f) => f.toLowerCase }
+      val createdat = schema.columns.find(_.name == "created_at").getOrElse(fail("Column created_at is missing"))
+      val phonenumber = schema.columns.find(_.name == "phone_number").getOrElse(fail("Column phone_number is missing"))
+      val createdatformats = createdat.constraints.collect { case CFormat(f) => f.toLowerCase }
+      val phoneformats = phonenumber.constraints.collect { case CFormat(f) => f.toLowerCase }
 
-      createdAtFormats should contain ("date-time")
-      phoneFormats should contain ("phone")
+      createdatformats should contain ("date-time")
+      phoneformats should contain ("phone")
     }
 
     "merge ATTRIBUTE table rows with subsection metadata by name" in {
@@ -611,7 +611,7 @@ package = org.goldenport.cncf.information.value
                  |
                  |Job title shown in UI.
                  |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val entity = model.takeEntityModel.get("Person").getOrElse(fail("Entity Person is missing"))
       val name = entity.schemaClass.attributeMap.get("name").getOrElse(fail("Attribute name is missing"))
       val title = entity.schemaClass.attributeMap.get("title").getOrElse(fail("Attribute title is missing"))
@@ -659,7 +659,7 @@ package = org.goldenport.cncf.information.value
                  |type: text
                  |summary: City for list display.
                  |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val entity = model.takeEntityModel.get("Person").getOrElse(fail("Entity Person is missing"))
       val view = entity.view.getOrElse(fail("View definition is missing"))
       val city = view.attributes.find(_.name == "city").getOrElse(fail("View attribute city is missing"))
@@ -693,7 +693,7 @@ package = org.goldenport.cncf.information.value
                  |type: text
                  |summary: City for list display.
                  |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val entity = model.takeEntityModel.get("Person").getOrElse(fail("Entity Person is missing"))
       val view = entity.view.getOrElse(fail("View definition is missing"))
       val city = view.attributes.find(_.name == "city").getOrElse(fail("View attribute city is missing"))
@@ -717,7 +717,7 @@ package = org.goldenport.cncf.information.value
                  |
                  |type: text
                  |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val opmodel = model.takeOperationModel
       val value = opmodel.values.find(_.name == "SavePerson").getOrElse(fail("SavePerson value is missing"))
       val title = value.fields.find(_.name == "title").getOrElse(fail("title field is missing"))
@@ -744,7 +744,7 @@ package = org.goldenport.cncf.information.value
                  |web-help: Visible title.
                  |web-required: false
                  |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val opmodel = model.takeOperationModel
       val value = opmodel.values.find(_.name == "SavePerson").getOrElse(fail("SavePerson value is missing"))
       val body = value.fields.find(_.name == "body").getOrElse(fail("body field is missing"))
@@ -774,7 +774,7 @@ package = org.goldenport.cncf.information.value
                  |
                  |type: text
                  |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val opmodel = model.takeOperationModel
       val value = opmodel.values.find(_.name == "SavePerson").getOrElse(fail("SavePerson value is missing"))
       val title = value.fields.find(_.name == "title").getOrElse(fail("title field is missing"))
@@ -801,7 +801,7 @@ package = org.goldenport.cncf.information.value
                  |views: summary, detail, summary
                  |rebuildable: true
                  |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val entity = model.takeEntityModel.get("Person").getOrElse(fail("Entity Person is missing"))
       val view = entity.view.getOrElse(fail("View definition is missing"))
       view.viewNames shouldBe Vector("summary", "detail")
@@ -822,7 +822,7 @@ package = org.goldenport.cncf.information.value
                  |
                  |multiplicity = ?
                  |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val entity = model.takeEntityModel.get("UserProfile").getOrElse(fail("Entity UserProfile is missing"))
       val delegates = entity.schemaClass.features.delegates
       val personal = delegates.find(_.name == "PersonalProfile").getOrElse(fail("PersonalProfile delegate is missing"))
@@ -859,7 +859,7 @@ package = org.goldenport.cncf.information.value
                  |multiplicity: 1
                  |summary: Aggregate snapshot status.
                  |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val entity = model.takeEntityModel.get("Person").getOrElse(fail("Entity Person is missing"))
       val aggregate = entity.aggregate.getOrElse(fail("Aggregate definition is missing"))
       val status = aggregate.state.find(_.name == "status").getOrElse(fail("Aggregate state status is missing"))
@@ -889,7 +889,7 @@ package = org.goldenport.cncf.information.value
                  |expression = "status = 'ACTIVE'"
                  |cache = "PT5M"
                  |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val entity = model.takeEntityModel.get("Person").getOrElse(fail("Entity Person is missing"))
       val view = entity.view.getOrElse(fail("View definition is missing"))
       val recent = view.queries.find(_.name == "recent").getOrElse(fail("View query recent is missing"))
@@ -912,6 +912,11 @@ package = org.goldenport.cncf.information.value
                  |#### greeting
                  |
                  |Returns hello world text.
+                 |
+                 |- type :: QUERY
+                 |- input :: GreetingQuery
+                 |- output :: GreetingResult
+                 |- execution :: async-job
                  |
                  |##### TYPE
                  |
@@ -957,11 +962,12 @@ package = org.goldenport.cncf.information.value
                  |
                  |GreetingResult
                  |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val service = model.getServiceModel.getOrElse(fail("ServiceModel is missing"))
       val greeting = service.classes.get("Greeting").flatMap(_.operations.getOperation("greeting")).getOrElse(fail("greeting operation is missing"))
 
       greeting.kind.map(_.toString) should be (Some("Query"))
+      greeting.execution should be (Some("async-job"))
       greeting.summary should be (Some("Return a greeting."))
       greeting.description should be (Some("Returns a greeting message for the supplied name."))
       greeting.input.tpe should be (Some("GreetingQuery"))
@@ -1054,7 +1060,7 @@ package = org.goldenport.cncf.information.value
                 || id   | entityid | 1            |
                 || name | name     | 1            |
                 |""".stripMargin
-      val model = Model.parse(config, s)
+      val model = Model.parse(_config, s)
       val service = model.getServiceModel.flatMap(_.classes.get("Greeting")).getOrElse(fail("ServiceModel is missing"))
       val greeting = service.operations.getOperation("greeting").getOrElse(fail("greeting operation is missing"))
 

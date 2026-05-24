@@ -27,7 +27,7 @@ import org.goldenport.parser.LogicalSection
  *  version Jun. 20, 2021
  *  version Oct.  1, 2022
  *  version Aug. 21, 2023
- * @version May. 22, 2026
+ * @version May. 24, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
@@ -461,7 +461,7 @@ object ServiceModel {
           description = _description_text(p),
           precondition = _precondition_text(p),
           postcondition = _postcondition_text(p),
-          execution = _execution_text(p),
+          execution = _merge_direct_execution(name, _value_opt(directkv, "execution", "directive"), _execution_text(p)),
           implementation = _implementation_text(p),
           entityName = _entity_names(p).headOption,
           entityNames = _entity_names(p),
@@ -796,6 +796,13 @@ object ServiceModel {
           case None =>
             direct.map(t => Output(Result.empty, tpe = Some(t)))
         }
+
+      private def _merge_direct_execution(
+        opname: String,
+        direct: Option[String],
+        section: Option[String]
+      ): Option[String] =
+        _merge_direct_section(opname, "EXECUTION", direct, section)(identity)
 
       private def _merge_direct_section[A](
         opname: String,
