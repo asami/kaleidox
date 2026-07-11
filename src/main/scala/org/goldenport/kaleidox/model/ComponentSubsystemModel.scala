@@ -14,7 +14,8 @@ import org.goldenport.parser.LogicalSection
 /*
  * @since   Mar. 22, 2026
  *  version Mar. 24, 2026
- * @version Apr.  6, 2026
+ *  version Apr.  6, 2026
+ * @version Jul. 11, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ComponentSubsystemModel(
@@ -57,21 +58,21 @@ case class ComponentSubsystemModel(
 
   def +(rhs: ComponentSubsystemModel): ComponentSubsystemModel =
     copy(
-      visions = _dedupeByName(visions ++ rhs.visions),
-      contexts = _dedupeByName(contexts ++ rhs.contexts),
-      systemContexts = _dedupeByName(systemContexts ++ rhs.systemContexts),
-      contextMaps = _dedupeByName(contextMaps ++ rhs.contextMaps),
-      useCases = _dedupeByName(useCases ++ rhs.useCases),
-      capabilities = _dedupeByName(capabilities ++ rhs.capabilities),
-      qualities = _dedupeByName(qualities ++ rhs.qualities),
-      constraints = _dedupeByName(constraints ++ rhs.constraints),
-      components = _dedupeByName(components ++ rhs.components),
-      componentlets = _dedupeByName(componentlets ++ rhs.componentlets),
-      extensionPoints = _dedupeByName(extensionPoints ++ rhs.extensionPoints),
-      subsystems = _dedupeByName(subsystems ++ rhs.subsystems)
+      visions = _dedupe_by_name(visions ++ rhs.visions),
+      contexts = _dedupe_by_name(contexts ++ rhs.contexts),
+      systemContexts = _dedupe_by_name(systemContexts ++ rhs.systemContexts),
+      contextMaps = _dedupe_by_name(contextMaps ++ rhs.contextMaps),
+      useCases = _dedupe_by_name(useCases ++ rhs.useCases),
+      capabilities = _dedupe_by_name(capabilities ++ rhs.capabilities),
+      qualities = _dedupe_by_name(qualities ++ rhs.qualities),
+      constraints = _dedupe_by_name(constraints ++ rhs.constraints),
+      components = _dedupe_by_name(components ++ rhs.components),
+      componentlets = _dedupe_by_name(componentlets ++ rhs.componentlets),
+      extensionPoints = _dedupe_by_name(extensionPoints ++ rhs.extensionPoints),
+      subsystems = _dedupe_by_name(subsystems ++ rhs.subsystems)
     )
 
-  private def _dedupeByName[A <: ComponentSubsystemModel.NamedDefinition](
+  private def _dedupe_by_name[A <: ComponentSubsystemModel.NamedDefinition](
     xs: Vector[A]
   ): Vector[A] =
     xs.foldLeft(Vector.empty[A]) { (z, x) =>
@@ -99,8 +100,20 @@ object ComponentSubsystemModel {
     componentlets: Vector[String] = Vector.empty,
     extensionPoints: Vector[String] = Vector.empty,
     extensionBindings: Map[String, String] = Map.empty,
+    services: Vector[ComponentServiceDefinition] = Vector.empty,
     description: Option[String] = None,
     useCases: Vector[UseCaseDefinition] = Vector.empty
+  ) extends NamedDefinition
+
+  final case class ComponentServiceDefinition(
+    name: String,
+    spiStandard: Option[String] = None,
+    spiDirection: String = "provides",
+    spiSocket: Boolean = false,
+    spiMultiplicity: Option[String] = None,
+    spiRequired: Boolean = false,
+    spiApiName: Option[String] = None,
+    spiComponentApi: Option[String] = None
   ) extends NamedDefinition
 
   final case class VisionDefinition(
@@ -291,11 +304,12 @@ object ComponentSubsystemModel {
     p: Section
   ): ComponentDefinition = {
     val kv = _merged_key_values(p)
-    val coordinates = _coordinate_values(p, kv)
+    val coordinates = _coordinate_values(p, CmlSectionFormat.directKeyValues(p))
     val componentlets = _section_name_values(p, Set("componentlet", "componentlets"))
     val extensionpoints = _section_name_values(p, Set("extensionpoint", "extensionpoints"))
     val extensionbindings =
       _key_values_in_sections(p, Set("extensionbinding", "extensionbindings", "binding", "bindings")).toMap
+    val services = _component_service_definitions(p)
 
     ComponentDefinition(
       name = _require_name(p.nameForModel, "component"),
@@ -304,8 +318,65 @@ object ComponentSubsystemModel {
       componentlets = componentlets,
       extensionPoints = extensionpoints,
       extensionBindings = extensionbindings,
+      services = services,
       description = _value_opt(kv, "description"),
       useCases = _use_case_definitions(p)
+    )
+  }
+
+  private def _component_service_definitions(
+    p: Section
+  ): Vector[ComponentServiceDefinition] =
+    p.sections.toVector.filter(_.keyForModel.equalsIgnoreCase("service")).flatMap { section =>
+      section.sections.toVector.map(_parse_component_service_definition)
+    }
+
+  private def _parse_component_service_definition(
+    p: Section
+  ): ComponentServiceDefinition = {
+    val name = _require_name(p.nameForModel, "component service")
+    val kv = _merged_key_values(p)
+    val spidirection = _value_opt(kv, "spi-direction").map(_unquote).map(_.toLowerCase).getOrElse("provides")
+    val spisocket = _boolean_value(kv, "spi-socket").getOrElse(false)
+    val spimultiplicity = _value_opt(kv, "spi-multiplicity").map(_unquote)
+    val spirequired = _boolean_value(kv, "spi-required").getOrElse(false)
+    val spistandard = _value_opt(kv, "spi-standard").map(_unquote)
+    val spiapiname = _value_opt(kv, "spi-api-name").map(_unquote)
+    val spicomponentapi = _value_opt(kv, "spi-component-api").map(_unquote)
+    val hasspimetadata = kv.exists(_._1.startsWith("spi-"))
+
+    if (!Set("provides", "requires").contains(spidirection))
+      _raise(s"Component service '$name' has invalid spi-direction '$spidirection'.")
+    if (spidirection == "provides" && spimultiplicity.nonEmpty)
+      _raise(s"Component service '$name' provider declaration does not accept spi-multiplicity.")
+    if (spidirection == "provides" && spicomponentapi.nonEmpty)
+      _raise(s"Component service '$name' provider declaration does not accept spi-component-api.")
+    if (spidirection == "requires" && spisocket)
+      _raise(s"Component service '$name' consumer declaration does not accept spi-socket=true.")
+    if (spidirection == "requires" && spiapiname.nonEmpty)
+      _raise(s"Component service '$name' consumer declaration does not accept spi-api-name.")
+    if (spidirection == "requires" && spistandard.nonEmpty && spicomponentapi.nonEmpty)
+      _raise(s"Component service '$name' cannot require spi-standard and spi-component-api together.")
+    if (spidirection == "requires" && spistandard.isEmpty && spicomponentapi.isEmpty)
+      _raise(s"Component service '$name' requires spi-standard or spi-component-api.")
+    if (spidirection == "requires" && !spimultiplicity.forall(Set("1", "?", "*").contains))
+      _raise(s"Component service '$name' has invalid spi-multiplicity '${spimultiplicity.getOrElse("")}'.")
+    if (spirequired && spimultiplicity != Some("*"))
+      _raise(s"Component service '$name' spi-required=true is valid only with spi-multiplicity '*'.")
+    if (spiapiname.nonEmpty && !spisocket)
+      _raise(s"Component service '$name' spi-api-name requires spi-socket=true.")
+    if (hasspimetadata && spidirection == "provides" && !spisocket && spistandard.isEmpty)
+      _raise(s"Component service '$name' provider declaration requires spi-socket=true or spi-standard.")
+
+    ComponentServiceDefinition(
+      name = name,
+      spiStandard = spistandard,
+      spiDirection = spidirection,
+      spiSocket = spisocket,
+      spiMultiplicity = spimultiplicity,
+      spiRequired = spirequired,
+      spiApiName = spiapiname,
+      spiComponentApi = spicomponentapi
     )
   }
 
@@ -695,22 +766,30 @@ object ComponentSubsystemModel {
       case (k, v) if ks.contains(k) => v.trim
     }.filterNot(Strings.blankp)
 
-  private def _merged_key_values(
-    p: Section
-  ): Vector[(String, String)] = {
-    val fromtext = _key_values(p.toText)
-    val fromsections = p.sections.toVector.flatMap { s =>
-      val fromsectiontext = _key_values(s.toText)
-      if (fromsectiontext.nonEmpty)
-        fromsectiontext
-      else {
-        val key = s.keyForModel.toLowerCase
-        val body = s.toText.linesIterator.map(_.trim).find(_.nonEmpty).getOrElse("")
-        if (key.isEmpty || body.isEmpty) Vector.empty else Vector(key -> body)
+  private def _boolean_value(
+    kv: Vector[(String, String)],
+    keys: String*
+  ): Option[Boolean] =
+    _value_opt(kv, keys: _*).map { value =>
+      value.trim.toLowerCase match {
+        case "true" | "yes" | "on" | "1" => true
+        case "false" | "no" | "off" | "0" => false
+        case _ => _raise(s"Invalid boolean value '$value' for ${keys.headOption.getOrElse("property")}.")
       }
     }
-    fromtext ++ fromsections
+
+  private def _unquote(value: String): String = {
+    val s = value.trim
+    if (s.length >= 2 && ((s.head == '"' && s.last == '"') || (s.head == '\'' && s.last == '\'')))
+      s.substring(1, s.length - 1)
+    else
+      s
   }
+
+  private def _merged_key_values(
+    p: Section
+  ): Vector[(String, String)] =
+    CmlSectionFormat.keyValues(p)
 
   private def _key_values(
     p: String

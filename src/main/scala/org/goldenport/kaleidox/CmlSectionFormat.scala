@@ -4,14 +4,34 @@ import scala.util.Try
 import scala.collection.JavaConverters._
 import com.typesafe.config.{Config => Hocon, ConfigFactory, ConfigValueFactory}
 import org.yaml.snakeyaml.Yaml
+import org.smartdox.Section
 
 /*
  * @since   Mar. 24, 2026
- *  version Mar. 24, 2026
- * @version Apr.  3, 2026
+ *  version Apr.  3, 2026
+ * @version Jul. 11, 2026
  * @author  ASAMI, Tomoharu
  */
 object CmlSectionFormat {
+  /** Extracts properties from direct SmartDox AST children without flattening the section to text. */
+  def directKeyValues(p: Section): Vector[(String, String)] =
+    _section_direct_key_values(p)
+
+  /** Extracts direct properties plus named subsection properties from the parsed CML AST. */
+  def keyValues(p: Section): Vector[(String, String)] = {
+    val direct = directKeyValues(p)
+    val subsections = p.sections.toVector.flatMap { section =>
+      val values = directKeyValues(section)
+      val body = _section_body_text(section)
+      val named = if (section.keyForModel.isEmpty || body.isEmpty)
+        Vector.empty
+      else
+        Vector(section.keyForModel.toLowerCase(java.util.Locale.ROOT) -> body)
+      if (values.nonEmpty) values else named
+    }
+    direct ++ subsections
+  }
+
   def recordMaps(p: String): Vector[Map[String, String]] =
     _parse_structured(p).map(_to_record_maps).getOrElse(Vector.empty)
 
@@ -21,6 +41,37 @@ object CmlSectionFormat {
       dl
     else
       _structured_pairs(p)
+  }
+
+  private def _section_direct_key_values(p: Section): Vector[(String, String)] = {
+    val frombody = p.contents.toVector.flatMap {
+      case _: Section => Vector.empty
+      case _: org.smartdox.Dl => Vector.empty
+      case _: org.smartdox.Ul => Vector.empty
+      case content => keyValues(content.toText)
+    }
+    val fromul = p.uls.toVector.flatMap { list =>
+      list.contents.toVector.flatMap(item => keyValues(item.toText))
+    }
+    val fromdl = p.dls.toVector.flatMap { list =>
+      list.contents.toVector.flatMap { case (term, definition) =>
+        val key = term.toText.trim.toLowerCase(java.util.Locale.ROOT)
+        val value = definition.toText.trim
+        if (key.isEmpty || value.isEmpty) Vector.empty else Vector(key -> value)
+      }
+    }
+    frombody ++ fromul ++ fromdl
+  }
+
+  private def _section_body_text(p: Section): String = {
+    val data = p.toData().trim
+    if (data.nonEmpty)
+      data
+    else {
+      val lines = p.toText.linesIterator.toVector
+      val body = lines.dropWhile(_.trim.startsWith("#")).takeWhile(x => !x.trim.startsWith("#")).mkString("\n").trim
+      if (body.nonEmpty) body else p.toText.trim
+    }
   }
 
   def valueLines(p: String): Vector[String] = {

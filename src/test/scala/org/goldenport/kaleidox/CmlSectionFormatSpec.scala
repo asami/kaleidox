@@ -13,7 +13,8 @@ import org.goldenport.kaleidox.model.OperationModel
  * @since   Mar. 24, 2026
  *  version Mar. 25, 2026
  *  version Apr.  9, 2026
- * @version May. 24, 2026
+ *  version May. 24, 2026
+ * @version Jul. 11, 2026
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -150,6 +151,95 @@ profile: prod
       cs.subsystems.map(_.name) should contain ("identity")
       cs.components.head.coordinates.size should be (1)
       cs.subsystems.head.config.get("profile") should be (Some("prod"))
+    }
+
+    "preserve SPI-prefixed component service metadata" in {
+      Given("a provider service and a component API consumer declared under COMPONENT")
+      val source = """# COMPONENT
+                     |
+                     |## scraper
+                     |
+                     |### PACKAGE
+                     |
+                     |org.example.scraper
+                     |
+                     |### SERVICE
+                     |
+                     |#### Scraping
+                     |
+                     |- spi-direction :: provides
+                     |- spi-socket :: true
+                     |- spi-api-name :: TextusScraper
+                     |
+                     |#### Scrapers
+                     |
+                     |- spi-direction :: requires
+                     |- spi-component-api :: org.example.ScraperComponent.TextusScraperApi
+                     |- spi-multiplicity :: "*"
+                     |- spi-required :: true
+                     |""".stripMargin
+
+      When("Kaleidox parses the CML component metadata")
+      val model = Model.parse(_config, source)
+      val component = model.takeComponentSubsystemModel.components.headOption.getOrElse(
+        fail(s"Component is missing; divisions=${model.divisions.map(_.name).mkString(",")}, errors=${model.errors.mkString(";")}")
+      )
+
+      Then("the provider metadata remains distinct from the consumer socket metadata")
+      val provider = component.services.find(_.name == "Scraping").getOrElse(fail("Provider service is missing"))
+      provider.spiDirection shouldBe "provides"
+      provider.spiSocket shouldBe true
+      provider.spiApiName shouldBe Some("TextusScraper")
+
+      val consumer = component.services.find(_.name == "Scrapers").getOrElse(fail("Consumer service is missing"))
+      consumer.spiDirection shouldBe "requires"
+      consumer.spiComponentApi shouldBe Some("org.example.ScraperComponent.TextusScraperApi")
+      consumer.spiMultiplicity shouldBe Some("*")
+      consumer.spiRequired shouldBe true
+    }
+
+    "preserve ordinary component services without treating them as SPI declarations" in {
+      Given("a component service entry containing narrative metadata but no spi-prefixed properties")
+      val source = """# COMPONENT
+                     |
+                     |## catalog
+                     |
+                     |### SERVICE
+                     |
+                     |#### Catalog
+                     |
+                     |Catalog application service.
+                     |""".stripMargin
+
+      When("Kaleidox parses the component composition")
+      val component = Model.parse(_config, source).takeComponentSubsystemModel.components.head
+
+      Then("the service remains an ordinary non-SPI service")
+      val service = component.services.headOption.getOrElse(fail("Ordinary service is missing"))
+      service.name shouldBe "Catalog"
+      service.spiStandard shouldBe None
+      service.spiSocket shouldBe false
+    }
+
+    "reject SPI properties that are invalid for the declared direction" in {
+      Given("a standard SPI provider with an API name but without component API socket generation")
+      val source = """# COMPONENT
+                     |
+                     |## scraper
+                     |
+                     |### SERVICE
+                     |
+                     |#### Scraping
+                     |
+                     |- spi-standard :: cncf.web-content-fetcher
+                     |- spi-api-name :: TextusScraper
+                     |""".stripMargin
+
+      When("Kaleidox validates the SPI service declaration")
+      val model = Model.parse(_config, source)
+
+      Then("the ignored API-name combination is rejected deterministically")
+      model.errors.mkString(";") should include ("spi-api-name requires spi-socket=true")
     }
 
     "accept USE CASE sections in COMPONENT" in {
