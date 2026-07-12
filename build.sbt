@@ -2,7 +2,7 @@ organization := "org.goldenport"
 
 name := "kaleidox"
 
-version := "0.6.17-SNAPSHOT"
+version := "0.6.17"
 
 scalaVersion := "2.12.18"
 // crossScalaVersions := Seq("2.10.39.2", "2.9.1")
@@ -42,7 +42,7 @@ resolvers += "SimpleModeling.org" at "https://www.simplemodeling.org/repository/
 
 resolvers += "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository"
 
-libraryDependencies += "org.goldenport" %% "goldenport-scala-lib" % "2.3.28"
+libraryDependencies += "org.goldenport" %% "goldenport-scala-lib" % "2.3.30"
 
 libraryDependencies += "org.goldenport" %% "goldenport-record" % "2.2.5"
 
