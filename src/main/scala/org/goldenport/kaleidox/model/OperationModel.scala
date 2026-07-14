@@ -17,7 +17,8 @@ import org.goldenport.util.StringUtils
  * @since   Mar. 22, 2026
  *  version Mar. 28, 2026
  *  version Apr. 13, 2026
- * @version May.  8, 2026
+ *  version May.  8, 2026
+ * @version Jul. 15, 2026
  * @author  ASAMI, Tomoharu
  */
 case class OperationModel(
@@ -49,31 +50,35 @@ case class OperationModel(
     )
 
   def normalizedOperations: Vector[NormalizedOperationDefinition] = {
-    val valueMap = values.groupBy(_.name).map { case (k, v) => k -> v.head }
-    val seen = scala.collection.mutable.Map.empty[String, Int]
+    val valuemap = values.groupBy(_.name).map { case (k, v) => k -> v.head }
+    val localinputnames = scala.collection.mutable.Set.empty[String]
 
     operations.map { op =>
       val output = op.outputType.map(_.trim).filterNot(_.isEmpty).getOrElse {
         _raise(s"Operation '${op.name}' requires OUTPUT.")
       }
-      val inputType = op.inputType.map(_.trim).filterNot(_.isEmpty)
+      val inputtype = op.inputType.map(_.trim).filterNot(_.isEmpty)
       val parameters = op.parameters
-      if (inputType.isEmpty && parameters.isEmpty)
+      if (inputtype.isEmpty && parameters.isEmpty)
         _raise(s"Operation '${op.name}' requires INPUT or PARAMETER.")
 
-      val kind = op.kind.orElse(_infer_kind(op.name, inputType, valueMap)).getOrElse {
+      val kind = op.kind.orElse(_infer_kind(op.name, inputtype, valuemap)).getOrElse {
         _raise(s"Operation '${op.name}' requires TYPE (COMMAND|QUERY) or an INPUT value definition.")
       }
 
-      val resolvedInputType = inputType.getOrElse {
-        val base = s"${StringUtils.capitalize(op.name)}Input"
-        val n = seen.getOrElse(base, 0) + 1
-        seen.update(base, n)
-        if (n == 1) base else s"${base}${n}"
+      val resolvedinputtype = inputtype.getOrElse {
+        val suffix = kind match {
+          case OperationKind.Command => "Command"
+          case OperationKind.Query => "Query"
+        }
+        val base = s"${StringUtils.capitalize(op.name)}$suffix"
+        if (!localinputnames.add(base))
+          _raise(s"Operation-local input VALUE '$base' is defined more than once.")
+        base
       }
 
-      val resolvedValueKind = valueMap.get(resolvedInputType).map(_.kind).orElse {
-        op.inputType.flatMap(valueMap.get).map(_.kind)
+      val resolvedvaluekind = valuemap.get(resolvedinputtype).map(_.kind).orElse {
+        op.inputType.flatMap(valuemap.get).map(_.kind)
       }.getOrElse {
         kind match {
           case OperationKind.Command => InputValueKind.CommandValue
@@ -81,8 +86,8 @@ case class OperationModel(
         }
       }
 
-      _validate_kind(op.name, kind, resolvedValueKind)
-      _validate_dual_consistency(op.name, inputType.flatMap(valueMap.get), parameters)
+      _validate_kind(op.name, kind, resolvedvaluekind)
+      _validate_dual_consistency(op.name, inputtype.flatMap(valuemap.get), parameters)
 
       NormalizedOperationDefinition(
         name = op.name,
@@ -92,13 +97,13 @@ case class OperationModel(
         implementation = op.implementation,
         entityName = op.entityName,
         entityNames = op.entityNames,
-        inputType = resolvedInputType,
+        inputType = resolvedinputtype,
         inputSummary = op.inputSummary,
         inputDescription = op.inputDescription,
         outputType = output,
         outputSummary = op.outputSummary,
         outputDescription = op.outputDescription,
-        inputValueKind = resolvedValueKind,
+        inputValueKind = resolvedvaluekind,
         description = op.description,
         precondition = op.precondition,
         postcondition = op.postcondition,
@@ -137,15 +142,15 @@ case class OperationModel(
 
   private def _infer_kind(
     opname: String,
-    inputType: Option[String],
-    valueMap: Map[String, InputValueDefinition]
+    inputtype: Option[String],
+    valuemap: Map[String, InputValueDefinition]
   ): Option[OperationKind] = {
-    val valueKind = inputType.flatMap(valueMap.get).map(_.kind).orElse {
-      valueMap.get(s"${StringUtils.capitalize(opname)}Command").map(_.kind)
+    val valuekind = inputtype.flatMap(valuemap.get).map(_.kind).orElse {
+      valuemap.get(s"${StringUtils.capitalize(opname)}Command").map(_.kind)
     }.orElse {
-      valueMap.get(s"${StringUtils.capitalize(opname)}Query").map(_.kind)
+      valuemap.get(s"${StringUtils.capitalize(opname)}Query").map(_.kind)
     }
-    valueKind.map {
+    valuekind.map {
       case InputValueKind.CommandValue => OperationKind.Command
       case InputValueKind.QueryValue => OperationKind.Query
     }
@@ -172,6 +177,12 @@ object OperationModel {
   object InputValueKind {
     case object CommandValue extends InputValueKind
     case object QueryValue extends InputValueKind
+
+    def parse(p: String): Option[InputValueKind] =
+      Option(p).map(_.trim.toLowerCase(java.util.Locale.ROOT)).collect {
+        case "command" => CommandValue
+        case "query" => QueryValue
+      }
   }
 
   case class FieldDefinition(
@@ -299,11 +310,11 @@ object OperationModel {
     val kv = _merged_key_values(p)
     val inputspec = _io_spec(p, "input")
     val outputspec = _io_spec(p, "output")
-    val kindFromType = kv.collectFirst {
+    val kindfromtype = kv.collectFirst {
       case (k, v) if k == "type" => OperationKind.parse(v).getOrElse(_raise(s"Operation '${p.nameForModel}' TYPE must be COMMAND or QUERY."))
     }
-    val kindFromMarker = _kind_from_marker_section(p)
-    val kind = kindFromType.orElse(kindFromMarker)
+    val kindfrommarker = _kind_from_marker_section(p)
+    val kind = kindfromtype.orElse(kindfrommarker)
     val input = inputspec.tpe.orElse(kv.collectFirst {
       case (k, v) if k == "input" => v.trim
     }.filterNot(Strings.blankp))
@@ -330,7 +341,7 @@ object OperationModel {
     }.filterNot(Strings.blankp)
     val access = _access_definition(p)
     val authorization = _authorization_definition(p)
-    val entityNames = _entity_names(p)
+    val entitynames = _entity_names(p)
     val rules = _rule_lines(p)
     val params = p.sections.filter(_.keyForModel == "parameter").toVector.flatMap(_parse_parameter_section)
     OperationDefinition(
@@ -339,8 +350,8 @@ object OperationModel {
       summary = summary,
       execution = execution,
       implementation = implementation,
-      entityName = entityNames.headOption,
-      entityNames = entityNames,
+      entityName = entitynames.headOption,
+      entityNames = entitynames,
       inputType = input,
       inputSummary = inputspec.summary,
       inputDescription = inputspec.description,
@@ -493,27 +504,27 @@ object OperationModel {
   private def _parse_parameter_section(
     p: Section
   ): Vector[FieldDefinition] = {
-    val fromTables = p.tableList.toVector.flatMap(_table_fields)
-    val fromSections = _named_field_sections(p)
-    val fromText =
-      if (fromTables.isEmpty && fromSections.isEmpty)
+    val fromtables = p.tableList.toVector.flatMap(_table_fields)
+    val fromsections = _named_field_sections(p)
+    val fromtext =
+      if (fromtables.isEmpty && fromsections.isEmpty)
         _field_lines(_section_body_text(p))
       else
         Vector.empty
-    _merge_fields(fromTables ++ fromSections ++ fromText)
+    _merge_fields(fromtables ++ fromsections ++ fromtext)
   }
 
   private def _parse_attribute_section(
     p: Section
   ): Vector[FieldDefinition] = {
-    val fromTables = p.tableList.toVector.flatMap(_table_fields)
-    val fromSections = _named_field_sections(p)
-    val fromText =
-      if (fromTables.isEmpty && fromSections.isEmpty)
+    val fromtables = p.tableList.toVector.flatMap(_table_fields)
+    val fromsections = _named_field_sections(p)
+    val fromtext =
+      if (fromtables.isEmpty && fromsections.isEmpty)
         _field_lines(_section_body_text(p))
       else
         Vector.empty
-    _merge_fields(fromTables ++ fromSections ++ fromText)
+    _merge_fields(fromtables ++ fromsections ++ fromtext)
   }
 
   private def _named_field_sections(

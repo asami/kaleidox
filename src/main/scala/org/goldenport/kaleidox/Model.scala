@@ -71,7 +71,8 @@ import org.goldenport.kaleidox.model.analysis.AnalysisModel
  *  version Sep.  6, 2024
  *  version Nov. 22, 2024
  *  version May.  2, 2025
- * @version May.  3, 2026
+ *  version May.  3, 2026
+ * @version Jul. 15, 2026
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -784,19 +785,16 @@ object Model {
   case class ServiceDivision(section: LogicalSection) extends Division {
     val name = "service"
 
-    def makeModel(config: Config): ServiceModel = {
-      val doxconfig = Dox2Parser.Config.default // TODO
-      val dox = Dox2Parser.parseSection(doxconfig, section)
-      if (dox.keyForModel.equalsIgnoreCase("service"))
-        _make_services(config, dox)
+    def makeModel(config: Config): ServiceModel =
+      if (section.keyForModel.equalsIgnoreCase("service"))
+        _make_services(config, section)
       else
         ServiceModel.empty
-    }
 
-    private def _make_services(config: Config, p: Section): ServiceModel =
+    private def _make_services(config: Config, p: LogicalSection): ServiceModel =
       p.sections.foldMap(_make_service(config, _))
 
-    private def _make_service(config: Config, p: Section): ServiceModel =
+    private def _make_service(config: Config, p: LogicalSection): ServiceModel =
       ServiceModel.ServiceClass.createOption(config, p).
         map(ServiceModel.apply).
         getOrElse(ServiceModel.empty)

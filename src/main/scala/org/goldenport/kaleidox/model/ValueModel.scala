@@ -8,6 +8,7 @@ import org.goldenport.record.v2.{Schema, Column, SqlSchema}
 import org.goldenport.record.v3.Record
 import org.goldenport.sexpr.SSchema
 import org.goldenport.collection.VectorMap
+import org.goldenport.parser.ParseLocation
 import org.goldenport.kaleidox._
 import org.goldenport.kaleidox.model.SchemaModel.SchemaClass
 
@@ -16,7 +17,8 @@ import org.goldenport.kaleidox.model.SchemaModel.SchemaClass
  *  version Jun. 27, 2021
  *  version Aug. 21, 2023
  *  version Oct. 15, 2023
- * @version May. 24, 2026
+ *  version May. 24, 2026
+ * @version Jul. 15, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ValueModel(
@@ -59,12 +61,24 @@ object ValueModel {
 
   case class ValueClass(
     schemaClass: SchemaClass,
-    packageName: Option[String] = None
+    packageName: Option[String] = None,
+    properties: Map[String, String] = Map.empty,
+    sourceLocation: Option[ParseLocation] = None
   ) extends SchemaClass.SchemaClassContainer {
     def name = schemaClass.name
     def schema = schemaClass.schema
+
+    def getProperty(name: String): Option[String] =
+      properties.get(_normalize_property_name(name))
   }
   object ValueClass {
+    def create(p: Section): Option[ValueClass] =
+      ValueModel.createOption(p).flatMap(_.classes.values.headOption)
+
+    def create(name: String, p: Section): Option[ValueClass] = {
+      val properties = _properties(p)
+      SchemaClass.createOption(name, p).map(ValueClass(_, properties = properties, sourceLocation = p.location))
+    }
   }
 
   def apply(p: ValueClass): ValueModel = ValueModel(VectorMap(p.name -> p))
@@ -75,15 +89,16 @@ object ValueModel {
     _to_model(p).toOption
 
   private def _to_model(p: Section) = {
-    val pkg = _package_name(p)
-    SchemaClass.createOption(p).map(x => ValueModel(ValueClass(x, pkg))).getOrElse(empty)
+    val properties = _properties(p)
+    val pkg = properties.get("package").orElse(properties.get("package-name"))
+    SchemaClass.createOption(p).map(x => ValueModel(ValueClass(x, pkg, properties, p.location))).getOrElse(empty)
   }
 
-  private def _package_name(p: Section): Option[String] =
-    p.toPlainText.linesIterator.collectFirst {
-      case _package_line(key, value) if key.equalsIgnoreCase("package") || key.equalsIgnoreCase("package_name") =>
-        value.trim.stripPrefix("\"").stripSuffix("\"")
-    }.map(_.trim).filterNot(_.isEmpty)
+  private def _properties(p: Section): Map[String, String] =
+    CmlSectionFormat.keyValues(p).map { case (key, value) =>
+      _normalize_property_name(key) -> value.trim.stripPrefix("\"").stripSuffix("\"")
+    }.filterNot(_._2.isEmpty).toMap
 
-  private val _package_line = """\s*([A-Za-z_][A-Za-z0-9_\-]*)\s*[=:]\s*(.+)\s*""".r
+  private def _normalize_property_name(p: String): String =
+    Option(p).getOrElse("").trim.toLowerCase(java.util.Locale.ROOT).replace('_', '-')
 }

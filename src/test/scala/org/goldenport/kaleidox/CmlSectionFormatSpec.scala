@@ -14,7 +14,7 @@ import org.goldenport.kaleidox.model.OperationModel
  *  version Mar. 25, 2026
  *  version Apr.  9, 2026
  *  version May. 24, 2026
- * @version Jul. 11, 2026
+ * @version Jul. 15, 2026
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -22,6 +22,29 @@ class CmlSectionFormatSpec extends AnyWordSpec with Matchers with GivenWhenThen 
   private val _config = Config.log.debug.withoutLocation
 
   "Model parser" should {
+    "operation and Value grammar" which {
+    "preserve top-level VALUE properties from the CML AST" in {
+      Given("a VALUE with a description-list input-kind property")
+      val source = """# VALUE
+        |
+        |## CreateOrder
+        |- input-kind :: COMMAND
+        |
+        |### ATTRIBUTE
+        |
+        || name    | type | multiplicity |
+        ||---------+------+--------------|
+        || orderId | name | 1            |
+        |""".stripMargin
+
+      When("Kaleidox builds the Value model")
+      val value = Model.parse(_config, source).getValueModel.flatMap(_.get("CreateOrder"))
+
+      Then("the structured property is available without plain-text re-parsing")
+      value.flatMap(_.getProperty("input-kind")) shouldBe Some("COMMAND")
+      value.toVector.flatMap(_.schema.columns).map(_.name) should contain ("orderId")
+    }
+
     "accept OPERATION/COMMAND sections" in {
       val s = """# COMMAND
 
@@ -111,6 +134,9 @@ GetOrderResult
       normalized.exists(x => x.name == "getOrder" && x.kind == OperationModel.OperationKind.Query) should be (true)
     }
 
+    }
+
+    "component, event, and use-case grammar" which {
     "accept YAML in EVENT section" in {
       val s = """* EVENT
 ** person.created
@@ -594,6 +620,9 @@ profile: prod
       )
     }
 
+    }
+
+    "schema and field metadata" which {
     "accept YAML in FEATURES section" in {
       val s = """* ENTITY
 ** Person
@@ -988,6 +1017,9 @@ package = org.goldenport.cncf.information.value
       recent.properties.get("cache") shouldBe Some("\"PT5M\"")
     }
 
+    }
+
+    "service operation grammar" which {
     "accept SERVICE scoped OPERATION contract grammar" in {
       val s = """# SERVICE
                  |
@@ -1158,6 +1190,115 @@ package = org.goldenport.cncf.information.value
       greeting.input.value.map(_.name) should be (Some("GreetingQuery"))
       greeting.output.tpe should be (Some("GreetingResult"))
       greeting.output.value.map(_.name) should be (Some("GreetingResult"))
+    }
+
+    "build anonymous operation-local input and output Values from the CML AST" in {
+      Given("a query operation with ATTRIBUTE sections directly under INPUT and OUTPUT")
+      val source = """# COMPONENT
+                     |
+                     |## Domain
+                     |
+                     |### PACKAGE
+                     |domain
+                     |
+                     |# SERVICE
+                     |
+                     |## Notification
+                     |
+                     |### OPERATION
+                     |
+                     |#### searchNotifications
+                     |
+                     |##### TYPE
+                     |QUERY
+                     |
+                     |##### INPUT
+                     |
+                     |###### ATTRIBUTE
+                     || name | type   | multiplicity |
+                     ||------+--------+--------------|
+                     || text | string | ?            |
+                     |
+                     |##### OUTPUT
+                     |
+                     |###### ATTRIBUTE
+                     || name  | type | multiplicity |
+                     ||-------+------+--------------|
+                     || total | int  | 1            |
+                     |""".stripMargin
+
+      When("Kaleidox parses the service operation through the common CML AST")
+      val operation = Model.parse(_config, source).
+        getServiceModel.
+        flatMap(_.classes.get("Notification")).
+        flatMap(_.operations.getOperation("searchNotifications")).
+        getOrElse(fail("searchNotifications operation is missing"))
+
+      Then("the anonymous local Values receive deterministic operation-local names")
+      operation.input.tpe should be (Some("SearchNotificationsQuery"))
+      operation.input.value.map(_.name) should be (Some("SearchNotificationsQuery"))
+      operation.input.value.toVector.flatMap(_.schemaClass.attributes.map(_.name)) should be (Vector("text"))
+      operation.output.tpe should be (Some("SearchNotificationsResult"))
+      operation.output.value.map(_.name) should be (Some("SearchNotificationsResult"))
+      operation.output.value.toVector.flatMap(_.schemaClass.attributes.map(_.name)) should be (Vector("total"))
+    }
+
+    "build named operation-local Values from canonical VALUE and ATTRIBUTE siblings" in {
+      Given("a command operation with explicit local Value names")
+      val source = """# COMPONENT
+                     |
+                     |## Domain
+                     |
+                     |### PACKAGE
+                     |domain
+                     |
+                     |# SERVICE
+                     |
+                     |## Notification
+                     |
+                     |### OPERATION
+                     |
+                     |#### registerNotification
+                     |
+                     |##### TYPE
+                     |COMMAND
+                     |
+                     |##### INPUT
+                     |
+                     |###### VALUE
+                     |NotificationRegistration
+                     |
+                     |###### ATTRIBUTE
+                     || name  | type   | multiplicity |
+                     ||-------+--------+--------------|
+                     || title | string | 1            |
+                     |
+                     |##### OUTPUT
+                     |
+                     |###### VALUE
+                     |NotificationReceipt
+                     |
+                     |###### ATTRIBUTE
+                     || name | type   | multiplicity |
+                     ||------+--------+--------------|
+                     || id   | string | 1            |
+                     |""".stripMargin
+
+      When("Kaleidox parses the service operation through the common CML AST")
+      val operation = Model.parse(_config, source).
+        getServiceModel.
+        flatMap(_.classes.get("Notification")).
+        flatMap(_.operations.getOperation("registerNotification")).
+        getOrElse(fail("registerNotification operation is missing"))
+
+      Then("the explicit names and schemas are retained without text reparsing")
+      operation.input.tpe should be (Some("NotificationRegistration"))
+      operation.input.value.map(_.name) should be (Some("NotificationRegistration"))
+      operation.input.value.toVector.flatMap(_.schemaClass.attributes.map(_.name)) should be (Vector("title"))
+      operation.output.tpe should be (Some("NotificationReceipt"))
+      operation.output.value.map(_.name) should be (Some("NotificationReceipt"))
+      operation.output.value.toVector.flatMap(_.schemaClass.slots.map(_.name)) should be (Vector("id"))
+    }
     }
   }
 }

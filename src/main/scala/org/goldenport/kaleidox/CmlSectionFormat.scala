@@ -4,15 +4,21 @@ import scala.util.Try
 import scala.collection.JavaConverters._
 import com.typesafe.config.{Config => Hocon, ConfigFactory, ConfigValueFactory}
 import org.yaml.snakeyaml.Yaml
+import org.smartdox.parser.Dox2Parser
 import org.smartdox.Section
+import org.goldenport.parser.LogicalSection
 
 /*
  * @since   Mar. 24, 2026
  *  version Apr.  3, 2026
- * @version Jul. 11, 2026
+ * @version Jul. 15, 2026
  * @author  ASAMI, Tomoharu
  */
 object CmlSectionFormat {
+  /** Converts the common logical CML AST before extracting direct properties. */
+  def directKeyValues(p: LogicalSection): Vector[(String, String)] =
+    directKeyValues(Dox2Parser.parseSection(Dox2Parser.Config.default, p))
+
   /** Extracts properties from direct SmartDox AST children without flattening the section to text. */
   def directKeyValues(p: Section): Vector[(String, String)] =
     _section_direct_key_values(p)

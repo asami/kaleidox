@@ -16,7 +16,8 @@ import org.goldenport.sexpr.eval.LispContext
 import org.goldenport.kaleidox._
 import org.goldenport.kaleidox.CmlSectionFormat
 import org.goldenport.kaleidox.model.ValueModel.ValueClass
-import org.goldenport.parser.LogicalSection
+import org.goldenport.parser.{LogicalSection, ParseLocation}
+import org.goldenport.util.StringUtils
 
 /*
  * @since   Mar. 13, 2021
@@ -27,7 +28,8 @@ import org.goldenport.parser.LogicalSection
  *  version Jun. 20, 2021
  *  version Oct.  1, 2022
  *  version Aug. 21, 2023
- * @version May. 24, 2026
+ *  version May. 24, 2026
+ * @version Jul. 15, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
@@ -389,8 +391,15 @@ object ServiceModel {
 
     def createOption(config: Config, p: LogicalSection): Option[ServiceClass] = {
       val dox = Dox2Parser.parse(config.doxConfig, p)
-      _find_section(dox, p.nameForModel).flatMap(new Builder(config).createOption)
+      _find_section(dox, p.nameForModel).flatMap(new Builder(config, _operation_locations(p)).createOption)
     }
+
+    private def _operation_locations(p: LogicalSection): Map[String, ParseLocation] =
+      p.sections.
+        filter(_.keyForModel.equalsIgnoreCase("operation")).
+        flatMap(_.sections).
+        flatMap(x => x.location.map(x.nameForModel -> _)).
+        toMap
 
     private def _find_section(p: Dox, name: String): Option[Section] = p match {
       case m: Section if m.nameForModel == name => Some(m)
@@ -409,7 +418,10 @@ object ServiceModel {
     protected final def take_description(p: Map[String, String]): Dox =
       Dox.text(p.get("説明").getOrElse(""))
 
-    class Builder(val config: Config) {
+    class Builder(
+      val config: Config,
+      operationlocations: Map[String, ParseLocation] = Map.empty
+    ) {
       val autoCapitalize: Boolean = false
 
       def createOption(p: Section): Option[ServiceClass] = {
@@ -441,9 +453,10 @@ object ServiceModel {
         val sections = p.sections
         val directkv = _direct_key_values(p)
         val features = p.tables.headOption
-        val in = _merge_direct_input(name, _value_opt(directkv, "input"), sections.flatMap(_get_operation_in).headOption).
+        val kind = _merge_direct_kind(name, _operation_kind_direct(name, _value_opt(directkv, "type")), _kind_opt(p))
+        val in = _merge_direct_input(service, name, _value_opt(directkv, "input"), sections.flatMap(_get_operation_in(service, name, kind, _)).headOption).
           getOrElse(RAISE.syntaxErrorFault("No input"))
-        val out = _merge_direct_output(name, _value_opt(directkv, "output", "result"), sections.flatMap(_get_operation_out).headOption).
+        val out = _merge_direct_output(service, name, _value_opt(directkv, "output", "result"), sections.flatMap(_get_operation_out(service, name, _)).headOption).
           getOrElse(RAISE.syntaxErrorFault("No output"))
         // val method = Method.UnimplementedMethod
         // val method = {
@@ -456,7 +469,7 @@ object ServiceModel {
           input = in,
           output = out,
           method = method,
-          kind = _merge_direct_kind(name, _operation_kind_direct(name, _value_opt(directkv, "type")), _kind_opt(p)),
+          kind = kind,
           summary = _summary_text(p),
           description = _description_text(p),
           precondition = _precondition_text(p),
@@ -473,9 +486,14 @@ object ServiceModel {
         ))
       }
 
-      private def _get_operation_in(p: Section): Option[Input] =
+      private def _get_operation_in(
+        service: String,
+        operationname: String,
+        operationkind: Option[OperationModel.OperationKind],
+        p: Section
+      ): Option[Input] =
         if (_is_in(p))
-          Some(_to_operation_in(p))
+          Some(_to_operation_in(service, operationname, operationkind, p))
         else
           None
 
@@ -484,13 +502,24 @@ object ServiceModel {
         k == "in" || k == "input"
       }
 
-      private def _to_operation_in(p: Section) = {
+      private def _to_operation_in(
+        service: String,
+        operationname: String,
+        operationkind: Option[OperationModel.OperationKind],
+        p: Section
+      ) = {
         val params = p.tables.headOption.map(_to_params).getOrElse(Parameters.empty)
-        val value = _inline_value(p)
+        val anonymousname = operationkind.map {
+          case OperationModel.OperationKind.Command => s"${StringUtils.capitalize(operationname)}Command"
+          case OperationModel.OperationKind.Query => s"${StringUtils.capitalize(operationname)}Query"
+        }
+        val value = _operation_local_value(service, operationname, "INPUT", anonymousname, p)
         val kv = _direct_key_values(p)
+        val reference = _type_text(p).orElse(_value_opt(kv, "type"))
+        _require_reference_or_local(service, operationname, "INPUT", reference, value)
         Input(
           parameters = params,
-          tpe = _type_text(p).orElse(_value_opt(kv, "type")).orElse(value.map(_.name)),
+          tpe = reference.orElse(value.map(_.name)),
           value = value,
           summary = _summary_text(p),
           description = _description_text(p)
@@ -502,9 +531,9 @@ object ServiceModel {
         Parameters(xs)
       }
 
-      private def _get_operation_out(p: Section): Option[Output] =
+      private def _get_operation_out(service: String, operationname: String, p: Section): Option[Output] =
         if (_is_out(p))
-          Some(_to_operation_out(p))
+          Some(_to_operation_out(service, operationname, p))
         else
           None
 
@@ -513,14 +542,22 @@ object ServiceModel {
         k == "out" || k == "output"
       }
 
-      private def _to_operation_out(p: Section) = {
+      private def _to_operation_out(service: String, operationname: String, p: Section) = {
         p.tables.headOption
         val result = p.tables.headOption.map(_to_result).getOrElse(Result.empty)
-        val value = _inline_value(p)
+        val value = _operation_local_value(
+          service,
+          operationname,
+          "OUTPUT",
+          Some(s"${StringUtils.capitalize(operationname)}Result"),
+          p
+        )
         val kv = _direct_key_values(p)
+        val reference = _type_text(p).orElse(_value_opt(kv, "type"))
+        _require_reference_or_local(service, operationname, "OUTPUT", reference, value)
         Output(
           result = result,
-          tpe = _type_text(p).orElse(_value_opt(kv, "type")).orElse(value.map(_.name)),
+          tpe = reference.orElse(value.map(_.name)),
           value = value,
           summary = _summary_text(p),
           description = _description_text(p)
@@ -616,9 +653,9 @@ object ServiceModel {
         p.sections.filter(_key_is(_, "parameter")).toVector.flatMap(_parse_parameter_section)
 
       private def _parse_parameter_section(p: Section): Vector[OperationModel.FieldDefinition] = {
-        val fromTables = p.tableList.toVector.flatMap(_table_fields)
-        val fromText = if (fromTables.isEmpty) _field_lines(_section_body_text(p).getOrElse("")) else Vector.empty
-        fromTables ++ fromText
+        val fromtables = p.tableList.toVector.flatMap(_table_fields)
+        val fromtext = if (fromtables.isEmpty) _field_lines(_section_body_text(p).getOrElse("")) else Vector.empty
+        fromtables ++ fromtext
       }
 
       private def _field_lines(p: String): Vector[OperationModel.FieldDefinition] =
@@ -772,11 +809,16 @@ object ServiceModel {
         _merge_direct_section(opname, "TYPE", direct, section)(_.toString)
 
       private def _merge_direct_input(
+        service: String,
         opname: String,
         direct: Option[String],
         section: Option[Input]
       ): Option[Input] =
         section match {
+          case Some(s) if direct.nonEmpty && s.value.nonEmpty =>
+            RAISE.syntaxErrorFault(
+              s"Operation $opname INPUT direct type reference '${direct.get}' cannot be combined with a local VALUE definition.${_owner_suffix(service, s.value.flatMap(_.sourceLocation))}"
+            )
           case Some(s) =>
             _merge_direct_section(opname, "INPUT", direct, s.tpe)(identity)
             Some(s)
@@ -785,11 +827,16 @@ object ServiceModel {
         }
 
       private def _merge_direct_output(
+        service: String,
         opname: String,
         direct: Option[String],
         section: Option[Output]
       ): Option[Output] =
         section match {
+          case Some(s) if direct.nonEmpty && s.value.nonEmpty =>
+            RAISE.syntaxErrorFault(
+              s"Operation $opname OUTPUT direct type reference '${direct.get}' cannot be combined with a local VALUE definition.${_owner_suffix(service, s.value.flatMap(_.sourceLocation))}"
+            )
           case Some(s) =>
             _merge_direct_section(opname, "OUTPUT", direct, s.tpe)(identity)
             Some(s)
@@ -818,11 +865,64 @@ object ServiceModel {
           case _ => None
         }
 
-      private def _inline_value(p: Section): Option[ValueClass] =
-        p.sections.find(_key_is(_, "value")).
-          flatMap(_.sections.headOption).
-          flatMap(SchemaModel.SchemaClass.createOption).
-          map(ValueClass(_))
+      private def _operation_local_value(
+        service: String,
+        operationname: String,
+        direction: String,
+        anonymousname: Option[String],
+        p: Section
+      ): Option[ValueClass] = {
+        val valuesection = p.sections.find(_key_is(_, "value"))
+        val hasattributes = p.sections.exists(_key_is(_, "attribute", "attr", "属性"))
+        val operationlocation = operationlocations.get(operationname).orElse(p.location)
+        val ownersuffix = _owner_suffix(service, operationlocation)
+        valuesection match {
+          case Some(value) if value.sections.nonEmpty =>
+            if (hasattributes)
+              RAISE.syntaxErrorFault(s"Operation '$operationname' $direction cannot combine nested VALUE and sibling ATTRIBUTE definitions.$ownersuffix")
+            value.sections.headOption.flatMap(ValueClass.create).map(_with_source_location(_, operationlocation)).orElse(
+              RAISE.syntaxErrorFault(s"Operation '$operationname' $direction nested VALUE requires a schema definition.$ownersuffix")
+            )
+          case Some(value) =>
+            val name = _section_body_text(value).map(_.trim).filterNot(Strings.blankp).getOrElse(
+              RAISE.syntaxErrorFault(s"Operation '$operationname' $direction VALUE requires a local type name.$ownersuffix")
+            )
+            if (!hasattributes)
+              RAISE.syntaxErrorFault(s"Operation '$operationname' $direction local VALUE '$name' requires ATTRIBUTE.$ownersuffix")
+            ValueClass.create(name, p).map(_with_source_location(_, operationlocation)).orElse(
+              RAISE.syntaxErrorFault(s"Operation '$operationname' $direction local VALUE '$name' requires a schema definition.$ownersuffix")
+            )
+          case None if hasattributes =>
+            val name = anonymousname.getOrElse(
+              RAISE.syntaxErrorFault(s"Operation '$operationname' $direction anonymous local VALUE requires TYPE=COMMAND|QUERY.$ownersuffix")
+            )
+            ValueClass.create(name, p).map(_with_source_location(_, operationlocation)).orElse(
+              RAISE.syntaxErrorFault(s"Operation '$operationname' $direction anonymous local VALUE requires a schema definition.$ownersuffix")
+            )
+          case None =>
+            None
+        }
+      }
+
+      private def _require_reference_or_local(
+        service: String,
+        operationname: String,
+        direction: String,
+        reference: Option[String],
+        local: Option[ValueClass]
+      ): Unit =
+        if (reference.nonEmpty && local.nonEmpty)
+          RAISE.syntaxErrorFault(
+            s"Operation $operationname $direction TYPE cannot be combined with a local VALUE definition.${_owner_suffix(service, local.flatMap(_.sourceLocation))}"
+          )
+
+      private def _owner_suffix(service: String, location: Option[ParseLocation]): String = {
+        val source = location.map(_.show).filterNot(_ == "[]").map(x => s" $x").getOrElse("")
+        s" Service '$service'.$source"
+      }
+
+      private def _with_source_location(p: ValueClass, location: Option[ParseLocation]): ValueClass =
+        p.copy(sourceLocation = location.orElse(p.sourceLocation))
 
       private def _key(p: Section): String =
         p.keyForModel.toLowerCase(java.util.Locale.ROOT)

@@ -43,7 +43,8 @@ import scala.util.Try
  *  version Sep.  6, 2024
  *  version May.  2, 2025
  *  version Mar. 31, 2026
- * @version May.  8, 2026
+ *  version May.  8, 2026
+ * @version Jul. 15, 2026
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -409,6 +410,9 @@ object SchemaModel {
 
     def createOption(p: Section): Option[SchemaClass] =
       new Builder().createOption(p)
+
+    def createOption(name: String, p: Section): Option[SchemaClass] =
+      new Builder().createOption(name, p)
 
     class Builder() {
       val autoCapitalize: Boolean = false
@@ -1232,7 +1236,10 @@ object SchemaModel {
         p.blocks.blocks.foldLeft(Z())(_+_).r
       }
 
-      def createOption(p: Section): Option[SchemaClass] = {
+      def createOption(p: Section): Option[SchemaClass] =
+        createOption(p.nameForModel, p)
+
+      def createOption(name: String, p: Section): Option[SchemaClass] = {
         case class Z(
           featureTables: Vector[Table] = Vector.empty,
           delegates: Vector[DelegateDefinition] = Vector.empty,
@@ -1254,7 +1261,7 @@ object SchemaModel {
             // props.map(_to_schema_class(p.nameForModel, features, _))
             val props = if (propertyTables.nonEmpty) propertyTables else anonTables
             _get_schema_class(
-              p.nameForModel,
+              name,
               featureTables,
               delegates,
               props,
@@ -1274,6 +1281,7 @@ object SchemaModel {
             case m: Table => _table(m)
             case m: Section => _section(m)
             case m: Paragraph => this
+            case _: Dl => this
           }
 
           private def _table(m: Table) =
