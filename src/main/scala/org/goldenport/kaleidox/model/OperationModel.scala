@@ -18,7 +18,7 @@ import org.goldenport.util.StringUtils
  *  version Mar. 28, 2026
  *  version Apr. 13, 2026
  *  version May.  8, 2026
- * @version Jul. 15, 2026
+ * @version Jul. 16, 2026
  * @author  ASAMI, Tomoharu
  */
 case class OperationModel(
@@ -194,7 +194,9 @@ object OperationModel {
     placeholder: Option[String] = None,
     help: Option[String] = None,
     required: Option[Boolean] = None,
-    confidentiality: Option[String] = None
+    confidentiality: Option[String] = None,
+    constraints: Vector[org.goldenport.record.v2.Constraint] = Vector.empty,
+    typeConstraints: Vector[org.goldenport.record.v2.Constraint] = Vector.empty
   )
 
   case class InputValueDefinition(
