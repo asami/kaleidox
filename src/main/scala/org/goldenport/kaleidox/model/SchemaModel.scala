@@ -2443,13 +2443,7 @@ object SchemaModel {
           help = _string_value_flexible(p, Seq("web-help", "webHelp")),
           required = _boolean_value_flexible(p, Seq("web-required", "webRequired")),
           hidden = _boolean_value_flexible(p, Seq("web-hidden", "webHidden")),
-          readonly = _boolean_value_flexible(p, Seq("web-readonly", "webReadonly", "web-read-only", "webReadOnly")),
-          minLength = _string_value_flexible(p, Seq("web-min-length", "webMinLength")),
-          maxLength = _string_value_flexible(p, Seq("web-max-length", "webMaxLength")),
-          min = _string_value_flexible(p, Seq("web-min", "webMin")),
-          max = _string_value_flexible(p, Seq("web-max", "webMax")),
-          step = _string_value_flexible(p, Seq("web-step", "webStep")),
-      pattern = _string_value_flexible(p, Seq("web-pattern", "webPattern", "web-regex", "webRegex"))
+          readonly = _boolean_value_flexible(p, Seq("web-readonly", "webReadonly", "web-read-only", "webReadOnly"))
         )
 
       private def _confidentiality(p: Record): Option[String] =
@@ -2624,13 +2618,7 @@ object SchemaModel {
       help: Option[String] = None,
       required: Option[Boolean] = None,
       hidden: Option[Boolean] = None,
-      readonly: Option[Boolean] = None,
-      minLength: Option[String] = None,
-      maxLength: Option[String] = None,
-      min: Option[String] = None,
-      max: Option[String] = None,
-      step: Option[String] = None,
-      pattern: Option[String] = None
+      readonly: Option[Boolean] = None
     )
     object Web {
       val empty: Web = Web()
