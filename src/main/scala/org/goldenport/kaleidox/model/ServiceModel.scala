@@ -29,7 +29,7 @@ import org.goldenport.util.StringUtils
  *  version Oct.  1, 2022
  *  version Aug. 21, 2023
  *  version May. 24, 2026
- * @version Jul. 15, 2026
+ * @version Jul. 16, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
@@ -84,6 +84,7 @@ object ServiceModel {
   object ServiceClass {
     case class UseCaseDefinition(
       name: String,
+      id: Option[String] = None,
       summary: Option[String] = None,
       description: Option[String] = None,
       actor: Option[String] = None,
@@ -94,11 +95,15 @@ object ServiceModel {
       goal: Option[String] = None,
       precondition: Option[String] = None,
       postcondition: Option[String] = None,
+      trigger: Option[String] = None,
+      priority: Option[String] = None,
+      status: Option[String] = None,
       scenarios: Vector[UseCaseScenario] = Vector.empty
     )
 
     case class UseCaseScenario(
       name: String,
+      kind: String = "main",
       summary: Option[String] = None,
       description: Option[String] = None,
       steps: Vector[String] = Vector.empty,
@@ -595,6 +600,7 @@ object ServiceModel {
         val kv = _merged_key_values(p)
         UseCaseDefinition(
           name = p.nameForModel.trim,
+          id = _value_opt(kv, "id"),
           summary = _value_opt(kv, "summary"),
           description = _description_text(p),
           actor = _value_opt(kv, "actor"),
@@ -605,19 +611,29 @@ object ServiceModel {
           goal = _value_opt(kv, "goal"),
           precondition = _value_opt(kv, "precondition", "pre-condition"),
           postcondition = _value_opt(kv, "postcondition", "post-condition"),
+          trigger = _value_opt(kv, "trigger"),
+          priority = _value_opt(kv, "priority"),
+          status = _value_opt(kv, "status"),
           scenarios = _use_case_scenarios(p)
         )
       }
 
       private def _use_case_scenarios(p: Section): Vector[UseCaseScenario] =
-        p.sections.toVector.filter(_key_is(_, "scenario")).flatMap { s =>
-          s.sections.toVector.map(_parse_use_case_scenario)
+        p.sections.toVector.flatMap { section =>
+          _flow_kind(section.keyForModel) match {
+            case Some(kind) =>
+              val xs = section.sections.toVector
+              if (xs.nonEmpty) xs.map(_parse_use_case_scenario(_, kind))
+              else Vector(_parse_use_case_scenario(section, kind))
+            case None => Vector.empty
+          }
         }
 
-      private def _parse_use_case_scenario(p: Section): UseCaseScenario = {
+      private def _parse_use_case_scenario(p: Section, kind: String = "main"): UseCaseScenario = {
         val kv = _merged_key_values(p)
         UseCaseScenario(
           name = p.nameForModel.trim,
+          kind = kind,
           summary = _value_opt(kv, "summary"),
           description = _description_text(p),
           steps = _scenario_steps(p),
@@ -625,6 +641,13 @@ object ServiceModel {
           exceptions = _scenario_value_sections(p, "exception")
         )
       }
+
+      private def _flow_kind(p: String): Option[String] =
+        Option(p).map(_.trim.toLowerCase(java.util.Locale.ROOT).replace("_", " ").replace("-", " ")).collect {
+          case "scenario" | "main flow" | "mainflow" => "main"
+          case "alternate flow" | "alternative flow" | "alternateflow" | "alternativeflow" => "alternate"
+          case "exception flow" | "exceptionflow" => "exception"
+        }
 
       private def _summary_text(p: Section): Option[String] =
         p.sections.find(_key_is(_, "summary")).

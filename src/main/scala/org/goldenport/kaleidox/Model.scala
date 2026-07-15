@@ -36,6 +36,7 @@ import org.goldenport.kaleidox.model._
 import org.goldenport.kaleidox.model.entity.KaleidoxEntityFactory
 import org.goldenport.kaleidox.model.vision.VisionModel
 import org.goldenport.kaleidox.model.business.BusinessModel
+import org.goldenport.kaleidox.model.actor.ActorModel
 import org.goldenport.kaleidox.model.requirement.RequirementModel
 import org.goldenport.kaleidox.model.analysis.AnalysisModel
 
@@ -72,7 +73,7 @@ import org.goldenport.kaleidox.model.analysis.AnalysisModel
  *  version Nov. 22, 2024
  *  version May.  2, 2025
  *  version May.  3, 2026
- * @version Jul. 15, 2026
+ * @version Jul. 16, 2026
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -104,6 +105,7 @@ case class Model(
     getServiceModel,
     getOperationModel,
     getComponentSubsystemModel,
+    getActorModel,
     getDataTypeModel,
     getEntityModel,
     getSchemaModel,
@@ -232,6 +234,13 @@ case class Model(
 
   lazy val takeComponentSubsystemModel: ComponentSubsystemModel =
     getComponentSubsystemModel.orZero
+
+  lazy val getActorModel: Option[ActorModel] =
+    divisions.collect {
+      case m: ActorModel.ActorDivision => m.makeModel(config)
+    }.foldLeft(ActorModel.empty)(_ + _).toOption
+
+  lazy val takeActorModel: ActorModel = getActorModel.getOrElse(ActorModel.empty)
 
   lazy val getDataTypeModel: Option[DataTypeModel] = 
     divisions.collect {
@@ -387,6 +396,7 @@ object Model {
       CapabilityDivision,
       QualityDivision,
       ConstraintDivision,
+      ActorModel.ActorDivision,
       UseCaseDivision,
       ComponentDivision,
       SubsystemDivision,

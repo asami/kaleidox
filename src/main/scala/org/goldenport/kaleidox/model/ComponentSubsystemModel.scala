@@ -15,7 +15,7 @@ import org.goldenport.parser.LogicalSection
  * @since   Mar. 22, 2026
  *  version Mar. 24, 2026
  *  version Apr.  6, 2026
- * @version Jul. 11, 2026
+ * @version Jul. 16, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ComponentSubsystemModel(
@@ -145,6 +145,7 @@ object ComponentSubsystemModel {
 
   final case class UseCaseDefinition(
     name: String,
+    id: Option[String] = None,
     summary: Option[String] = None,
     description: Option[String] = None,
     actor: Option[String] = None,
@@ -155,11 +156,15 @@ object ComponentSubsystemModel {
     goal: Option[String] = None,
     precondition: Option[String] = None,
     postcondition: Option[String] = None,
+    trigger: Option[String] = None,
+    priority: Option[String] = None,
+    status: Option[String] = None,
     scenarios: Vector[UseCaseScenario] = Vector.empty
   ) extends NamedDefinition
 
   final case class UseCaseScenario(
     name: String,
+    kind: String = "main",
     summary: Option[String] = None,
     description: Option[String] = None,
     steps: Vector[String] = Vector.empty,
@@ -551,6 +556,7 @@ object ComponentSubsystemModel {
     val kv = _merged_key_values(p)
     UseCaseDefinition(
       name = _require_name(p.nameForModel, "use case"),
+      id = _value_opt(kv, "id"),
       summary = _value_opt(kv, "summary"),
       description = _value_opt(kv, "description"),
       actor = _value_opt(kv, "actor"),
@@ -561,6 +567,9 @@ object ComponentSubsystemModel {
       goal = _value_opt(kv, "goal"),
       precondition = _value_opt(kv, "precondition", "pre-condition"),
       postcondition = _value_opt(kv, "postcondition", "post-condition"),
+      trigger = _value_opt(kv, "trigger"),
+      priority = _value_opt(kv, "priority"),
+      status = _value_opt(kv, "status"),
       scenarios = _use_case_scenarios(p)
     )
   }
@@ -615,8 +624,16 @@ object ComponentSubsystemModel {
   private def _use_case_scenarios(
     p: Section
   ): Vector[UseCaseScenario] =
-    p.sections.toVector.filter(_.keyForModel.equalsIgnoreCase("scenario")).flatMap { s =>
-      s.sections.toVector.map(_parse_use_case_scenario)
+    p.sections.toVector.flatMap { section =>
+      _flow_kind(section.keyForModel) match {
+        case Some(kind) =>
+          val xs = section.sections.toVector
+          if (xs.nonEmpty)
+            xs.map(_parse_use_case_scenario(_, kind))
+          else
+            Vector(_parse_use_case_scenario(section, kind))
+        case None => Vector.empty
+      }
     }
 
   private def _is_use_case_key(p: String): Boolean = {
@@ -635,12 +652,14 @@ object ComponentSubsystemModel {
   }
 
   private def _parse_use_case_scenario(
-    p: Section
+    p: Section,
+    kind: String = "main"
   ): UseCaseScenario = {
     val kv = _merged_key_values(p)
     val steps = _scenario_steps(p)
     UseCaseScenario(
       name = _require_name(p.nameForModel, "use case scenario"),
+      kind = kind,
       summary = _value_opt(kv, "summary"),
       description = _value_opt(kv, "description"),
       steps = steps,
@@ -648,6 +667,13 @@ object ComponentSubsystemModel {
       exceptions = _scenario_value_sections(p, "exception")
     )
   }
+
+  private def _flow_kind(p: String): Option[String] =
+    Option(p).map(_.trim.toLowerCase(java.util.Locale.ROOT).replace("_", " ").replace("-", " ")).collect {
+      case "scenario" | "main flow" | "mainflow" => "main"
+      case "alternate flow" | "alternative flow" | "alternateflow" | "alternativeflow" => "alternate"
+      case "exception flow" | "exceptionflow" => "exception"
+    }
 
   private def _scenario_steps(
     p: Section

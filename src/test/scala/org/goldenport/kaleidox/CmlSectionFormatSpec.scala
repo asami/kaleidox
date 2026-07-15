@@ -14,7 +14,7 @@ import org.goldenport.kaleidox.model.OperationModel
  *  version Mar. 25, 2026
  *  version Apr.  9, 2026
  *  version May. 24, 2026
- * @version Jul. 15, 2026
+ * @version Jul. 16, 2026
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -269,6 +269,7 @@ profile: prod
     }
 
     "accept USE CASE sections in COMPONENT" in {
+      Given("a component use case with canonical metadata and categorized flows")
       val s = """# COMPONENT
                 |
                 |## user-account
@@ -280,6 +281,10 @@ profile: prod
                 |### USE CASE
                 |
                 |#### provisional_onboarding
+                |
+                |##### ID
+                |
+                |UC-ONBOARD-001
                 |
                 |##### SUMMARY
                 |
@@ -309,6 +314,18 @@ profile: prod
                 |
                 |Capture a lightweight lead.
                 |
+                |##### TRIGGER
+                |
+                |The user requests registration.
+                |
+                |##### PRIORITY
+                |
+                |high
+                |
+                |##### STATUS
+                |
+                |approved
+                |
                 |##### PRECONDITION
                 |
                 |The user is not registered.
@@ -317,23 +334,36 @@ profile: prod
                 |
                 |A provisional account exists.
                 |
-                |##### SCENARIO
+                |##### MAIN FLOW
                 |
                 |###### happy_path
                 |
                 |1. User enters email and password.
                 |2. System creates a provisional account.
                 |
+                |##### ALTERNATE FLOW
+                |
                 |###### duplicate_email
                 |
                 |1. User enters an existing email.
                 |2. System rejects the request.
+                |
+                |##### EXCEPTION FLOW
+                |
+                |###### persistence_failure
+                |
+                |1. System cannot persist the provisional account.
+                |2. System reports that onboarding did not complete.
                 |""".stripMargin
+
+      When("Kaleidox parses the component use case")
       val model = Model.parse(_config, s)
       val component = model.takeComponentSubsystemModel.components.headOption.getOrElse(fail("Component is missing"))
       val usecase = component.useCases.headOption.getOrElse(fail("Use case is missing"))
 
+      Then("the parsed use case preserves metadata and flow categories")
       usecase.name should be ("provisional_onboarding")
+      usecase.id should be (Some("UC-ONBOARD-001"))
       usecase.summary should be (Some("Create a provisional user account."))
       usecase.actor should be (Some("User registration context"))
       usecase.primaryActor should be (Some("EndUser"))
@@ -341,13 +371,21 @@ profile: prod
       usecase.supportingActor should be (Some("MailService"))
       usecase.stakeholder should be (Some("BusinessOwner"))
       usecase.goal should be (Some("Capture a lightweight lead."))
+      usecase.trigger should be (Some("The user requests registration."))
+      usecase.priority should be (Some("high"))
+      usecase.status should be (Some("approved"))
       usecase.precondition should be (Some("The user is not registered."))
       usecase.postcondition should be (Some("A provisional account exists."))
-      usecase.scenarios.map(_.name) should contain allOf ("happy_path", "duplicate_email")
+      usecase.scenarios.map(x => x.name -> x.kind) should be (Vector(
+        "happy_path" -> "main",
+        "duplicate_email" -> "alternate",
+        "persistence_failure" -> "exception"
+      ))
       usecase.scenarios.find(_.name == "happy_path").flatMap(_.steps.headOption).getOrElse("") should include ("User enters email")
     }
 
     "accept top-level USE CASE sections" in {
+      Given("a top-level domain use case")
       val s = """# USE CASE
                 |
                 |## domain_identity_lifecycle
@@ -364,13 +402,85 @@ profile: prod
                 |
                 |Provide a shared domain use-case definition above component scope.
                 |""".stripMargin
+
+      When("Kaleidox parses the domain use case")
       val model = Model.parse(_config, s)
       val usecase = model.takeComponentSubsystemModel.useCases.headOption.getOrElse(fail("Top-level use case is missing"))
 
+      Then("the use case remains available above component scope")
       usecase.name should be ("domain_identity_lifecycle")
       usecase.summary should be (Some("Cover the domain-wide identity lifecycle."))
       usecase.primaryActor should be (Some("EndUser"))
       usecase.goal should be (Some("Provide a shared domain use-case definition above component scope."))
+    }
+
+    "not interpret misspelled TRIGER metadata as a canonical trigger" in {
+      Given("a component use case with a misspelled trigger heading")
+      val source = """# COMPONENT
+                     |
+                     |## user-account
+                     |
+                     |### USE CASE
+                     |
+                     |#### provisional_onboarding
+                     |
+                     |##### TRIGER
+                     |
+                     |The user requests registration.
+                     |""".stripMargin
+
+      When("Kaleidox parses the use case")
+      val usecase = Model.parse(_config, source).
+        takeComponentSubsystemModel.components.headOption.
+        flatMap(_.useCases.headOption).
+        getOrElse(fail("Use case is missing"))
+
+      Then("only the canonical TRIGGER heading supplies trigger metadata")
+      usecase.trigger shouldBe None
+    }
+
+    "preserve top-level ACTOR definitions as a typed model" in {
+      Given("a CML document with human and system actor definitions")
+      val source = """# ACTOR
+                     |
+                     |## ExhibitionVisitor
+                     |
+                     |### KIND
+                     |
+                     |human
+                     |
+                     |### SUMMARY
+                     |
+                     |Plans an exhibition visit.
+                     |
+                     |### DESCRIPTION
+                     |
+                     |A visitor who evaluates exhibition candidates.
+                     |
+                     |## NotificationSystem
+                     |
+                     |### KIND
+                     |
+                     |system
+                     |
+                     |# ACTOR
+                     |
+                     |## ExhibitionVisitor
+                     |
+                     |### DESCRIPTION
+                     |
+                     |A duplicate definition that must not create another model element.
+                     |""".stripMargin
+
+      When("Kaleidox parses the top-level actor division")
+      val model = Model.parse(_config, source)
+
+      Then("the actor definitions are available through the model API")
+      val actors = model.takeActorModel.actors
+      actors.map(_.name) should be (Vector("ExhibitionVisitor", "NotificationSystem"))
+      actors.head.kind should be (Some("human"))
+      actors.head.summary should be (Some("Plans an exhibition visit."))
+      actors.head.description should be (Some("A visitor who evaluates exhibition candidates."))
     }
 
     "accept top-level CAPABILITY sections" in {
@@ -463,6 +573,7 @@ profile: prod
     }
 
     "accept USE CASE sections in SERVICE" in {
+      Given("a service use case with canonical metadata and categorized flows")
       val s = """# SERVICE
                 |
                 |## User
@@ -474,6 +585,10 @@ profile: prod
                 |### USE CASE
                 |
                 |#### regular_registration
+                |
+                |##### ID
+                |
+                |UC-REGISTER-001
                 |
                 |##### SUMMARY
                 |
@@ -499,12 +614,31 @@ profile: prod
                 |
                 |Register through the normal self-service path.
                 |
-                |##### SCENARIO
+                |##### TRIGGER
+                |
+                |The user requests an account.
+                |
+                |##### PRIORITY
+                |
+                |high
+                |
+                |##### STATUS
+                |
+                |approved
+                |
+                |##### MAIN FLOW
                 |
                 |###### happy_path
                 |
                 |1. User enters account information.
                 |2. System creates a regular account.
+                |
+                |##### ALTERNATE FLOW
+                |
+                |###### duplicate_login
+                |
+                |1. User enters a login name that is already registered.
+                |2. System requests a different login name.
                 |
                 |### OPERATION
                 |
@@ -526,18 +660,28 @@ profile: prod
                 |
                 |RegisterResult
                 |""".stripMargin
+
+      When("Kaleidox parses the service use case")
       val model = Model.parse(_config, s)
       val service = model.getServiceModel.flatMap(_.classes.get("User")).getOrElse(fail("Service is missing"))
       val usecase = service.useCases.headOption.getOrElse(fail("Use case is missing"))
 
+      Then("the parsed service use case preserves metadata and flow categories")
       usecase.name should be ("regular_registration")
+      usecase.id should be (Some("UC-REGISTER-001"))
       usecase.summary should be (Some("Create a standard user account."))
       usecase.actor should be (Some("Self-service registration"))
       usecase.primaryActor should be (Some("EndUser"))
       usecase.supportingActor should be (Some("NotificationService"))
       usecase.stakeholder should be (Some("CustomerSupport"))
       usecase.goal should be (Some("Register through the normal self-service path."))
-      usecase.scenarios.map(_.name) should contain ("happy_path")
+      usecase.trigger should be (Some("The user requests an account."))
+      usecase.priority should be (Some("high"))
+      usecase.status should be (Some("approved"))
+      usecase.scenarios.map(x => x.name -> x.kind) should be (Vector(
+        "happy_path" -> "main",
+        "duplicate_login" -> "alternate"
+      ))
       usecase.scenarios.head.steps should contain ("System creates a regular account.")
     }
 
