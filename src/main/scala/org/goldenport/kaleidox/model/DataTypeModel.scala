@@ -8,7 +8,7 @@ import org.smartdox.Table
 import org.goldenport.values.Designation
 import org.goldenport.parser._
 import org.goldenport.collection.VectorMap
-import org.goldenport.record.v2.DataType
+import org.goldenport.record.v2.{CFormat, CMaxLength, CMinLength, CRegex, Constraint, DataType}
 import org.goldenport.record.v3.IRecord
 import org.goldenport.kaleidox.Config
 import org.goldenport.kaleidox.Model
@@ -16,7 +16,7 @@ import org.goldenport.kaleidox.Model
 /*
  * @since   Oct. 12, 2023
  *  version Oct. 22, 2023
- * @version Jul.  9, 2026
+ * @version Jul. 15, 2026
  * @author  ASAMI, Tomoharu
  */
 case class DataTypeModel(
@@ -38,6 +38,14 @@ case class DataTypeModel(
 object DataTypeModel {
   val empty = DataTypeModel()
 
+  private[kaleidox] def constraintRegex(p: String): scala.util.matching.Regex =
+    scala.util.Try {
+      java.util.regex.Pattern.compile(p)
+      p.r
+    }.getOrElse(
+      RAISE.syntaxErrorFault(s"DATATYPE constraint 'pattern' requires a valid regular expression: '$p'.")
+    )
+
   implicit object DataTypeModelMonoid extends Monoid[DataTypeModel] {
     def zero = DataTypeModel.empty
     def append(lhs: DataTypeModel, rhs: => DataTypeModel) = lhs + rhs
@@ -49,7 +57,8 @@ object DataTypeModel {
     case class Plain(
       description: Description,
       datatype: DataType,
-      packageName: String = "domain" // TODO
+      packageName: String = "domain", // TODO
+      constraints: List[Constraint] = Nil
     ) extends DataTypeClass {
     }
 
@@ -117,11 +126,11 @@ object DataTypeModel {
         rows: Vector[AttributeRow]
       ): Option[T] =
         rows match {
-          case Vector(AttributeRow(name, datatype)) if name.equalsIgnoreCase("value") =>
-            Some(Plain(desc, datatype, pkg))
+          case Vector(AttributeRow(name, datatype, constraints)) if name.equalsIgnoreCase("value") =>
+            Some(Plain(desc, datatype, pkg, constraints))
           case xs if xs.nonEmpty =>
             val constitutes = VectorMap(xs.map { row =>
-              row.name -> Plain(Description.name(row.name), row.datatype, pkg)
+              row.name -> Plain(Description.name(row.name), row.datatype, pkg, row.constraints)
             })
             Some(Complex(desc, constitutes, pkg))
           case _ => None
@@ -143,7 +152,11 @@ object DataTypeModel {
         }
       }
 
-      private case class AttributeRow(name: String, datatype: DataType)
+      private case class AttributeRow(
+        name: String,
+        datatype: DataType,
+        constraints: List[Constraint]
+      )
 
       private def _attributes_from_tables(ps: List[Table]): Option[Vector[AttributeRow]] = {
         val rows = ps.toVector.flatMap(_.toVectorMapStringVector)
@@ -174,8 +187,21 @@ object DataTypeModel {
         val datatype = _row_get(row, "type", "datatype").
           flatMap(_scalar_datatype).
           getOrElse(RAISE.syntaxErrorFault(s"DATATYPE attribute '$name' requires a supported scalar type."))
-        AttributeRow(name, datatype)
+        AttributeRow(name, datatype, _constraints(row))
       }
+
+      private def _constraints(row: VectorMap[String, String]): List[Constraint] = {
+        val minlength = _row_get(row, "min-length", "min_length", "minLength").map(x => CMinLength(_int_constraint("min-length", x))).toList
+        val maxlength = _row_get(row, "max-length", "max_length", "maxLength").map(x => CMaxLength(_int_constraint("max-length", x))).toList
+        val pattern = _row_get(row, "pattern", "regex").map(x => CRegex(constraintRegex(x))).toList
+        val format = _row_get(row, "format").map(CFormat.apply).toList
+        minlength ++ maxlength ++ pattern ++ format
+      }
+
+      private def _int_constraint(name: String, p: String): Int =
+        scala.util.Try(p.toInt).getOrElse(
+          RAISE.syntaxErrorFault(s"DATATYPE constraint '$name' requires an integer value: '$p'.")
+        )
 
       private def _scalar_datatype(p: String): Option[DataType] =
         DataType.get(p.trim.toLowerCase(java.util.Locale.ROOT))

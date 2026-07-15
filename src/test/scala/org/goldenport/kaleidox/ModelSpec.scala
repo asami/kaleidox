@@ -6,6 +6,7 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.junit.JUnitRunner
 import org.goldenport.parser.LogicalSection
+import org.goldenport.exception.SyntaxErrorFaultException
 import org.smartdox.Description
 import org.goldenport.sexpr.SScript
 import org.goldenport.kaleidox.Model._
@@ -21,7 +22,7 @@ import org.goldenport.record.v2.{XInt, XString}
  *  version Apr.  5, 2021
  *  version Oct. 23, 2024
  *  version Feb.  8, 2025
- * @version Jul.  9, 2026
+ * @version Jul. 15, 2026
  * @author  ASAMI, Tomoharu
  */
 @RunWith(classOf[JUnitRunner])
@@ -43,7 +44,8 @@ class ModelSpec extends AnyWordSpec with Matchers with GivenWhenThen {
 //     }
   }
   "Division" should {
-    "Division" in {
+    "preserve the standard model divisions" in {
+      Given("a model containing identification, environment, data, and procedure divisions")
       val s = """* Identification
 
 id division
@@ -61,6 +63,8 @@ data division
 ${1 + 2 + 3}
 """
       val model = Model.parseWitoutLocation(config, s)
+
+      When("the expected model is constructed from the same logical sections")
       val target = Model(
         config.withoutLocation,
         IdentificationDivision(section("Identification", "id division")),
@@ -68,6 +72,8 @@ ${1 + 2 + 3}
         DataDivision(section("Data", "data division")),
         Script(SScript("1 + 2 + 3"))
       )
+
+      Then("every parsed division and the complete model match")
       model.divisions(0) should be(target.divisions(0))
       model.divisions(1) should be(target.divisions(1))
       model.divisions(2) should be(target.divisions(2))
@@ -84,9 +90,9 @@ ${1 + 2 + 3}
 
 ### ATTRIBUTE
 
-| name  | type   | multiplicity |
-|-------+--------+--------------|
-| value | string | 1            |
+| name  | type   | multiplicity | min-length | max-length | pattern       | format |
+|-------+--------+--------------+------------+------------+---------------+--------|
+| value | string | 1            | 3          | 80         | ^item.+$      | email  |
 
 ## DisplayPeriod
 
@@ -109,6 +115,10 @@ ${1 + 2 + 3}
           m.name shouldBe "ExhibitionDate"
           m.datatype shouldBe XString
           m.packageName shouldBe "domain"
+          m.constraints.collect { case org.goldenport.record.v2.CMinLength(n) => n } shouldBe List(3)
+          m.constraints.collect { case org.goldenport.record.v2.CMaxLength(n) => n } shouldBe List(80)
+          m.constraints.collect { case org.goldenport.record.v2.CRegex(r) => r.regex } shouldBe List("^item.+$")
+          m.constraints.collect { case org.goldenport.record.v2.CFormat(f) => f } shouldBe List("email")
         case other => fail(s"ExhibitionDate should be plain datatype: $other")
       }
 
@@ -127,6 +137,18 @@ ${1 + 2 + 3}
           }
         case other => fail(s"DisplayPeriod should be complex datatype: $other")
       }
+    }
+
+    "reject an invalid pattern as a CML syntax error" in {
+      Given("an invalid regular expression from a DATATYPE pattern cell")
+
+      When("Kaleidox constructs the canonical constraint")
+      val error = intercept[SyntaxErrorFaultException] {
+        DataTypeModel.constraintRegex("a{2,1}")
+      }
+
+      Then("the invalid expression is reported at the CML syntax boundary")
+      error.getMessage should include("DATATYPE constraint 'pattern' requires a valid regular expression")
     }
   }
 
