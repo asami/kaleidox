@@ -29,7 +29,7 @@ import org.goldenport.util.StringUtils
  *  version Oct.  1, 2022
  *  version Aug. 21, 2023
  *  version May. 24, 2026
- * @version Jul. 16, 2026
+ * @version Jul. 23, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ServiceModel(
@@ -139,6 +139,7 @@ object ServiceModel {
       visibility: Option[String] = None,
       access: Option[OperationModel.AccessDefinition] = None,
       authorization: Option[OperationModel.AuthorizationDefinition] = None,
+      evaluation: Option[OperationModel.EvaluationDefinition] = None,
       rules: Vector[String] = Vector.empty,
       parameters: Vector[OperationModel.FieldDefinition] = Vector.empty
     ) {
@@ -486,6 +487,7 @@ object ServiceModel {
           visibility = _visibility_text(p),
           access = _access_definition(p),
           authorization = _authorization_definition(p),
+          evaluation = _evaluation_definition(p),
           rules = _rule_lines(p),
           parameters = _parameter_fields(p)
         ))
@@ -734,6 +736,81 @@ object ServiceModel {
         }.filter { a =>
           a.operationModes.nonEmpty || a.allowAnonymous.nonEmpty || a.anonymousOperationModes.nonEmpty
         }
+
+      private def _evaluation_definition(
+        p: Section
+      ): Option[OperationModel.EvaluationDefinition] =
+        p.sections.find(s => _key_is(s, "evaluation")).flatMap { s =>
+          val corpus = s.sections.find(x => _key_is(x, "corpus")).map(_corpus_evaluation_definition)
+          val experiment = s.sections.find(x => _key_is(x, "experiment")).map(_experiment_evaluation_definition)
+          if (corpus.isEmpty && experiment.isEmpty)
+            RAISE.syntaxErrorFault(s"Operation '${p.nameForModel}' EVALUATION requires CORPUS or EXPERIMENT.")
+          Some(OperationModel.EvaluationDefinition(corpus, experiment))
+        }
+
+      private def _corpus_evaluation_definition(
+        p: Section
+      ): OperationModel.CorpusEvaluationDefinition = {
+        val kv = _direct_key_values(p).toMap
+        val capture = _required_evaluation_value(kv, "capture", "CORPUS capture")
+        val profile = _logical_evaluation_name(_required_evaluation_value(kv, "profile", "CORPUS profile"), "CORPUS profile")
+        val admission = kv.getOrElse("admission", "optional").trim.toLowerCase(java.util.Locale.ROOT)
+        val outcomes = _string_vector(kv, "outcomes").map(_.toLowerCase(java.util.Locale.ROOT)).distinct
+        _require_evaluation_value("CORPUS capture", capture, Set("candidate"))
+        _require_evaluation_value("CORPUS admission", admission, Set("optional", "required"))
+        outcomes.foreach(x => _require_evaluation_value("CORPUS outcome", x, Set("success", "failure", "timeout", "cancellation")))
+        OperationModel.CorpusEvaluationDefinition(
+          capture,
+          profile,
+          admission,
+          outcomes,
+          kv.get("sampling").map(x => _logical_evaluation_name(x, "CORPUS sampling")),
+          kv.get("redaction").map(x => _logical_evaluation_name(x, "CORPUS redaction"))
+        )
+      }
+
+      private def _experiment_evaluation_definition(
+        p: Section
+      ): OperationModel.ExperimentEvaluationDefinition = {
+        val kv = _direct_key_values(p).toMap
+        val eligible = _boolean(kv, "eligible").getOrElse(RAISE.syntaxErrorFault("EXPERIMENT eligible must be true or false."))
+        val purpose = _logical_evaluation_name(_required_evaluation_value(kv, "purpose", "EXPERIMENT purpose"), "EXPERIMENT purpose")
+        val admission = kv.getOrElse("admission", "optional").trim.toLowerCase(java.util.Locale.ROOT)
+        _require_evaluation_value("EXPERIMENT admission", admission, Set("optional", "required"))
+        OperationModel.ExperimentEvaluationDefinition(
+          eligible,
+          purpose,
+          admission,
+          kv.get("variant-profile").orElse(kv.get("variant_profile")).orElse(kv.get("variantprofile")).map(x => _logical_evaluation_name(x, "EXPERIMENT variant profile"))
+        )
+      }
+
+      private def _required_evaluation_value(
+        kv: Map[String, String],
+        key: String,
+        label: String
+      ): String =
+        kv.get(key).map(_.trim).filterNot(Strings.blankp).getOrElse(
+          RAISE.syntaxErrorFault(s"$label is required.")
+        )
+
+      private def _require_evaluation_value(
+        label: String,
+        value: String,
+        supported: Set[String]
+      ): Unit =
+        if (!supported.contains(value))
+          RAISE.syntaxErrorFault(s"$label must be one of ${supported.toVector.sorted.mkString(", ")}: $value")
+
+      private def _logical_evaluation_name(
+        value: String,
+        label: String
+      ): String = {
+        val text = Option(value).map(_.trim.toLowerCase(java.util.Locale.ROOT)).getOrElse("")
+        if (!"[a-z][a-z0-9._-]{0,127}".r.pattern.matcher(text).matches())
+          RAISE.syntaxErrorFault(s"$label must be a bounded logical name: $value")
+        text
+      }
 
       private def _string_vector(
         kv: Map[String, String],

@@ -18,7 +18,7 @@ import org.goldenport.util.StringUtils
  *  version Mar. 28, 2026
  *  version Apr. 13, 2026
  *  version May.  8, 2026
- * @version Jul. 16, 2026
+ * @version Jul. 23, 2026
  * @author  ASAMI, Tomoharu
  */
 case class OperationModel(
@@ -110,6 +110,7 @@ case class OperationModel(
         visibility = op.visibility,
         access = op.access,
         authorization = op.authorization,
+        evaluation = op.evaluation,
         rules = op.rules,
         parameters = parameters
       )
@@ -225,6 +226,7 @@ object OperationModel {
     visibility: Option[String] = None,
     access: Option[AccessDefinition] = None,
     authorization: Option[AuthorizationDefinition] = None,
+    evaluation: Option[EvaluationDefinition] = None,
     rules: Vector[String] = Vector.empty,
     parameters: Vector[FieldDefinition] = Vector.empty
   )
@@ -233,6 +235,27 @@ object OperationModel {
     operationModes: Vector[String] = Vector.empty,
     allowAnonymous: Option[Boolean] = None,
     anonymousOperationModes: Vector[String] = Vector.empty
+  )
+
+  case class EvaluationDefinition(
+    corpus: Option[CorpusEvaluationDefinition] = None,
+    experiment: Option[ExperimentEvaluationDefinition] = None
+  )
+
+  case class CorpusEvaluationDefinition(
+    capture: String,
+    profile: String,
+    admission: String = "optional",
+    outcomes: Vector[String] = Vector.empty,
+    sampling: Option[String] = None,
+    redaction: Option[String] = None
+  )
+
+  case class ExperimentEvaluationDefinition(
+    eligible: Boolean,
+    purpose: String,
+    admission: String = "optional",
+    variantProfile: Option[String] = None
   )
 
   case class AccessDefinition(
@@ -269,6 +292,7 @@ object OperationModel {
     visibility: Option[String] = None,
     access: Option[AccessDefinition] = None,
     authorization: Option[AuthorizationDefinition] = None,
+    evaluation: Option[EvaluationDefinition] = None,
     rules: Vector[String] = Vector.empty,
     parameters: Vector[FieldDefinition]
   )
@@ -343,6 +367,7 @@ object OperationModel {
     }.filterNot(Strings.blankp)
     val access = _access_definition(p)
     val authorization = _authorization_definition(p)
+    val evaluation = _evaluation_definition(p)
     val entitynames = _entity_names(p)
     val rules = _rule_lines(p)
     val params = p.sections.filter(_.keyForModel == "parameter").toVector.flatMap(_parse_parameter_section)
@@ -366,6 +391,7 @@ object OperationModel {
       visibility = _visibility_text(p),
       access = access,
       authorization = authorization,
+      evaluation = evaluation,
       rules = rules,
       parameters = params
     )
@@ -473,6 +499,79 @@ object OperationModel {
     }.filter { a =>
       a.operationModes.nonEmpty || a.allowAnonymous.nonEmpty || a.anonymousOperationModes.nonEmpty
     }
+
+  private def _evaluation_definition(
+    p: Section
+  ): Option[EvaluationDefinition] =
+    p.sections.find(_.keyForModel == "evaluation").flatMap { s =>
+      val corpus = s.sections.find(_.keyForModel == "corpus").map(_corpus_evaluation_definition)
+      val experiment = s.sections.find(_.keyForModel == "experiment").map(_experiment_evaluation_definition)
+      if (corpus.isEmpty && experiment.isEmpty)
+        _raise(s"Operation '${p.nameForModel}' EVALUATION requires CORPUS or EXPERIMENT.")
+      Some(EvaluationDefinition(corpus, experiment))
+    }
+
+  private def _corpus_evaluation_definition(
+    p: Section
+  ): CorpusEvaluationDefinition = {
+    val kv = _merged_key_values(p).toMap
+    val capture = _required_evaluation_value(kv, "capture", "CORPUS capture")
+    val profile = _logical_evaluation_name(_required_evaluation_value(kv, "profile", "CORPUS profile"), "CORPUS profile")
+    val admission = kv.getOrElse("admission", "optional").trim.toLowerCase(java.util.Locale.ROOT)
+    val outcomes = _string_vector(kv, "outcomes").map(_.toLowerCase(java.util.Locale.ROOT)).distinct
+    _require_evaluation_value("CORPUS capture", capture, Set("candidate"))
+    _require_evaluation_value("CORPUS admission", admission, Set("optional", "required"))
+    outcomes.foreach(x => _require_evaluation_value("CORPUS outcome", x, Set("success", "failure", "timeout", "cancellation")))
+    CorpusEvaluationDefinition(
+      capture,
+      profile,
+      admission,
+      outcomes,
+      kv.get("sampling").map(x => _logical_evaluation_name(x, "CORPUS sampling")),
+      kv.get("redaction").map(x => _logical_evaluation_name(x, "CORPUS redaction"))
+    )
+  }
+
+  private def _experiment_evaluation_definition(
+    p: Section
+  ): ExperimentEvaluationDefinition = {
+    val kv = _merged_key_values(p).toMap
+    val eligible = _boolean(kv, "eligible").getOrElse(_raise("EXPERIMENT eligible must be true or false."))
+    val purpose = _logical_evaluation_name(_required_evaluation_value(kv, "purpose", "EXPERIMENT purpose"), "EXPERIMENT purpose")
+    val admission = kv.getOrElse("admission", "optional").trim.toLowerCase(java.util.Locale.ROOT)
+    _require_evaluation_value("EXPERIMENT admission", admission, Set("optional", "required"))
+    ExperimentEvaluationDefinition(
+      eligible,
+      purpose,
+      admission,
+      kv.get("variant-profile").orElse(kv.get("variant_profile")).orElse(kv.get("variantprofile")).map(x => _logical_evaluation_name(x, "EXPERIMENT variant profile"))
+    )
+  }
+
+  private def _required_evaluation_value(
+    kv: Map[String, String],
+    key: String,
+    label: String
+  ): String =
+    kv.get(key).map(_.trim).filterNot(Strings.blankp).getOrElse(_raise(s"$label is required."))
+
+  private def _require_evaluation_value(
+    label: String,
+    value: String,
+    supported: Set[String]
+  ): Unit =
+    if (!supported.contains(value))
+      _raise(s"$label must be one of ${supported.toVector.sorted.mkString(", ")}: $value")
+
+  private def _logical_evaluation_name(
+    value: String,
+    label: String
+  ): String = {
+    val text = Option(value).map(_.trim.toLowerCase(java.util.Locale.ROOT)).getOrElse("")
+    if (!"[a-z][a-z0-9._-]{0,127}".r.pattern.matcher(text).matches())
+      _raise(s"$label must be a bounded logical name: $value")
+    text
+  }
 
   private def _string_vector(
     kv: Map[String, String],
