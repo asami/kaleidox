@@ -15,7 +15,7 @@ import org.goldenport.parser.LogicalSection
  * @since   Mar. 22, 2026
  *  version Mar. 24, 2026
  *  version Apr.  6, 2026
- * @version Jul. 16, 2026
+ * @version Jul. 31, 2026
  * @author  ASAMI, Tomoharu
  */
 case class ComponentSubsystemModel(
@@ -102,7 +102,8 @@ object ComponentSubsystemModel {
     extensionBindings: Map[String, String] = Map.empty,
     services: Vector[ComponentServiceDefinition] = Vector.empty,
     description: Option[String] = None,
-    useCases: Vector[UseCaseDefinition] = Vector.empty
+    useCases: Vector[UseCaseDefinition] = Vector.empty,
+    componentStyle: Option[String] = None
   ) extends NamedDefinition
 
   final case class ComponentServiceDefinition(
@@ -325,7 +326,8 @@ object ComponentSubsystemModel {
       extensionBindings = extensionbindings,
       services = services,
       description = _value_opt(kv, "description"),
-      useCases = _use_case_definitions(p)
+      useCases = _use_case_definitions(p),
+      componentStyle = _value_opt(kv, "style").map(_.trim).filter(_.nonEmpty)
     )
   }
 
