@@ -44,7 +44,8 @@ import scala.util.Try
  *  version May.  2, 2025
  *  version Mar. 31, 2026
  *  version May.  8, 2026
- * @version Jul. 15, 2026
+ *  version Jul. 15, 2026
+ * @version Aug. 14, 2026
  * @author  ASAMI, Tomoharu
  */
 case class SchemaModel(
@@ -1069,22 +1070,77 @@ object SchemaModel {
             statesection.flatMap { ss =>
               val machinename = p.nameForModel
               val events = _event_names(p)
-              val states = ss.sections.toList.zipWithIndex.map {
-                case (s, i) => _state_from_section(machinename, s, i)
-              }
-              if (states.isEmpty)
+              val (states, composites) = _state_machine_structure(machinename, ss)
+              if (states.isEmpty && composites.isEmpty)
                 None
               else {
-                _validate_state_transitions(machinename, states, events)
+                _validate_state_transitions(machinename, states, composites, events)
                 val rule = StateMachineRule(
                   name = Some(p.nameForModel),
                   kind = StateMachineKind.Resource,
-                  states = states
+                  states = states.toList,
+                  statemachines = composites.toList,
+                  historyFieldName = _history_field_name(p)
                 )
                 Some(StateMachineClass(p.nameForModel, rule, factory.create(rule)))
               }
             }
           }
+
+          private def _state_machine_structure(
+            machinename: String,
+            p: LogicalSection
+          ): (List[StateClass], List[StateMachineRule]) = {
+            val (states, composites, _) = p.sections.toList.foldLeft((List.empty[StateClass], List.empty[StateMachineRule], 0)) {
+              case ((ss, cs, index), s) if _is_composite_state(s) =>
+                val composite = _composite_state_machine(machinename, s, index)
+                (ss, cs :+ composite, index + composite.states.size)
+              case ((ss, cs, index), s) =>
+                (ss :+ _state_from_section(machinename, s, index), cs, index + 1)
+            }
+            states -> composites
+          }
+
+          private def _is_composite_state(p: LogicalSection): Boolean =
+            p.sections.exists(_.keyForModel.equalsIgnoreCase("state"))
+
+          private def _composite_state_machine(
+            machinename: String,
+            p: LogicalSection,
+            startindex: Int
+          ): StateMachineRule = {
+            val nested = p.sections.filter(_.keyForModel.equalsIgnoreCase("state")).toList
+            if (nested.size != 1)
+              RAISE.syntaxErrorFault(s"StateMachine '$machinename' composite '${p.nameForModel}' requires exactly one nested State section.")
+            val leaves = nested.head.sections.toList.zipWithIndex.map {
+              case (leaf, i) =>
+                if (_is_composite_state(leaf))
+                  RAISE.syntaxErrorFault(s"StateMachine '$machinename' composite '${p.nameForModel}' does not support nested composite '${leaf.nameForModel}'.")
+                _state_from_section(machinename, leaf, startindex + i)
+            }
+            if (leaves.isEmpty)
+              RAISE.syntaxErrorFault(s"StateMachine '$machinename' composite '${p.nameForModel}' requires a direct leaf state.")
+            val transitions = p.sections.filter(_.keyForModel.equalsIgnoreCase("transition")).map {
+              _transition_from_section(machinename, p.nameForModel, _)
+            }
+            StateMachineRule(
+              name = Some(p.nameForModel),
+              parentPath = Some(PathName(machinename, ".")),
+              kind = StateMachineKind.Resource,
+              states = leaves,
+              transitions = Transitions.call(transitions)
+            )
+          }
+
+          private def _history_field_name(p: LogicalSection): Option[String] =
+            _key_values(p.text).collectFirst {
+              case (key, value) if key.trim.equalsIgnoreCase("history-field") => value.trim
+            }.map { value =>
+              if (value.isEmpty)
+                RAISE.syntaxErrorFault(s"StateMachine '${p.nameForModel}' HISTORY-FIELD requires an attribute name.")
+              else
+                value
+            }
 
           private def _event_names(p: LogicalSection): Set[String] =
             p.sections.find(_.keyForModel.equalsIgnoreCase("event")).toVector.flatMap(_.sections.map(_.nameForModel.trim)).filterNot(_.isEmpty).toSet
@@ -1154,13 +1210,27 @@ object SchemaModel {
           private def _validate_state_transitions(
             machinename: String,
             states: Seq[StateClass],
+            composites: Seq[StateMachineRule],
             events: Set[String]
           ): Unit = {
-            val statenames = states.map(_.name).toSet
+            val statenames = (states ++ composites.flatMap(_.states)).map(_.name).toSet
+            val compositenames = composites.flatMap(_.name).toSet
             states.foreach { s =>
               s.transitions.call.foreach { t =>
-                _validate_transition_target(machinename, s.name, t, statenames)
+                _validate_transition_target(machinename, s.name, t, statenames, compositenames)
                 _validate_transition_event(machinename, s.name, t, events)
+              }
+            }
+            composites.foreach { composite =>
+              composite.states.foreach { state =>
+                state.transitions.call.foreach { t =>
+                  _validate_transition_target(machinename, state.name, t, statenames, compositenames)
+                  _validate_transition_event(machinename, state.name, t, events)
+                }
+              }
+              composite.transitions.call.foreach { t =>
+                _validate_transition_target(machinename, composite.name.getOrElse(""), t, statenames, compositenames)
+                _validate_transition_event(machinename, composite.name.getOrElse(""), t, events)
               }
             }
           }
@@ -1169,12 +1239,18 @@ object SchemaModel {
             machinename: String,
             statename: String,
             t: Transition,
-            statenames: Set[String]
+            statenames: Set[String],
+            compositenames: Set[String]
           ): Unit =
             t.to match {
               case NameTransitionTo(name) =>
                 if (!statenames.contains(name))
                   RAISE.syntaxErrorFault(s"StateMachine '$machinename' state '$statename' transition target '$name' is not defined.")
+              case NamedHistoryTransitionTo(name) =>
+                if (!compositenames.contains(name))
+                  RAISE.syntaxErrorFault(s"StateMachine '$machinename' state '$statename' history composite '$name' is not defined.")
+              case HistoryTransitionTo() =>
+                RAISE.syntaxErrorFault(s"StateMachine '$machinename' state '$statename' history target must name a composite.")
               case _ =>
             }
 
@@ -1207,13 +1283,25 @@ object SchemaModel {
               case None => EventNameGuard(on)
           }
 
-          private def _transition_to(p: String): TransitionTo =
-            if (p.equalsIgnoreCase(PROP_STATE_FINAL))
+          private def _transition_to(p: String): TransitionTo = {
+            val target = Option(p).map(_.trim).getOrElse("")
+            val lower = target.toLowerCase(java.util.Locale.ROOT)
+            if (target.equalsIgnoreCase(PROP_STATE_FINAL))
               FinalTransitionTo
-            else if (p.equalsIgnoreCase(PROP_STATE_HISTORY))
-              HistoryTransitionTo()
+            else if (target.equalsIgnoreCase(PROP_STATE_HISTORY))
+              RAISE.syntaxErrorFault("CML history target must name a composite, for example Review.HISTORY.")
+            else if (lower.endsWith(".deep_history"))
+              RAISE.syntaxErrorFault(s"CML deep history target '$target' is not supported.")
+            else if (lower.endsWith(".history")) {
+              val name = target.substring(0, target.length - ".history".length).trim
+              if (name.isEmpty)
+                RAISE.syntaxErrorFault("CML history target must name a composite, for example Review.HISTORY.")
+              else
+                NamedHistoryTransitionTo(name)
+            }
             else
-              NameTransitionTo(p)
+              NameTransitionTo(target)
+          }
 
           private def _activity_from_actions(actions: Seq[String]): Activity =
             actions.toList match {
@@ -1966,22 +2054,77 @@ object SchemaModel {
             statesection.flatMap { ss =>
               val machinename = p.nameForModel
               val events = _event_names(p)
-              val states = ss.sections.zipWithIndex.map {
-                case (s, i) => _state_from_section(machinename, s, i)
-              }
-              if (states.isEmpty)
+              val (states, composites) = _state_machine_structure(machinename, ss)
+              if (states.isEmpty && composites.isEmpty)
                 None
               else {
-                _validate_state_transitions(machinename, states, events)
+                _validate_state_transitions(machinename, states, composites, events)
                 val rule = StateMachineRule(
                   name = Some(p.nameForModel),
                   kind = StateMachineKind.Resource,
-                  states = states
+                  states = states.toList,
+                  statemachines = composites.toList,
+                  historyFieldName = _history_field_name(p)
                 )
                 Some(StateMachineClass(p.nameForModel, rule, factory.create(rule)))
               }
             }
           }
+
+          private def _state_machine_structure(
+            machinename: String,
+            p: Section
+          ): (Seq[StateClass], Seq[StateMachineRule]) = {
+            val (states, composites, _) = p.sections.foldLeft((Vector.empty[StateClass], Vector.empty[StateMachineRule], 0)) {
+              case ((ss, cs, index), s) if _is_composite_state(s) =>
+                val composite = _composite_state_machine(machinename, s, index)
+                (ss, cs :+ composite, index + composite.states.size)
+              case ((ss, cs, index), s) =>
+                (ss :+ _state_from_section(machinename, s, index), cs, index + 1)
+            }
+            states -> composites
+          }
+
+          private def _is_composite_state(p: Section): Boolean =
+            p.sections.exists(_.keyForModel.equalsIgnoreCase("state"))
+
+          private def _composite_state_machine(
+            machinename: String,
+            p: Section,
+            startindex: Int
+          ): StateMachineRule = {
+            val nested = p.sections.filter(_.keyForModel.equalsIgnoreCase("state")).toList
+            if (nested.size != 1)
+              RAISE.syntaxErrorFault(s"StateMachine '$machinename' composite '${p.nameForModel}' requires exactly one nested State section.")
+            val leaves = nested.head.sections.zipWithIndex.map {
+              case (leaf, i) =>
+                if (_is_composite_state(leaf))
+                  RAISE.syntaxErrorFault(s"StateMachine '$machinename' composite '${p.nameForModel}' does not support nested composite '${leaf.nameForModel}'.")
+                _state_from_section(machinename, leaf, startindex + i)
+            }
+            if (leaves.isEmpty)
+              RAISE.syntaxErrorFault(s"StateMachine '$machinename' composite '${p.nameForModel}' requires a direct leaf state.")
+            val transitions = p.sections.filter(_.keyForModel.equalsIgnoreCase("transition")).map {
+              _transition_from_section(machinename, p.nameForModel, _)
+            }
+            StateMachineRule(
+              name = Some(p.nameForModel),
+              parentPath = Some(PathName(machinename, ".")),
+              kind = StateMachineKind.Resource,
+              states = leaves.toList,
+              transitions = Transitions.call(transitions.toVector)
+            )
+          }
+
+          private def _history_field_name(p: Section): Option[String] =
+            _key_values(p.toText).collectFirst {
+              case (key, value) if key.trim.equalsIgnoreCase("history-field") => value.trim
+            }.map { value =>
+              if (value.isEmpty)
+                RAISE.syntaxErrorFault(s"StateMachine '${p.nameForModel}' HISTORY-FIELD requires an attribute name.")
+              else
+                value
+            }
 
           private def _event_names(p: Section): Set[String] =
             p.sections.find(_.keyForModel.equalsIgnoreCase("event")).toVector.flatMap(_.sections.map(_.nameForModel.trim)).filterNot(_.isEmpty).toSet
@@ -2051,13 +2194,27 @@ object SchemaModel {
           private def _validate_state_transitions(
             machinename: String,
             states: Seq[StateClass],
+            composites: Seq[StateMachineRule],
             events: Set[String]
           ): Unit = {
-            val statenames = states.map(_.name).toSet
+            val statenames = (states ++ composites.flatMap(_.states)).map(_.name).toSet
+            val compositenames = composites.flatMap(_.name).toSet
             states.foreach { s =>
               s.transitions.call.foreach { t =>
-                _validate_transition_target(machinename, s.name, t, statenames)
+                _validate_transition_target(machinename, s.name, t, statenames, compositenames)
                 _validate_transition_event(machinename, s.name, t, events)
+              }
+            }
+            composites.foreach { composite =>
+              composite.states.foreach { state =>
+                state.transitions.call.foreach { t =>
+                  _validate_transition_target(machinename, state.name, t, statenames, compositenames)
+                  _validate_transition_event(machinename, state.name, t, events)
+                }
+              }
+              composite.transitions.call.foreach { t =>
+                _validate_transition_target(machinename, composite.name.getOrElse(""), t, statenames, compositenames)
+                _validate_transition_event(machinename, composite.name.getOrElse(""), t, events)
               }
             }
           }
@@ -2066,12 +2223,18 @@ object SchemaModel {
             machinename: String,
             statename: String,
             t: Transition,
-            statenames: Set[String]
+            statenames: Set[String],
+            compositenames: Set[String]
           ): Unit =
             t.to match {
               case NameTransitionTo(name) =>
                 if (!statenames.contains(name))
                   RAISE.syntaxErrorFault(s"StateMachine '$machinename' state '$statename' transition target '$name' is not defined.")
+              case NamedHistoryTransitionTo(name) =>
+                if (!compositenames.contains(name))
+                  RAISE.syntaxErrorFault(s"StateMachine '$machinename' state '$statename' history composite '$name' is not defined.")
+              case HistoryTransitionTo() =>
+                RAISE.syntaxErrorFault(s"StateMachine '$machinename' state '$statename' history target must name a composite.")
               case _ =>
             }
 
@@ -2104,13 +2267,25 @@ object SchemaModel {
               case None => EventNameGuard(on)
             }
 
-          private def _transition_to(p: String): TransitionTo =
-            if (p.equalsIgnoreCase(PROP_STATE_FINAL))
+          private def _transition_to(p: String): TransitionTo = {
+            val target = Option(p).map(_.trim).getOrElse("")
+            val lower = target.toLowerCase(java.util.Locale.ROOT)
+            if (target.equalsIgnoreCase(PROP_STATE_FINAL))
               FinalTransitionTo
-            else if (p.equalsIgnoreCase(PROP_STATE_HISTORY))
-              HistoryTransitionTo()
+            else if (target.equalsIgnoreCase(PROP_STATE_HISTORY))
+              RAISE.syntaxErrorFault("CML history target must name a composite, for example Review.HISTORY.")
+            else if (lower.endsWith(".deep_history"))
+              RAISE.syntaxErrorFault(s"CML deep history target '$target' is not supported.")
+            else if (lower.endsWith(".history")) {
+              val name = target.substring(0, target.length - ".history".length).trim
+              if (name.isEmpty)
+                RAISE.syntaxErrorFault("CML history target must name a composite, for example Review.HISTORY.")
+              else
+                NamedHistoryTransitionTo(name)
+            }
             else
-              NameTransitionTo(p)
+              NameTransitionTo(target)
+          }
 
           private def _activity_from_actions(actions: Seq[String]): Activity =
             actions.toList match {
