@@ -2,7 +2,7 @@ organization := "org.goldenport"
 
 name := "kaleidox"
 
-version := "0.6.19-SNAPSHOT"
+version := "0.6.19"
 
 scalaVersion := "2.12.18"
 // crossScalaVersions := Seq("2.10.39.2", "2.9.1")
@@ -13,7 +13,7 @@ scalacOptions += "-unchecked"
 
 scalacOptions += "-feature"
 
-javacOptions ++= Seq("--release", "21")
+javacOptions ++= Seq("--release", "17")
 
 // scalaz-stream
 // resolvers += "Scalaz Bintray Repo" at "http://dl.bintray.com/scalaz/releases"
@@ -42,7 +42,7 @@ resolvers += "SimpleModeling.org" at "https://www.simplemodeling.org/repository/
 
 resolvers += "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository"
 
-libraryDependencies += "org.goldenport" %% "goldenport-scala-lib" % "2.3.31-SNAPSHOT"
+libraryDependencies += "org.goldenport" %% "goldenport-scala-lib" % "2.3.31"
 
 libraryDependencies += "org.goldenport" %% "goldenport-record" % "2.2.5"
 
