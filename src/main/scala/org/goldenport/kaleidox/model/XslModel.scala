@@ -4,7 +4,7 @@ import scalaz._, Scalaz._
 import org.smartdox.Description
 import org.goldenport.RAISE
 import org.goldenport.parser.LogicalSection
-import org.goldenport.collection.TreeMap
+import org.goldenport.collection.PathMap
 import org.goldenport.sexpr.SXsl
 import org.goldenport.kaleidox._
 
@@ -12,11 +12,12 @@ import org.goldenport.kaleidox._
  * @since   Jun. 25, 2021
  *  version Jun. 26, 2021
  *  version Aug. 21, 2023
- * @version Oct. 15, 2023
+ *  version Oct. 15, 2023
+ * @version Sep. 30, 2026
  * @author  ASAMI, Tomoharu
  */
 case class XslModel(
-  classes: TreeMap[XslModel.XslClass],
+  classes: PathMap[XslModel.XslClass],
   description: Description = Description.name("xsl")
 ) extends Model.ISubModel {
   protected def print_String: String = classes.values.map(x => x.name).mkString(",")
@@ -32,7 +33,7 @@ case class XslModel(
 }
 
 object XslModel {
-  val empty = XslModel(TreeMap.empty[XslClass])
+  val empty = XslModel(PathMap.empty[XslClass])
 
   implicit object XslModelMonoid extends Monoid[XslModel] {
     def zero = XslModel.empty
@@ -47,7 +48,7 @@ object XslModel {
   object XslClass {
   }
 
-  def apply(p: XslClass): XslModel = XslModel(TreeMap.create(".", Vector(p.name -> p)))
+  def apply(p: XslClass): XslModel = XslModel(PathMap.create(".", Vector(p.name -> p)))
 
   def create(config: Config, p: LogicalSection): XslModel =
     Builder(config).build(p)
@@ -57,7 +58,7 @@ object XslModel {
 
     protected def class_Name(p: XslClass): String = p.name
 
-    protected def to_Model(p: TreeMap[XslClass]): XslModel = XslModel(p)
+    protected def to_Model(p: PathMap[XslClass]): XslModel = XslModel(p)
 
     protected def parse_Flat(p: String): Option[XslClass] = RAISE.notImplementedYetDefect
 

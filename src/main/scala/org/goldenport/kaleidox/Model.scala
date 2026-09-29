@@ -19,7 +19,7 @@ import org.goldenport.sexpr.{SExpr, SAtom, SKeyword, SList}
 import org.goldenport.sexpr.IModel
 import org.goldenport.exception.SyntaxErrorFaultException
 import org.goldenport.i18n.I18NElement
-import org.goldenport.collection.TreeMap
+import org.goldenport.collection.PathMap
 import org.goldenport.parser._
 import org.goldenport.hocon.{RichConfig, HoconUtils}
 import org.goldenport.bag.BufferBag
@@ -73,7 +73,8 @@ import org.goldenport.kaleidox.model.analysis.AnalysisModel
  *  version Nov. 22, 2024
  *  version May.  2, 2025
  *  version May.  3, 2026
- * @version Jul. 16, 2026
+ *  version Jul. 16, 2026
+ * @version Sep. 30, 2026
  * @author  ASAMI, Tomoharu
  */
 case class Model(
@@ -265,7 +266,7 @@ case class Model(
 
   def stateMachineModel: StateMachineModel = getStateMachineModel.orZero
 
-  def takeStateMachineClasses: TreeMap[StateMachineClass] =
+  def takeStateMachineClasses: PathMap[StateMachineClass] =
     getStateMachineModel.orZero.classes
 
   def getDataSet: Option[DataSet] = {

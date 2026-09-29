@@ -3,7 +3,7 @@ package org.goldenport.kaleidox.model
 import scalaz._, Scalaz._
 import org.smartdox.Description
 import org.goldenport.parser.LogicalSection
-import org.goldenport.collection.TreeMap
+import org.goldenport.collection.PathMap
 import org.goldenport.event._
 import org.goldenport.RAISE
 import org.goldenport.kaleidox._
@@ -17,7 +17,8 @@ import org.goldenport.kaleidox._
  *  version Oct. 15, 2023
  *  version Jul. 12, 2024
  *  version Dec. 28, 2024
- * @version Mar. 24, 2026
+ *  version Mar. 24, 2026
+ * @version Sep. 30, 2026
  * @author  ASAMI, Tomoharu
  */
 case class EventModel(
@@ -93,7 +94,7 @@ object EventModel {
 
     protected def class_Name(p: EventClazz): String = p.name
 
-    protected def to_Model(p: TreeMap[EventClazz]): EventModel = EventModel(EventRule(p))
+    protected def to_Model(p: PathMap[EventClazz]): EventModel = EventModel(EventRule(p))
 
     protected def parse_Flat(p: String): Option[EventRule] = EventRule.parse(p).toOption
 

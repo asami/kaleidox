@@ -3,7 +3,7 @@ package org.goldenport.kaleidox.model
 import scalaz.{State => _, _}, Scalaz._
 import org.smartdox.Description
 import org.goldenport.parser.LogicalSection
-import org.goldenport.collection.TreeMap
+import org.goldenport.collection.PathMap
 import org.goldenport.context.Consequence
 import org.goldenport.sm._
 import org.goldenport.kaleidox._
@@ -14,11 +14,12 @@ import org.goldenport.kaleidox._
  *  version Jun. 27, 2021
  *  version Aug. 21, 2023
  *  version Oct. 15, 2023
- * @version Apr. 12, 2026
+ *  version Apr. 12, 2026
+ * @version Sep. 30, 2026
  * @author  ASAMI, Tomoharu
  */
 case class StateMachineModel(
-  classes: TreeMap[StateMachineClass] = TreeMap.empty,
+  classes: PathMap[StateMachineClass] = PathMap.empty,
   description: Description = Description.name("stateMachine")
 ) extends Model.ISubModel {
   protected def display_String: String = classes.values.map(x => x.name).mkString(",")
@@ -46,7 +47,7 @@ object StateMachineModel {
   val empty = StateMachineModel()
 
   def apply(p: StateMachineClass): StateMachineModel =
-    StateMachineModel(TreeMap.create(p.name -> p))
+    StateMachineModel(PathMap.create(p.name -> p))
 
   def create(config: Config, p: LogicalSection): StateMachineModel =
     Builder(config).build(p)
@@ -98,7 +99,7 @@ object StateMachineModel {
     }
 
     private def _to_model(ps: Seq[StateMachineClass]) = {
-      val builder = TreeMap.Builder[StateMachineClass](".")
+      val builder = PathMap.Builder[StateMachineClass](".")
       val a = ps.foldLeft(builder)((z, x) => z.add(x.name, x)).build
       StateMachineModel(a)
     }

@@ -2,14 +2,15 @@ package org.goldenport.kaleidox.model
 
 import scalaz._, Scalaz._
 import org.goldenport.parser.LogicalSection
-import org.goldenport.collection.TreeMap
+import org.goldenport.collection.PathMap
 import org.goldenport.event._
 import org.goldenport.kaleidox._
 
 /*
  * @since   May. 22, 2021
  *  version May. 23, 2021
- * @version Apr. 12, 2026
+ *  version Apr. 12, 2026
+ * @version Sep. 30, 2026
  * @author  ASAMI, Tomoharu
  */
 trait BuilderBase[M, R, C] {
@@ -34,14 +35,14 @@ trait BuilderBase[M, R, C] {
   }
 
   private def _to_model(ps: Seq[C]) = {
-    val builder = TreeMap.Builder[C](".")
+    val builder = PathMap.Builder[C](".")
     val a = ps.foldLeft(builder)((z, x) => z.add(class_Name(x), x)).build
     to_Model(a)
   }
 
   protected def class_Name(p: C): String
 
-  protected def to_Model(p: TreeMap[C]): M
+  protected def to_Model(p: PathMap[C]): M
 
   private def _create_flat(p: LogicalSection): Option[R] = {
     val s = p.text
