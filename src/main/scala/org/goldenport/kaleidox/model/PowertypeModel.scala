@@ -1,7 +1,7 @@
 package org.goldenport.kaleidox.model
 
 import scalaz._, Scalaz._
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{Config => Hocon, ConfigFactory}
 import org.goldenport.RAISE
 import org.smartdox.{Dox, Section}
 import org.smartdox.Description
@@ -10,14 +10,15 @@ import org.goldenport.hocon.RichConfig.Implicits._
 import org.goldenport.parser._
 import org.goldenport.collection.VectorMap
 import org.goldenport.record.v3.IRecord
-import org.goldenport.kaleidox.Config
+import org.goldenport.kaleidox.{CmlSectionFormat, Config}
 import org.goldenport.kaleidox.Model
 
 /*
  * @since   Oct. 12, 2023
  *  version Mar. 24, 2026
  *  version Apr.  3, 2026
- * @version May. 24, 2026
+ *  version May. 24, 2026
+ * @version Oct. 19, 2026
  * @author  ASAMI, Tomoharu
  */
 case class PowertypeModel(
@@ -49,6 +50,7 @@ object PowertypeModel {
     packageName: String = "domain", // TODO
     kinds: Vector[PowertypeKind] = Vector.empty
   ) extends Description.Holder {
+    PowertypeClass._validate_codes(description.name, kinds)
   }
   case class PowertypeKind(
     name: String,
@@ -56,6 +58,16 @@ object PowertypeModel {
     label: Option[String] = None
   )
   object PowertypeClass {
+    private def _validate_codes(typename: String, kinds: Vector[PowertypeKind]): Unit = {
+      val duplicates = kinds.flatMap(kind => kind.value.map(_ -> kind.name)).
+        groupBy(_._1).values.find(_.size > 1)
+      duplicates.foreach { entries =>
+        val code = entries.head._1
+        val names = entries.map(_._2).mkString("', '")
+        RAISE.syntaxErrorFault(s"POWERTYPE '$typename' kinds '$names' have duplicate explicit value '$code'.")
+      }
+    }
+
     def createOption(config: Config, p: LogicalSection): Option[PowertypeClass] =
       Builder(config).createOption(p)
 
@@ -67,8 +79,14 @@ object PowertypeModel {
       protected def is_Accept(p: LogicalSection): Boolean = true
 
       protected override def create_model_flat(p: LogicalSection): T =
-        _kinds_from_text_table(p.text).map { kinds =>
+        _kinds_from_text_table(p.nameForModel, p.text).map { kinds =>
           PowertypeClass(dox_description_name(p), _package_from_text(p.text), kinds)
+        }.orElse {
+          scala.util.Try(ConfigFactory.parseString(p.text)).toOption.
+            filter(hocon => hocon.hasPathOrNull("kinds") || hocon.hasPathOrNull("kind")).
+            map { hocon =>
+              PowertypeClass(dox_description_name(p), _package_from_text(p.text), _kinds_from_config(p.nameForModel, hocon))
+            }
         }.getOrElse(super.create_model_flat(p))
 
       protected def create_Model(
@@ -83,8 +101,8 @@ object PowertypeModel {
           map(_.trim).
           filterNot(_.isEmpty).
           getOrElse("domain")
-        val kinds = ps.filterNot(x => _narrative_keys.contains(x.keyForModel.toLowerCase)).zipWithIndex.map {
-          case (s, i) => _kind(s, i)
+        val kinds = ps.filterNot(x => _narrative_keys.contains(x.keyForModel.toLowerCase)).map { s =>
+          _kind(p.nameForModel, s)
         }
         PowertypeClass(desc, pkg, kinds)
       }
@@ -109,30 +127,53 @@ object PowertypeModel {
         tables: List[Table]
       ): T = {
         val pkg = _package_from_text(p.text)
-        val kinds = _kinds_from_tables(tables).
-          orElse(_kinds_from_text_table(p.text)).
+        val kinds = _kinds_from_tables(p.nameForModel, tables).
+          orElse(_kinds_from_text_table(p.nameForModel, p.text)).
           getOrElse(_kinds(p))
         PowertypeClass(desc, pkg, kinds)
       }
 
       private def _kinds(p: LogicalSection): Vector[PowertypeKind] = {
-        _kinds_from_text_table(p.text).getOrElse {
-          val hocon = ConfigFactory.parseString(p.text)
-          val configs = hocon.takeConfigList("kinds") ::: hocon.takeConfigList("kind")
-          configs.toVector.zipWithIndex.map { case (c, i) =>
-            val name = c.getString("name")
-            val value = if (c.hasPath("value")) Some(c.getInt("value")) else Some(i + 1)
-            val label = if (c.hasPath("label")) Some(c.getString("label").trim).filterNot(_.isEmpty) else None
-            PowertypeKind(name, value, label)
-          }
+        _kinds_from_text_table(p.nameForModel, p.text).getOrElse {
+          _kinds_from_config(p.nameForModel, ConfigFactory.parseString(p.text))
         }
       }
 
-      private def _kind(p: LogicalSection, index: Int): PowertypeKind = {
+      private def _kinds_from_config(typename: String, hocon: Hocon): Vector[PowertypeKind] = {
+        val configs = Vector("kinds", "kind").filter(hocon.hasPath).
+          flatMap(key => hocon.takeConfigList(key))
+        configs.map { c =>
+          val name = c.getString("name")
+          val value = _code_from_config(typename, name, c)
+          val label = if (c.hasPath("label")) Some(c.getString("label").trim).filterNot(_.isEmpty) else None
+          PowertypeKind(name, value, label)
+        }
+      }
+
+      private def _kind(typename: String, p: LogicalSection): PowertypeKind = {
         val props = dox_properties(p)
-        val value = props.getString("value").flatMap(x => scala.util.Try(x.trim.toInt).toOption).orElse(Some(index + 1))
+        val value = _code_from_config(typename, p.nameForModel, CmlSectionFormat.parseConfig(p.text))
         val label = props.getString("label").map(_.trim).filterNot(_.isEmpty)
         PowertypeKind(p.nameForModel, value, label)
+      }
+
+      private def _code_from_config(typename: String, kindname: String, config: Hocon): Option[Int] =
+        if (config.hasPathOrNull("value")) {
+          val text = if (config.getIsNull("value")) "null" else String.valueOf(config.getValue("value").unwrapped())
+          Some(_parse_code(typename, kindname, text))
+        } else
+          None
+
+      private def _parse_code(typename: String, kindname: String, text: String): Int = {
+        val value = text.trim
+        if (!value.matches("[+-]?[0-9]+"))
+          RAISE.syntaxErrorFault(s"POWERTYPE '$typename' kind '$kindname' requires an explicit base-10 Int value: '$text'.")
+        try {
+          value.toInt
+        } catch {
+          case _: NumberFormatException =>
+            RAISE.syntaxErrorFault(s"POWERTYPE '$typename' kind '$kindname' value is outside the Int range: '$text'.")
+        }
       }
 
       private def _package_from_text(text: String): String =
@@ -146,17 +187,15 @@ object PowertypeModel {
       private def _without_table_text(text: String): String =
         text.linesIterator.filterNot(x => _is_table_line(x.trim)).mkString("\n")
 
-      private def _kinds_from_tables(ps: List[Table]): Option[Vector[PowertypeKind]] = {
+      private def _kinds_from_tables(typename: String, ps: List[Table]): Option[Vector[PowertypeKind]] = {
         val rows = ps.toVector.flatMap(_.toVectorMapStringVector)
         if (rows.isEmpty)
           None
         else
-          Some(rows.zipWithIndex.map {
-            case (row, index) => _kind_from_table(row, index)
-          })
+          Some(rows.map(row => _kind_from_table(typename, row)))
       }
 
-      private def _kinds_from_text_table(text: String): Option[Vector[PowertypeKind]] = {
+      private def _kinds_from_text_table(typename: String, text: String): Option[Vector[PowertypeKind]] = {
         val rows = text.linesIterator.toVector.
           map(_.trim).
           filter(_is_table_line).
@@ -167,9 +206,7 @@ object PowertypeModel {
           if (body.isEmpty)
             None
           else
-            Some(body.zipWithIndex.map {
-              case (row, index) => _kind_from_table(_to_row_map(header, row), index)
-            })
+            Some(body.map(row => _kind_from_table(typename, _to_row_map(header, row))))
         }
       }
 
@@ -180,7 +217,7 @@ object PowertypeModel {
         line.startsWith("|") && line.endsWith("|")
 
       private def _is_separator_row(row: Vector[String]): Boolean =
-        row.nonEmpty && row.forall(_.matches("[-: ]+"))
+        row.nonEmpty && row.forall(_.matches("[-+: ]+"))
 
       private def _to_row_map(
         header: Vector[String],
@@ -191,12 +228,12 @@ object PowertypeModel {
         })
 
       private def _kind_from_table(
-        row: VectorMap[String, String],
-        index: Int
+        typename: String,
+        row: VectorMap[String, String]
       ): PowertypeKind = {
         val name = _row_get(row, "name").
-          getOrElse(RAISE.syntaxErrorFault("POWERTYPE kind table row requires name."))
-        val value = _row_get(row, "value").flatMap(x => scala.util.Try(x.toInt).toOption).orElse(Some(index + 1))
+          getOrElse(RAISE.syntaxErrorFault(s"POWERTYPE '$typename' kind table row requires name."))
+        val value = _row_get(row, "value").map(_parse_code(typename, name, _))
         val label = _row_get(row, "label")
         PowertypeKind(name, value, label)
       }
